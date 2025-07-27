@@ -13,12 +13,12 @@
 //! ## Quick Start
 //!
 /// ```rust,no_run
-/// use scim_server::{DynamicScimServer, DynamicResourceProvider, Resource, RequestContext, ScimOperation};
-/// use async_trait::async_trait;
+/// use scim_server::{ScimServer, ResourceProvider, Resource, RequestContext, ScimOperation, ListQuery};
 /// use std::collections::HashMap;
 /// use tokio::sync::RwLock;
 /// use std::sync::Arc;
 /// use serde_json::Value;
+/// use std::future::Future;
 ///
 /// struct MyResourceProvider {
 ///     resources: Arc<RwLock<HashMap<String, Resource>>>,
@@ -36,36 +36,35 @@
 /// #[error("Provider error")]
 /// struct MyError;
 ///
-/// #[async_trait]
-/// impl DynamicResourceProvider for MyResourceProvider {
+/// impl ResourceProvider for MyResourceProvider {
 ///     type Error = MyError;
 ///
-///     async fn create_resource(&self, resource_type: &str, data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
-///         Ok(Resource::new(resource_type.to_string(), data))
+///     fn create_resource(&self, resource_type: &str, data: Value, _context: &RequestContext) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+///         async move { Ok(Resource::new(resource_type.to_string(), data)) }
 ///     }
 ///
-///     async fn get_resource(&self, resource_type: &str, _id: &str, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-///         Ok(None)
+///     fn get_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+///         async move { Ok(None) }
 ///     }
 ///
-///     async fn update_resource(&self, resource_type: &str, _id: &str, data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
-///         Ok(Resource::new(resource_type.to_string(), data))
+///     fn update_resource(&self, resource_type: &str, _id: &str, data: Value, _context: &RequestContext) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+///         async move { Ok(Resource::new(resource_type.to_string(), data)) }
 ///     }
 ///
-///     async fn delete_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<(), Self::Error> {
-///         Ok(())
+///     fn delete_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> impl Future<Output = Result<(), Self::Error>> + Send {
+///         async move { Ok(()) }
 ///     }
 ///
-///     async fn list_resources(&self, _resource_type: &str, _context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
-///         Ok(vec![])
+///     fn list_resources(&self, _resource_type: &str, _query: Option<&ListQuery>, _context: &RequestContext) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+///         async move { Ok(vec![]) }
 ///     }
 ///
-///     async fn find_resource_by_attribute(&self, _resource_type: &str, _attribute: &str, _value: &Value, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-///         Ok(None)
+///     fn find_resource_by_attribute(&self, _resource_type: &str, _attribute: &str, _value: &Value, _context: &RequestContext) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+///         async move { Ok(None) }
 ///     }
 ///
-///     async fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<bool, Self::Error> {
-///         Ok(false)
+///     fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> impl Future<Output = Result<bool, Self::Error>> + Send {
+///         async move { Ok(false) }
 ///     }
 /// }
 ///
@@ -75,7 +74,7 @@
 ///     let provider = MyResourceProvider::new();
 ///
 ///     // Create dynamic SCIM server
-///     let mut server = DynamicScimServer::new(provider)?;
+///     let mut server = ScimServer::new(provider)?;
 ///
 ///     // Register resource types with their operations
 ///     let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User").unwrap().clone();
@@ -97,14 +96,14 @@ pub mod server;
 pub mod user_handler;
 
 // Core re-exports for library users
-pub use dynamic_server::DynamicScimServer;
+pub use dynamic_server::ScimServer;
 pub use error::{BuildError, ScimError, ValidationError};
 pub use resource::{
-    DatabaseMapper, DynamicResource, DynamicResourceProvider, ListQuery, RequestContext, Resource,
+    DatabaseMapper, DynamicResource, ListQuery, RequestContext, Resource, ResourceProvider,
     SchemaResourceBuilder, ScimOperation,
 };
 pub use schema::{
     AttributeDefinition, AttributeType, Mutability, Schema, SchemaRegistry, Uniqueness,
 };
-pub use server::{ScimServer, ServiceProviderConfig};
+pub use server::{ScimServer as TypeSafeScimServer, ServiceProviderConfig};
 pub use user_handler::{create_group_resource_handler, create_user_resource_handler};

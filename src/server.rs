@@ -33,18 +33,18 @@ pub struct Ready;
 ///
 /// # Example
 /// ```rust,no_run
-/// use scim_server::ScimServer;
+/// use scim_server::TypeSafeScimServer;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Create a basic SCIM server for schema discovery
-///     let server = ScimServer::new()?;
+///     // Create a basic type-safe SCIM server for schema discovery
+///     let server = TypeSafeScimServer::new()?;
 ///
 ///     // Get available schemas
 ///     let schemas = server.get_schemas().await?;
 ///     println!("Available schemas: {}", schemas.len());
 ///
-///     // For dynamic resource operations, use DynamicScimServer instead
+///     // For dynamic resource operations, use ScimServer instead
 ///     Ok(())
 /// }
 /// ```

@@ -1,9 +1,5 @@
 # SCIM Server Library for Rust
 
-[![Crates.io](https://img.shields.io/crates/v/scim-server.svg)](https://crates.io/crates/scim-server)
-[![Documentation](https://docs.rs/scim-server/badge.svg)](https://docs.rs/scim-server)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
 A **dynamic, schema-driven SCIM server library** for Rust that enables developers to build SCIM-compliant identity providers with zero hard-coding. Built on the IETF SCIM standards (RFC 7643/7644), this library provides a completely flexible approach to identity management where any resource type can be supported through runtime registration.
 
 ## ✨ Key Features
@@ -81,12 +77,12 @@ impl DynamicResourceProvider for MyProvider {
     ) -> Result<Resource, Self::Error> {
         let resource = Resource::new(resource_type.to_string(), data);
         let id = resource.get_id().unwrap_or_default().to_string();
-        
+
         let mut resources = self.resources.lock().unwrap();
         resources.entry(resource_type.to_string())
             .or_insert_with(HashMap::new)
             .insert(id, resource.clone());
-        
+
         Ok(resource)
     }
 

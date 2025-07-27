@@ -5,23 +5,23 @@
 //! and enabling true schema-driven operations.
 
 use crate::error::{ScimError, ScimResult};
-use crate::resource::{
-    DynamicResourceProvider, RequestContext, Resource, ResourceHandler, ScimOperation,
-};
+#[cfg(test)]
+use crate::resource::ListQuery;
+use crate::resource::{RequestContext, Resource, ResourceHandler, ResourceProvider, ScimOperation};
 use crate::schema::{Schema, SchemaRegistry};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Completely dynamic SCIM server with no hard-coded resource types
-pub struct DynamicScimServer<P> {
+pub struct ScimServer<P> {
     provider: P,
     schema_registry: SchemaRegistry,
     resource_handlers: HashMap<String, Arc<ResourceHandler>>, // resource_type -> handler
     supported_operations: HashMap<String, Vec<ScimOperation>>, // resource_type -> supported ops
 }
 
-impl<P: DynamicResourceProvider> DynamicScimServer<P> {
-    /// Create a new dynamic SCIM server
+impl<P: ResourceProvider> ScimServer<P> {
+    /// Create a new SCIM server
     pub fn new(provider: P) -> Result<Self, ScimError> {
         let schema_registry = SchemaRegistry::new()
             .map_err(|e| ScimError::internal(format!("Failed to create schema registry: {}", e)))?;
@@ -133,7 +133,7 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
             .map_err(|e| ScimError::ProviderError(e.to_string()))
     }
 
-    /// Generic list operation
+    /// Generic list operation for any resource type
     pub async fn list_resources(
         &self,
         resource_type: &str,
@@ -143,9 +143,9 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         self.ensure_operation_supported(resource_type, &ScimOperation::List)?;
 
         self.provider
-            .list_resources(resource_type, context)
+            .list_resources(resource_type, None, context)
             .await
-            .map_err(|e| ScimError::ProviderError(e.to_string()))
+            .map_err(|e| ScimError::internal(format!("Provider error: {}", e)))
     }
 
     /// Generic search by attribute (replaces find_user_by_username)
@@ -246,143 +246,178 @@ mod tests {
     use super::*;
     use crate::resource::SchemaResourceBuilder;
     use crate::schema::{AttributeDefinition, AttributeType, Mutability, Schema, Uniqueness};
-    use async_trait::async_trait;
+
     use serde_json::{Value, json};
     use std::collections::HashMap;
+    use std::future::Future;
     use std::sync::Mutex;
 
     #[derive(Debug, thiserror::Error)]
-    #[error("Test provider error")]
+    #[error("Test error")]
     struct TestError;
 
+    #[derive(Debug)]
     struct TestProvider {
-        resources: Mutex<HashMap<String, HashMap<String, Resource>>>,
+        resources: Arc<Mutex<HashMap<String, HashMap<String, Resource>>>>,
     }
 
     impl TestProvider {
         fn new() -> Self {
             Self {
-                resources: std::sync::Mutex::new(HashMap::new()),
+                resources: Arc::new(Mutex::new(HashMap::new())),
             }
         }
     }
 
-    #[async_trait]
-    impl DynamicResourceProvider for TestProvider {
+    impl ResourceProvider for TestProvider {
         type Error = TestError;
 
-        async fn create_resource(
+        fn create_resource(
             &self,
             resource_type: &str,
             mut data: Value,
             _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
-            let id = uuid::Uuid::new_v4().to_string();
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("id".to_string(), Value::String(id.clone()));
+        ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let id = uuid::Uuid::new_v4().to_string();
+                if let Some(obj) = data.as_object_mut() {
+                    obj.insert("id".to_string(), Value::String(id.clone()));
+                }
+
+                let resource = Resource::new(resource_type.clone(), data);
+
+                let mut resources = resources.lock().unwrap();
+                resources
+                    .entry(resource_type)
+                    .or_insert_with(HashMap::new)
+                    .insert(id, resource.clone());
+
+                Ok(resource)
             }
-
-            let resource = Resource::new(resource_type.to_string(), data);
-
-            let mut resources = self.resources.lock().unwrap();
-            resources
-                .entry(resource_type.to_string())
-                .or_insert_with(HashMap::new)
-                .insert(id, resource.clone());
-
-            Ok(resource)
         }
 
-        async fn get_resource(
+        fn get_resource(
             &self,
             resource_type: &str,
             id: &str,
             _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
-            let resources = self.resources.lock().unwrap();
-            Ok(resources
-                .get(resource_type)
-                .and_then(|type_resources| type_resources.get(id))
-                .cloned())
+        ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let id = id.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let resources = resources.lock().unwrap();
+                Ok(resources
+                    .get(&resource_type)
+                    .and_then(|type_resources| type_resources.get(&id))
+                    .cloned())
+            }
         }
 
-        async fn update_resource(
+        fn update_resource(
             &self,
             resource_type: &str,
             id: &str,
             mut data: Value,
             _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("id".to_string(), Value::String(id.to_string()));
+        ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let id = id.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                if let Some(obj) = data.as_object_mut() {
+                    obj.insert("id".to_string(), Value::String(id.clone()));
+                }
+
+                let resource = Resource::new(resource_type.clone(), data);
+
+                let mut resources = resources.lock().unwrap();
+                resources
+                    .entry(resource_type)
+                    .or_insert_with(HashMap::new)
+                    .insert(id, resource.clone());
+
+                Ok(resource)
             }
-
-            let resource = Resource::new(resource_type.to_string(), data);
-
-            let mut resources = self.resources.lock().unwrap();
-            if let Some(type_resources) = resources.get_mut(resource_type) {
-                type_resources.insert(id.to_string(), resource.clone());
-            }
-
-            Ok(resource)
         }
 
-        async fn delete_resource(
+        fn delete_resource(
             &self,
             resource_type: &str,
             id: &str,
             _context: &RequestContext,
-        ) -> Result<(), Self::Error> {
-            let mut resources = self.resources.lock().unwrap();
-            if let Some(type_resources) = resources.get_mut(resource_type) {
-                type_resources.remove(id);
+        ) -> impl Future<Output = Result<(), Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let id = id.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let mut resources = resources.lock().unwrap();
+                if let Some(type_resources) = resources.get_mut(&resource_type) {
+                    type_resources.remove(&id);
+                }
+                Ok(())
             }
-            Ok(())
         }
 
-        async fn list_resources(
+        fn list_resources(
             &self,
             resource_type: &str,
+            _query: Option<&ListQuery>,
             _context: &RequestContext,
-        ) -> Result<Vec<Resource>, Self::Error> {
-            let resources = self.resources.lock().unwrap();
-            Ok(resources
-                .get(resource_type)
-                .map(|type_resources| type_resources.values().cloned().collect())
-                .unwrap_or_default())
+        ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let resources = resources.lock().unwrap();
+                Ok(resources
+                    .get(&resource_type)
+                    .map(|type_resources| type_resources.values().cloned().collect())
+                    .unwrap_or_default())
+            }
         }
 
-        async fn find_resource_by_attribute(
+        fn find_resource_by_attribute(
             &self,
             resource_type: &str,
             attribute: &str,
             value: &Value,
             _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
-            let resources = self.resources.lock().unwrap();
-            if let Some(type_resources) = resources.get(resource_type) {
-                for resource in type_resources.values() {
-                    if let Some(attr_value) = resource.get_attribute(attribute) {
-                        if attr_value == value {
-                            return Ok(Some(resource.clone()));
-                        }
-                    }
-                }
+        ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let attribute = attribute.to_string();
+            let value = value.clone();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let resources = resources.lock().unwrap();
+                Ok(resources
+                    .get(&resource_type)
+                    .and_then(|type_resources| {
+                        type_resources
+                            .values()
+                            .find(|resource| resource.get_attribute(&attribute) == Some(&value))
+                    })
+                    .cloned())
             }
-            Ok(None)
         }
 
-        async fn resource_exists(
+        fn resource_exists(
             &self,
             resource_type: &str,
             id: &str,
             _context: &RequestContext,
-        ) -> Result<bool, Self::Error> {
-            let resources = self.resources.lock().unwrap();
-            Ok(resources
-                .get(resource_type)
-                .map(|type_resources| type_resources.contains_key(id))
-                .unwrap_or(false))
+        ) -> impl Future<Output = Result<bool, Self::Error>> + Send {
+            let resource_type = resource_type.to_string();
+            let id = id.to_string();
+            let resources = Arc::clone(&self.resources);
+            async move {
+                let resources = resources.lock().unwrap();
+                Ok(resources
+                    .get(&resource_type)
+                    .map(|type_resources| type_resources.contains_key(&id))
+                    .unwrap_or(false))
+            }
         }
     }
 
@@ -444,7 +479,7 @@ mod tests {
     #[tokio::test]
     async fn test_dynamic_server_registration() {
         let provider = TestProvider::new();
-        let mut server = DynamicScimServer::new(provider).expect("Failed to create server");
+        let mut server = ScimServer::new(provider).expect("Failed to create server");
 
         let user_schema = create_test_user_schema();
         let user_handler = create_user_resource_handler(user_schema);
@@ -472,7 +507,7 @@ mod tests {
     #[tokio::test]
     async fn test_dynamic_create_and_get() {
         let provider = TestProvider::new();
-        let mut server = DynamicScimServer::new(provider).expect("Failed to create server");
+        let mut server = ScimServer::new(provider).expect("Failed to create server");
 
         let user_schema = create_test_user_schema();
         let user_handler = create_user_resource_handler(user_schema);
@@ -525,7 +560,7 @@ mod tests {
     #[tokio::test]
     async fn test_unsupported_operation() {
         let provider = TestProvider::new();
-        let mut server = DynamicScimServer::new(provider).expect("Failed to create server");
+        let mut server = ScimServer::new(provider).expect("Failed to create server");
 
         let user_schema = create_test_user_schema();
         let user_handler = create_user_resource_handler(user_schema);

@@ -6,7 +6,7 @@
 
 use crate::error::ScimError;
 use crate::schema::Schema;
-use async_trait::async_trait;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -477,67 +477,67 @@ pub enum ScimOperation {
     Search,
 }
 
-/// Dynamic resource provider trait for generic SCIM operations
-#[async_trait]
-pub trait DynamicResourceProvider {
+/// Resource provider trait for generic SCIM operations
+pub trait ResourceProvider {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Generic create operation for any resource type
-    async fn create_resource(
+    fn create_resource(
         &self,
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error>;
+    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
 
     /// Generic read operation for any resource type
-    async fn get_resource(
+    fn get_resource(
         &self,
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error>;
+    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
 
     /// Generic update operation for any resource type
-    async fn update_resource(
+    fn update_resource(
         &self,
         resource_type: &str,
         id: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error>;
+    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
 
     /// Generic delete operation for any resource type
-    async fn delete_resource(
+    fn delete_resource(
         &self,
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<(), Self::Error>;
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
     /// Generic list operation for any resource type
-    async fn list_resources(
+    fn list_resources(
         &self,
         resource_type: &str,
+        query: Option<&ListQuery>,
         context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error>;
+    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send;
 
-    /// Generic search by attribute for any resource type
-    async fn find_resource_by_attribute(
+    /// Find a resource by attribute value
+    fn find_resource_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
         value: &Value,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error>;
+    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
 
     /// Check if resource exists
-    async fn resource_exists(
+    fn resource_exists(
         &self,
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<bool, Self::Error>;
+    ) -> impl Future<Output = Result<bool, Self::Error>> + Send;
 }
 
 /// User context for authorization and auditing.
@@ -576,12 +576,12 @@ impl UserContext {
 /// # Example Implementation
 ///
 /// ```rust,no_run
-/// use scim_server::{DynamicResourceProvider, Resource, RequestContext};
-/// use async_trait::async_trait;
+/// use scim_server::{ResourceProvider, Resource, RequestContext, ListQuery};
 /// use serde_json::Value;
 /// use std::collections::HashMap;
 /// use std::sync::Arc;
 /// use tokio::sync::RwLock;
+/// use std::future::Future;
 ///
 /// struct InMemoryProvider {
 ///     resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>,
@@ -599,104 +599,118 @@ impl UserContext {
 /// #[error("Provider error")]
 /// struct ProviderError;
 ///
-/// #[async_trait]
-/// impl DynamicResourceProvider for InMemoryProvider {
+/// impl ResourceProvider for InMemoryProvider {
 ///     type Error = ProviderError;
 ///
-///     async fn create_resource(
+///     fn create_resource(
 ///         &self,
 ///         resource_type: &str,
 ///         data: Value,
 ///         _context: &RequestContext,
-///     ) -> Result<Resource, Self::Error> {
-///         let resource = Resource::new(resource_type.to_string(), data);
-///         let id = resource.get_id().unwrap_or_default().to_string();
+///     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+///         async move {
+///             let resource = Resource::new(resource_type.to_string(), data);
+///             let id = resource.get_id().unwrap_or_default().to_string();
 ///
-///         let mut resources = self.resources.write().await;
-///         resources.entry(resource_type.to_string())
-///             .or_insert_with(HashMap::new)
-///             .insert(id, resource.clone());
-///         Ok(resource)
-///     }
-///
-///     async fn get_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         _context: &RequestContext,
-///     ) -> Result<Option<Resource>, Self::Error> {
-///         let resources = self.resources.read().await;
-///         Ok(resources.get(resource_type)
-///             .and_then(|type_resources| type_resources.get(id))
-///             .cloned())
-///     }
-///
-///     async fn update_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         data: Value,
-///         _context: &RequestContext,
-///     ) -> Result<Resource, Self::Error> {
-///         let resource = Resource::new(resource_type.to_string(), data);
-///         let mut resources = self.resources.write().await;
-///         resources.entry(resource_type.to_string())
-///             .or_insert_with(HashMap::new)
-///             .insert(id.to_string(), resource.clone());
-///         Ok(resource)
-///     }
-///
-///     async fn delete_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         _context: &RequestContext,
-///     ) -> Result<(), Self::Error> {
-///         let mut resources = self.resources.write().await;
-///         if let Some(type_resources) = resources.get_mut(resource_type) {
-///             type_resources.remove(id);
+///             let mut resources = self.resources.write().await;
+///             resources.entry(resource_type.to_string())
+///                 .or_insert_with(HashMap::new)
+///                 .insert(id, resource.clone());
+///             Ok(resource)
 ///         }
-///         Ok(())
 ///     }
 ///
-///     async fn list_resources(
+///     fn get_resource(
 ///         &self,
 ///         resource_type: &str,
+///         id: &str,
 ///         _context: &RequestContext,
-///     ) -> Result<Vec<Resource>, Self::Error> {
-///         let resources = self.resources.read().await;
-///         Ok(resources.get(resource_type)
-///             .map(|type_resources| type_resources.values().cloned().collect())
-///             .unwrap_or_default())
+///     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+///         async move {
+///             let resources = self.resources.read().await;
+///             Ok(resources.get(resource_type)
+///                 .and_then(|type_resources| type_resources.get(id))
+///                 .cloned())
+///         }
 ///     }
 ///
-///     async fn find_resource_by_attribute(
+///     fn update_resource(
+///         &self,
+///         resource_type: &str,
+///         id: &str,
+///         data: Value,
+///         _context: &RequestContext,
+///     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+///         async move {
+///             let resource = Resource::new(resource_type.to_string(), data);
+///             let mut resources = self.resources.write().await;
+///             resources.entry(resource_type.to_string())
+///                 .or_insert_with(HashMap::new)
+///                 .insert(id.to_string(), resource.clone());
+///             Ok(resource)
+///         }
+///     }
+///
+///     fn delete_resource(
+///         &self,
+///         resource_type: &str,
+///         id: &str,
+///         _context: &RequestContext,
+///     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
+///         async move {
+///             let mut resources = self.resources.write().await;
+///             if let Some(type_resources) = resources.get_mut(resource_type) {
+///                 type_resources.remove(id);
+///             }
+///             Ok(())
+///         }
+///     }
+///
+///     fn list_resources(
+///         &self,
+///         resource_type: &str,
+///         _query: Option<&ListQuery>,
+///         _context: &RequestContext,
+///     ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+///         async move {
+///             let resources = self.resources.read().await;
+///             Ok(resources.get(resource_type)
+///                 .map(|type_resources| type_resources.values().cloned().collect())
+///                 .unwrap_or_default())
+///         }
+///     }
+///
+///     fn find_resource_by_attribute(
 ///         &self,
 ///         resource_type: &str,
 ///         attribute: &str,
 ///         value: &Value,
 ///         _context: &RequestContext,
-///     ) -> Result<Option<Resource>, Self::Error> {
-///         let resources = self.resources.read().await;
-///         Ok(resources.get(resource_type)
-///             .and_then(|type_resources| {
-///                 type_resources.values().find(|resource| {
-///                     resource.get_attribute(attribute) == Some(value)
+///     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+///         async move {
+///             let resources = self.resources.read().await;
+///             Ok(resources.get(resource_type)
+///                 .and_then(|type_resources| {
+///                     type_resources.values().find(|resource| {
+///                         resource.get_attribute(attribute) == Some(value)
+///                     })
 ///                 })
-///             })
-///             .cloned())
+///                 .cloned())
+///         }
 ///     }
 ///
-///     async fn resource_exists(
+///     fn resource_exists(
 ///         &self,
 ///         resource_type: &str,
 ///         id: &str,
 ///         _context: &RequestContext,
-///     ) -> Result<bool, Self::Error> {
-///         let resources = self.resources.read().await;
-///         Ok(resources.get(resource_type)
-///             .map(|type_resources| type_resources.contains_key(id))
-///             .unwrap_or(false))
+///     ) -> impl Future<Output = Result<bool, Self::Error>> + Send {
+///         async move {
+///             let resources = self.resources.read().await;
+///             Ok(resources.get(resource_type)
+///                 .map(|type_resources| type_resources.contains_key(id))
+///                 .unwrap_or(false))
+///         }
 ///     }
 /// }
 /// ```
