@@ -270,7 +270,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("------------------");
 
     // Create request context
-    let context = RequestContext::new().with_metadata("source".to_string(), "example".to_string());
+    let context = RequestContext::new("basic-usage-example".to_string())
+        .with_metadata("source".to_string(), "example".to_string());
 
     // Create a sample user
     let user_data = json!({

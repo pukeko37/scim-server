@@ -4,10 +4,13 @@
 //! to provide data access for SCIM operations. The design emphasizes
 //! type safety and async patterns while keeping the interface simple.
 
+use crate::error::ScimError;
+use crate::schema::Schema;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Generic SCIM resource representation.
 ///
@@ -180,19 +183,19 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
-    /// Create a new request context with a generated ID.
-    pub fn new() -> Self {
+    /// Create a new request context with a specific request ID.
+    pub fn new(request_id: String) -> Self {
         Self {
-            request_id: uuid::Uuid::new_v4().to_string(),
+            request_id,
             user_context: None,
             metadata: HashMap::new(),
         }
     }
 
-    /// Create a request context with a specific ID.
-    pub fn with_id(request_id: String) -> Self {
+    /// Create a new request context with a generated request ID.
+    pub fn with_generated_id() -> Self {
         Self {
-            request_id,
+            request_id: uuid::Uuid::new_v4().to_string(),
             user_context: None,
             metadata: HashMap::new(),
         }
@@ -218,8 +221,324 @@ impl RequestContext {
 
 impl Default for RequestContext {
     fn default() -> Self {
-        Self::new()
+        Self::with_generated_id()
     }
+}
+
+/// Dynamic attribute handler for schema-driven operations
+#[derive(Clone)]
+pub enum AttributeHandler {
+    Getter(Arc<dyn Fn(&Value) -> Option<Value> + Send + Sync>),
+    Setter(Arc<dyn Fn(&mut Value, Value) -> Result<(), ScimError> + Send + Sync>),
+    Transformer(Arc<dyn Fn(&Value, &str) -> Option<Value> + Send + Sync>),
+}
+
+/// Trait for mapping between SCIM schema and implementation schema (e.g., database)
+pub trait SchemaMapper: Send + Sync {
+    fn to_implementation(&self, scim_data: &Value) -> Result<Value, ScimError>;
+    fn from_implementation(&self, impl_data: &Value) -> Result<Value, ScimError>;
+}
+
+/// Database schema mapper for converting between SCIM and database formats
+pub struct DatabaseMapper {
+    pub table_name: String,
+    pub column_mappings: HashMap<String, String>, // SCIM attribute -> DB column
+}
+
+impl DatabaseMapper {
+    pub fn new(table_name: &str, mappings: HashMap<String, String>) -> Self {
+        Self {
+            table_name: table_name.to_string(),
+            column_mappings: mappings,
+        }
+    }
+}
+
+impl SchemaMapper for DatabaseMapper {
+    fn to_implementation(&self, scim_data: &Value) -> Result<Value, ScimError> {
+        let mut db_data = serde_json::Map::new();
+
+        if let Some(obj) = scim_data.as_object() {
+            for (scim_attr, db_column) in &self.column_mappings {
+                if let Some(value) = obj.get(scim_attr) {
+                    db_data.insert(db_column.clone(), value.clone());
+                }
+            }
+        }
+
+        Ok(Value::Object(db_data))
+    }
+
+    fn from_implementation(&self, impl_data: &Value) -> Result<Value, ScimError> {
+        let mut scim_data = serde_json::Map::new();
+
+        if let Some(obj) = impl_data.as_object() {
+            for (scim_attr, db_column) in &self.column_mappings {
+                if let Some(value) = obj.get(db_column) {
+                    scim_data.insert(scim_attr.clone(), value.clone());
+                }
+            }
+        }
+
+        Ok(Value::Object(scim_data))
+    }
+}
+
+/// Handler for a specific resource type containing all its dynamic behaviors
+#[derive(Clone)]
+pub struct ResourceHandler {
+    pub schema: Schema,
+    pub handlers: HashMap<String, AttributeHandler>,
+    pub mappers: Vec<Arc<dyn SchemaMapper>>,
+    pub custom_methods:
+        HashMap<String, Arc<dyn Fn(&DynamicResource) -> Result<Value, ScimError> + Send + Sync>>,
+}
+
+impl std::fmt::Debug for ResourceHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResourceHandler")
+            .field("schema", &self.schema)
+            .field("handlers", &format!("{} handlers", self.handlers.len()))
+            .field("mappers", &format!("{} mappers", self.mappers.len()))
+            .field(
+                "custom_methods",
+                &format!("{} custom methods", self.custom_methods.len()),
+            )
+            .finish()
+    }
+}
+
+/// Builder for creating resource handlers with fluent API
+pub struct SchemaResourceBuilder {
+    schema: Schema,
+    handlers: HashMap<String, AttributeHandler>,
+    mappers: Vec<Arc<dyn SchemaMapper>>,
+    custom_methods:
+        HashMap<String, Arc<dyn Fn(&DynamicResource) -> Result<Value, ScimError> + Send + Sync>>,
+}
+
+impl SchemaResourceBuilder {
+    pub fn new(schema: Schema) -> Self {
+        Self {
+            schema,
+            handlers: HashMap::new(),
+            mappers: Vec::new(),
+            custom_methods: HashMap::new(),
+        }
+    }
+
+    pub fn with_getter<F>(mut self, attribute: &str, getter: F) -> Self
+    where
+        F: Fn(&Value) -> Option<Value> + Send + Sync + 'static,
+    {
+        self.handlers.insert(
+            format!("get_{}", attribute),
+            AttributeHandler::Getter(Arc::new(getter)),
+        );
+        self
+    }
+
+    pub fn with_setter<F>(mut self, attribute: &str, setter: F) -> Self
+    where
+        F: Fn(&mut Value, Value) -> Result<(), ScimError> + Send + Sync + 'static,
+    {
+        self.handlers.insert(
+            format!("set_{}", attribute),
+            AttributeHandler::Setter(Arc::new(setter)),
+        );
+        self
+    }
+
+    pub fn with_transformer<F>(mut self, attribute: &str, transformer: F) -> Self
+    where
+        F: Fn(&Value, &str) -> Option<Value> + Send + Sync + 'static,
+    {
+        self.handlers.insert(
+            format!("transform_{}", attribute),
+            AttributeHandler::Transformer(Arc::new(transformer)),
+        );
+        self
+    }
+
+    pub fn with_custom_method<F>(mut self, method_name: &str, method: F) -> Self
+    where
+        F: Fn(&DynamicResource) -> Result<Value, ScimError> + Send + Sync + 'static,
+    {
+        self.custom_methods
+            .insert(method_name.to_string(), Arc::new(method));
+        self
+    }
+
+    pub fn with_mapper(mut self, mapper: Arc<dyn SchemaMapper>) -> Self {
+        self.mappers.push(mapper);
+        self
+    }
+
+    pub fn with_database_mapping(
+        self,
+        table_name: &str,
+        column_mappings: HashMap<String, String>,
+    ) -> Self {
+        self.with_mapper(Arc::new(DatabaseMapper::new(table_name, column_mappings)))
+    }
+
+    pub fn build(self) -> ResourceHandler {
+        ResourceHandler {
+            schema: self.schema,
+            handlers: self.handlers,
+            mappers: self.mappers,
+            custom_methods: self.custom_methods,
+        }
+    }
+}
+
+/// Dynamic resource that uses registered handlers for operations
+#[derive(Clone, Debug)]
+pub struct DynamicResource {
+    pub resource_type: String,
+    pub data: Value,
+    pub handler: Arc<ResourceHandler>,
+}
+
+impl DynamicResource {
+    pub fn new(resource_type: String, data: Value, handler: Arc<ResourceHandler>) -> Self {
+        Self {
+            resource_type,
+            data,
+            handler,
+        }
+    }
+
+    pub fn get_attribute_dynamic(&self, attribute: &str) -> Option<Value> {
+        let getter_key = format!("get_{}", attribute);
+        if let Some(AttributeHandler::Getter(getter)) = self.handler.handlers.get(&getter_key) {
+            getter(&self.data)
+        } else {
+            // Fallback to direct access
+            self.data.get(attribute).cloned()
+        }
+    }
+
+    pub fn set_attribute_dynamic(
+        &mut self,
+        attribute: &str,
+        value: Value,
+    ) -> Result<(), ScimError> {
+        let setter_key = format!("set_{}", attribute);
+        if let Some(AttributeHandler::Setter(setter)) = self.handler.handlers.get(&setter_key) {
+            setter(&mut self.data, value)
+        } else {
+            // Fallback to direct setting
+            if let Some(obj) = self.data.as_object_mut() {
+                obj.insert(attribute.to_string(), value);
+            }
+            Ok(())
+        }
+    }
+
+    pub fn call_custom_method(&self, method_name: &str) -> Result<Value, ScimError> {
+        if let Some(method) = self.handler.custom_methods.get(method_name) {
+            method(self)
+        } else {
+            Err(ScimError::MethodNotFound(method_name.to_string()))
+        }
+    }
+
+    pub fn to_implementation_schema(&self, mapper_index: usize) -> Result<Value, ScimError> {
+        if let Some(mapper) = self.handler.mappers.get(mapper_index) {
+            mapper.to_implementation(&self.data)
+        } else {
+            Err(ScimError::MapperNotFound(mapper_index))
+        }
+    }
+
+    pub fn from_implementation_schema(
+        &mut self,
+        impl_data: &Value,
+        mapper_index: usize,
+    ) -> Result<(), ScimError> {
+        if let Some(mapper) = self.handler.mappers.get(mapper_index) {
+            self.data = mapper.from_implementation(impl_data)?;
+            Ok(())
+        } else {
+            Err(ScimError::MapperNotFound(mapper_index))
+        }
+    }
+}
+
+/// Supported SCIM operations for resource types
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScimOperation {
+    Create,
+    Read,
+    Update,
+    Delete,
+    List,
+    Search,
+}
+
+/// Dynamic resource provider trait for generic SCIM operations
+#[async_trait]
+pub trait DynamicResourceProvider {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Generic create operation for any resource type
+    async fn create_resource(
+        &self,
+        resource_type: &str,
+        data: DynamicResource,
+        context: &RequestContext,
+    ) -> Result<DynamicResource, Self::Error>;
+
+    /// Generic read operation for any resource type
+    async fn get_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<Option<DynamicResource>, Self::Error>;
+
+    /// Generic update operation for any resource type
+    async fn update_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        data: DynamicResource,
+        context: &RequestContext,
+    ) -> Result<DynamicResource, Self::Error>;
+
+    /// Generic delete operation for any resource type
+    async fn delete_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<(), Self::Error>;
+
+    /// Generic list operation for any resource type
+    async fn list_resources(
+        &self,
+        resource_type: &str,
+        query: &ListQuery,
+        context: &RequestContext,
+    ) -> Result<Vec<DynamicResource>, Self::Error>;
+
+    /// Generic search by attribute for any resource type
+    async fn find_resource_by_attribute(
+        &self,
+        resource_type: &str,
+        attribute: &str,
+        value: &str,
+        context: &RequestContext,
+    ) -> Result<Option<DynamicResource>, Self::Error>;
+
+    /// Check if resource exists
+    async fn resource_exists(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<bool, Self::Error>;
 }
 
 /// User context for authorization and auditing.
@@ -534,10 +853,10 @@ mod tests {
 
     #[test]
     fn test_request_context_creation() {
-        let context = RequestContext::new();
+        let context = RequestContext::new("test-request".to_string());
         assert!(!context.request_id.is_empty());
 
-        let context_with_id = RequestContext::with_id("test-123".to_string());
+        let context_with_id = RequestContext::new("test-123".to_string());
         assert_eq!(context_with_id.request_id, "test-123");
     }
 

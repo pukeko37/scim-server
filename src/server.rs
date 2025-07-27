@@ -688,7 +688,7 @@ mod tests {
             .build()
             .expect("Failed to build server");
 
-        let context = RequestContext::new();
+        let context = RequestContext::new("test-request-1".to_string());
 
         // Test user creation
         let user_data = json!({
@@ -747,7 +747,7 @@ mod tests {
             .build()
             .expect("Failed to build server");
 
-        let context = RequestContext::new();
+        let context = RequestContext::new("test-request-2".to_string());
 
         // Test invalid user (missing required userName)
         let invalid_user = json!({

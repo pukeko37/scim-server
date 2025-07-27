@@ -306,6 +306,17 @@ impl SchemaRegistry {
     pub fn get_user_schema(&self) -> &Schema {
         &self.core_user_schema
     }
+
+    /// Add a schema to the registry.
+    pub fn add_schema(&mut self, schema: Schema) -> Result<(), Box<dyn std::error::Error>> {
+        self.schemas.insert(schema.id.clone(), schema);
+        Ok(())
+    }
+
+    /// Get a schema by ID.
+    pub fn get_schema_by_id(&self, schema_id: &str) -> Option<&Schema> {
+        self.schemas.get(schema_id)
+    }
 }
 
 impl Default for SchemaRegistry {
@@ -463,9 +474,11 @@ mod tests {
     fn test_schema_registry_creation() {
         let registry = SchemaRegistry::new().expect("Failed to create registry");
         assert_eq!(registry.get_schemas().len(), 1);
-        assert!(registry
-            .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
-            .is_some());
+        assert!(
+            registry
+                .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
+                .is_some()
+        );
     }
 
     #[test]

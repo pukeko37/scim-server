@@ -78,18 +78,25 @@
 ///     Ok(())
 /// }
 /// ```
+pub mod dynamic_server;
 pub mod error;
 pub mod resource;
 pub mod schema;
 pub mod server;
+pub mod user_handler;
 
 // Core re-exports for library users
+pub use dynamic_server::DynamicScimServer;
 pub use error::{BuildError, ScimError, ValidationError};
-pub use resource::{RequestContext, Resource, ResourceProvider};
+pub use resource::{
+    DatabaseMapper, DynamicResource, DynamicResourceProvider, ListQuery, RequestContext, Resource,
+    ResourceProvider, SchemaResourceBuilder, ScimOperation,
+};
 pub use schema::{
     AttributeDefinition, AttributeType, Mutability, Schema, SchemaRegistry, Uniqueness,
 };
 pub use server::{ScimServer, ScimServerBuilder, ServiceProviderConfig};
+pub use user_handler::{create_group_resource_handler, create_user_resource_handler};
 
 // State types (re-exported for advanced usage)
 pub use server::{Ready, Uninitialized};

@@ -36,6 +36,29 @@ pub enum ScimError {
     /// Invalid request format or parameters
     #[error("Invalid request: {message}")]
     InvalidRequest { message: String },
+
+    /// Unsupported resource type
+    #[error("Unsupported resource type: {0}")]
+    UnsupportedResourceType(String),
+
+    /// Unsupported operation for resource type
+    #[error("Unsupported operation '{operation}' for resource type '{resource_type}'")]
+    UnsupportedOperation {
+        resource_type: String,
+        operation: String,
+    },
+
+    /// Method not found on resource
+    #[error("Method '{0}' not found")]
+    MethodNotFound(String),
+
+    /// Schema mapper not found
+    #[error("Schema mapper at index {0} not found")]
+    MapperNotFound(usize),
+
+    /// Resource provider error with string message
+    #[error("Resource provider error: {0}")]
+    ProviderError(String),
 }
 
 /// Validation errors for schema compliance checking.
