@@ -3,7 +3,7 @@
 //! This module implements a specialized SCIM server for schema discovery and service provider
 //! configuration using a type-parameterized state machine to ensure compile-time safety.
 //! This server is designed specifically for schema introspection endpoints, not for
-//! resource CRUD operations. For full SCIM resource management, use the dynamic ScimServer.
+//! resource CRUD operations. For full SCIM resource management, use ScimServer.
 
 use crate::error::{BuildError, BuildResult, ScimResult};
 
