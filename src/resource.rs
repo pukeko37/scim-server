@@ -486,9 +486,9 @@ pub trait DynamicResourceProvider {
     async fn create_resource(
         &self,
         resource_type: &str,
-        data: DynamicResource,
+        data: Value,
         context: &RequestContext,
-    ) -> Result<DynamicResource, Self::Error>;
+    ) -> Result<Resource, Self::Error>;
 
     /// Generic read operation for any resource type
     async fn get_resource(
@@ -496,16 +496,16 @@ pub trait DynamicResourceProvider {
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<DynamicResource>, Self::Error>;
+    ) -> Result<Option<Resource>, Self::Error>;
 
     /// Generic update operation for any resource type
     async fn update_resource(
         &self,
         resource_type: &str,
         id: &str,
-        data: DynamicResource,
+        data: Value,
         context: &RequestContext,
-    ) -> Result<DynamicResource, Self::Error>;
+    ) -> Result<Resource, Self::Error>;
 
     /// Generic delete operation for any resource type
     async fn delete_resource(
@@ -519,18 +519,17 @@ pub trait DynamicResourceProvider {
     async fn list_resources(
         &self,
         resource_type: &str,
-        query: &ListQuery,
         context: &RequestContext,
-    ) -> Result<Vec<DynamicResource>, Self::Error>;
+    ) -> Result<Vec<Resource>, Self::Error>;
 
     /// Generic search by attribute for any resource type
     async fn find_resource_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &str,
+        value: &Value,
         context: &RequestContext,
-    ) -> Result<Option<DynamicResource>, Self::Error>;
+    ) -> Result<Option<Resource>, Self::Error>;
 
     /// Check if resource exists
     async fn resource_exists(
@@ -577,20 +576,21 @@ impl UserContext {
 /// # Example Implementation
 ///
 /// ```rust,no_run
-/// use scim_server::{ResourceProvider, Resource, RequestContext};
+/// use scim_server::{DynamicResourceProvider, Resource, RequestContext};
 /// use async_trait::async_trait;
+/// use serde_json::Value;
 /// use std::collections::HashMap;
 /// use std::sync::Arc;
 /// use tokio::sync::RwLock;
 ///
 /// struct InMemoryProvider {
-///     users: Arc<RwLock<HashMap<String, Resource>>>,
+///     resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>,
 /// }
 ///
 /// impl InMemoryProvider {
 ///     fn new() -> Self {
 ///         Self {
-///             users: Arc::new(RwLock::new(HashMap::new())),
+///             resources: Arc::new(RwLock::new(HashMap::new())),
 ///         }
 ///     }
 /// }
@@ -600,152 +600,106 @@ impl UserContext {
 /// struct ProviderError;
 ///
 /// #[async_trait]
-/// impl ResourceProvider for InMemoryProvider {
+/// impl DynamicResourceProvider for InMemoryProvider {
 ///     type Error = ProviderError;
 ///
-///     async fn create_user(
+///     async fn create_resource(
 ///         &self,
-///         user: Resource,
+///         resource_type: &str,
+///         data: Value,
 ///         _context: &RequestContext,
 ///     ) -> Result<Resource, Self::Error> {
-///         let mut users = self.users.write().await;
-///         let id = uuid::Uuid::new_v4().to_string();
-///         let mut user_with_id = user;
-///         user_with_id.set_attribute("id".to_string(), serde_json::Value::String(id.clone()));
-///         users.insert(id, user_with_id.clone());
-///         Ok(user_with_id)
+///         let resource = Resource::new(resource_type.to_string(), data);
+///         let id = resource.get_id().unwrap_or_default().to_string();
+///
+///         let mut resources = self.resources.write().await;
+///         resources.entry(resource_type.to_string())
+///             .or_insert_with(HashMap::new)
+///             .insert(id, resource.clone());
+///         Ok(resource)
 ///     }
 ///
-///     async fn get_user(
+///     async fn get_resource(
 ///         &self,
+///         resource_type: &str,
 ///         id: &str,
 ///         _context: &RequestContext,
 ///     ) -> Result<Option<Resource>, Self::Error> {
-///         let users = self.users.read().await;
-///         Ok(users.get(id).cloned())
+///         let resources = self.resources.read().await;
+///         Ok(resources.get(resource_type)
+///             .and_then(|type_resources| type_resources.get(id))
+///             .cloned())
 ///     }
 ///
-///     async fn update_user(
+///     async fn update_resource(
 ///         &self,
+///         resource_type: &str,
 ///         id: &str,
-///         user: Resource,
+///         data: Value,
 ///         _context: &RequestContext,
 ///     ) -> Result<Resource, Self::Error> {
-///         let mut users = self.users.write().await;
-///         let mut updated_user = user;
-///         updated_user.set_attribute("id".to_string(), serde_json::Value::String(id.to_string()));
-///         users.insert(id.to_string(), updated_user.clone());
-///         Ok(updated_user)
+///         let resource = Resource::new(resource_type.to_string(), data);
+///         let mut resources = self.resources.write().await;
+///         resources.entry(resource_type.to_string())
+///             .or_insert_with(HashMap::new)
+///             .insert(id.to_string(), resource.clone());
+///         Ok(resource)
 ///     }
 ///
-///     async fn delete_user(
+///     async fn delete_resource(
 ///         &self,
+///         resource_type: &str,
 ///         id: &str,
 ///         _context: &RequestContext,
 ///     ) -> Result<(), Self::Error> {
-///         let mut users = self.users.write().await;
-///         users.remove(id);
+///         let mut resources = self.resources.write().await;
+///         if let Some(type_resources) = resources.get_mut(resource_type) {
+///             type_resources.remove(id);
+///         }
 ///         Ok(())
 ///     }
 ///
-///     async fn list_users(
+///     async fn list_resources(
 ///         &self,
+///         resource_type: &str,
 ///         _context: &RequestContext,
 ///     ) -> Result<Vec<Resource>, Self::Error> {
-///         let users = self.users.read().await;
-///         Ok(users.values().cloned().collect())
+///         let resources = self.resources.read().await;
+///         Ok(resources.get(resource_type)
+///             .map(|type_resources| type_resources.values().cloned().collect())
+///             .unwrap_or_default())
+///     }
+///
+///     async fn find_resource_by_attribute(
+///         &self,
+///         resource_type: &str,
+///         attribute: &str,
+///         value: &Value,
+///         _context: &RequestContext,
+///     ) -> Result<Option<Resource>, Self::Error> {
+///         let resources = self.resources.read().await;
+///         Ok(resources.get(resource_type)
+///             .and_then(|type_resources| {
+///                 type_resources.values().find(|resource| {
+///                     resource.get_attribute(attribute) == Some(value)
+///                 })
+///             })
+///             .cloned())
+///     }
+///
+///     async fn resource_exists(
+///         &self,
+///         resource_type: &str,
+///         id: &str,
+///         _context: &RequestContext,
+///     ) -> Result<bool, Self::Error> {
+///         let resources = self.resources.read().await;
+///         Ok(resources.get(resource_type)
+///             .map(|type_resources| type_resources.contains_key(id))
+///             .unwrap_or(false))
 ///     }
 /// }
 /// ```
-#[async_trait]
-pub trait ResourceProvider: Send + Sync {
-    /// Error type for provider operations
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// Create a new user resource.
-    ///
-    /// The provider should generate a unique ID for the user and return
-    /// the created resource with all server-managed attributes populated.
-    ///
-    /// # Arguments
-    /// * `user` - The user resource to create
-    /// * `context` - Request context for auditing and authorization
-    async fn create_user(
-        &self,
-        user: Resource,
-        context: &RequestContext,
-    ) -> Result<Resource, Self::Error>;
-
-    /// Retrieve a user resource by ID.
-    ///
-    /// Returns `None` if the user doesn't exist.
-    ///
-    /// # Arguments
-    /// * `id` - The unique identifier of the user
-    /// * `context` - Request context for auditing and authorization
-    async fn get_user(
-        &self,
-        id: &str,
-        context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error>;
-
-    /// Update an existing user resource.
-    ///
-    /// The provider should update the resource and return the updated version
-    /// with any server-managed attributes refreshed.
-    ///
-    /// # Arguments
-    /// * `id` - The unique identifier of the user to update
-    /// * `user` - The updated user resource data
-    /// * `context` - Request context for auditing and authorization
-    async fn update_user(
-        &self,
-        id: &str,
-        user: Resource,
-        context: &RequestContext,
-    ) -> Result<Resource, Self::Error>;
-
-    /// Delete a user resource by ID.
-    ///
-    /// Should succeed even if the user doesn't exist (idempotent operation).
-    ///
-    /// # Arguments
-    /// * `id` - The unique identifier of the user to delete
-    /// * `context` - Request context for auditing and authorization
-    async fn delete_user(&self, id: &str, context: &RequestContext) -> Result<(), Self::Error>;
-
-    /// List all user resources.
-    ///
-    /// For the MVP, this returns all users without pagination or filtering.
-    /// Future versions may add support for query parameters.
-    ///
-    /// # Arguments
-    /// * `context` - Request context for auditing and authorization
-    async fn list_users(&self, context: &RequestContext) -> Result<Vec<Resource>, Self::Error>;
-
-    /// Search users by username (convenience method).
-    ///
-    /// Default implementation lists all users and filters by username.
-    /// Providers can override this for more efficient implementation.
-    async fn find_user_by_username(
-        &self,
-        username: &str,
-        context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
-        let users = self.list_users(context).await?;
-        Ok(users
-            .into_iter()
-            .find(|user| user.get_username() == Some(username)))
-    }
-
-    /// Check if a user exists by ID.
-    ///
-    /// Default implementation uses get_user but providers can optimize this.
-    async fn user_exists(&self, id: &str, context: &RequestContext) -> Result<bool, Self::Error> {
-        let user = self.get_user(id, context).await?;
-        Ok(user.is_some())
-    }
-}
 
 /// Query parameters for listing resources (future extension).
 ///

@@ -74,11 +74,6 @@ impl SchemaRegistry {
         }
     }
 
-    /// Validate a user resource against the core User schema.
-    pub fn validate_user(&self, user: &Value) -> ValidationResult<()> {
-        self.validate_resource(&self.core_user_schema, user)
-    }
-
     /// Validate a resource against a specific schema.
     pub fn validate_resource(&self, schema: &Schema, resource: &Value) -> ValidationResult<()> {
         let obj = resource
@@ -497,7 +492,11 @@ mod tests {
             ]
         });
 
-        assert!(registry.validate_user(&user).is_ok());
+        assert!(
+            registry
+                .validate_resource(&registry.core_user_schema, &user)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -508,7 +507,7 @@ mod tests {
             // Missing required userName
         });
 
-        let result = registry.validate_user(&user);
+        let result = registry.validate_resource(&registry.core_user_schema, &user);
         assert!(result.is_err());
         if let Err(ValidationError::MissingRequiredAttribute { attribute }) = result {
             assert_eq!(attribute, "userName");
@@ -525,7 +524,7 @@ mod tests {
             "active": "not_a_boolean"
         });
 
-        let result = registry.validate_user(&user);
+        let result = registry.validate_resource(&registry.core_user_schema, &user);
         assert!(result.is_err());
     }
 
@@ -542,7 +541,7 @@ mod tests {
             ]
         });
 
-        let result = registry.validate_user(&user);
+        let result = registry.validate_resource(&registry.core_user_schema, &user);
         assert!(result.is_err());
     }
 
@@ -558,6 +557,10 @@ mod tests {
             }
         });
 
-        assert!(registry.validate_user(&user).is_ok());
+        assert!(
+            registry
+                .validate_resource(&registry.core_user_schema, &user)
+                .is_ok()
+        );
     }
 }

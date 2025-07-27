@@ -13,20 +13,21 @@
 //! ## Quick Start
 //!
 /// ```rust,no_run
-/// use scim_server::{ScimServer, ResourceProvider, Resource, RequestContext};
+/// use scim_server::{DynamicScimServer, DynamicResourceProvider, Resource, RequestContext, ScimOperation};
 /// use async_trait::async_trait;
 /// use std::collections::HashMap;
 /// use tokio::sync::RwLock;
 /// use std::sync::Arc;
+/// use serde_json::Value;
 ///
 /// struct MyResourceProvider {
-///     users: Arc<RwLock<HashMap<String, Resource>>>,
+///     resources: Arc<RwLock<HashMap<String, Resource>>>,
 /// }
 ///
 /// impl MyResourceProvider {
 ///     fn new() -> Self {
 ///         Self {
-///             users: Arc::new(RwLock::new(HashMap::new())),
+///             resources: Arc::new(RwLock::new(HashMap::new())),
 ///         }
 ///     }
 /// }
@@ -36,27 +37,35 @@
 /// struct MyError;
 ///
 /// #[async_trait]
-/// impl ResourceProvider for MyResourceProvider {
+/// impl DynamicResourceProvider for MyResourceProvider {
 ///     type Error = MyError;
 ///
-///     async fn create_user(&self, user: Resource, _context: &RequestContext) -> Result<Resource, Self::Error> {
-///         Ok(user)
+///     async fn create_resource(&self, resource_type: &str, data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
+///         Ok(Resource::new(resource_type.to_string(), data))
 ///     }
 ///
-///     async fn get_user(&self, _id: &str, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
+///     async fn get_resource(&self, resource_type: &str, _id: &str, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
 ///         Ok(None)
 ///     }
 ///
-///     async fn update_user(&self, _id: &str, user: Resource, _context: &RequestContext) -> Result<Resource, Self::Error> {
-///         Ok(user)
+///     async fn update_resource(&self, resource_type: &str, _id: &str, data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
+///         Ok(Resource::new(resource_type.to_string(), data))
 ///     }
 ///
-///     async fn delete_user(&self, _id: &str, _context: &RequestContext) -> Result<(), Self::Error> {
+///     async fn delete_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<(), Self::Error> {
 ///         Ok(())
 ///     }
 ///
-///     async fn list_users(&self, _context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
+///     async fn list_resources(&self, _resource_type: &str, _context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
 ///         Ok(vec![])
+///     }
+///
+///     async fn find_resource_by_attribute(&self, _resource_type: &str, _attribute: &str, _value: &Value, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
+///         Ok(None)
+///     }
+///
+///     async fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<bool, Self::Error> {
+///         Ok(false)
 ///     }
 /// }
 ///
@@ -65,14 +74,16 @@
 ///     // Implement your data access layer
 ///     let provider = MyResourceProvider::new();
 ///
-///     // Build the SCIM server (schemas loaded from JSON files)
-///     let server = ScimServer::builder()
-///         .with_resource_provider(provider)
-///         .with_schema_dir(".") // Load schemas from current directory
-///         .build()?;
+///     // Create dynamic SCIM server
+///     let mut server = DynamicScimServer::new(provider)?;
+///
+///     // Register resource types with their operations
+///     let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User").unwrap().clone();
+///     let user_handler = scim_server::create_user_resource_handler(user_schema);
+///     let _ = server.register_resource_type("User", user_handler, vec![ScimOperation::Create, ScimOperation::Read]);
 ///
 ///     // Use server for SCIM operations
-///     let schemas = server.get_schemas().await?;
+///     let schemas = server.get_all_schemas();
 ///     println!("Available schemas: {}", schemas.len());
 ///
 ///     Ok(())
@@ -90,13 +101,10 @@ pub use dynamic_server::DynamicScimServer;
 pub use error::{BuildError, ScimError, ValidationError};
 pub use resource::{
     DatabaseMapper, DynamicResource, DynamicResourceProvider, ListQuery, RequestContext, Resource,
-    ResourceProvider, SchemaResourceBuilder, ScimOperation,
+    SchemaResourceBuilder, ScimOperation,
 };
 pub use schema::{
     AttributeDefinition, AttributeType, Mutability, Schema, SchemaRegistry, Uniqueness,
 };
-pub use server::{ScimServer, ScimServerBuilder, ServiceProviderConfig};
+pub use server::{ScimServer, ServiceProviderConfig};
 pub use user_handler::{create_group_resource_handler, create_user_resource_handler};
-
-// State types (re-exported for advanced usage)
-pub use server::{Ready, Uninitialized};

@@ -6,8 +6,7 @@
 
 use crate::error::{ScimError, ScimResult};
 use crate::resource::{
-    DynamicResource, DynamicResourceProvider, ListQuery, RequestContext, ResourceHandler,
-    ScimOperation,
+    DynamicResourceProvider, RequestContext, Resource, ResourceHandler, ScimOperation,
 };
 use crate::schema::{Schema, SchemaRegistry};
 use std::collections::HashMap;
@@ -64,12 +63,9 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         resource_type: &str,
         data: serde_json::Value,
         context: &RequestContext,
-    ) -> ScimResult<DynamicResource> {
+    ) -> ScimResult<Resource> {
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Create)?;
-
-        // Get the handler for this resource type
-        let handler = self.get_handler(resource_type)?;
 
         // Get the schema for validation
         let schema = self.get_schema_for_resource_type(resource_type)?;
@@ -77,12 +73,9 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         // Validate against schema
         self.schema_registry.validate_resource(&schema, &data)?;
 
-        // Create dynamic resource
-        let resource = DynamicResource::new(resource_type.to_string(), data, handler.clone());
-
         // Delegate to provider
         self.provider
-            .create_resource(resource_type, resource, context)
+            .create_resource(resource_type, data, context)
             .await
             .map_err(|e| ScimError::ProviderError(e.to_string()))
     }
@@ -93,7 +86,8 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> ScimResult<Option<DynamicResource>> {
+    ) -> ScimResult<Option<Resource>> {
+        // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Read)?;
 
         self.provider
@@ -109,19 +103,17 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         id: &str,
         data: serde_json::Value,
         context: &RequestContext,
-    ) -> ScimResult<DynamicResource> {
+    ) -> ScimResult<Resource> {
         self.ensure_operation_supported(resource_type, &ScimOperation::Update)?;
 
-        let handler = self.get_handler(resource_type)?;
+        // Get the schema for validation
         let schema = self.get_schema_for_resource_type(resource_type)?;
 
-        // Validate the update data
+        // Validate against schema
         self.schema_registry.validate_resource(&schema, &data)?;
 
-        let resource = DynamicResource::new(resource_type.to_string(), data, handler.clone());
-
         self.provider
-            .update_resource(resource_type, id, resource, context)
+            .update_resource(resource_type, id, data, context)
             .await
             .map_err(|e| ScimError::ProviderError(e.to_string()))
     }
@@ -145,13 +137,13 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
     pub async fn list_resources(
         &self,
         resource_type: &str,
-        query: &ListQuery,
         context: &RequestContext,
-    ) -> ScimResult<Vec<DynamicResource>> {
+    ) -> ScimResult<Vec<Resource>> {
+        // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::List)?;
 
         self.provider
-            .list_resources(resource_type, query, context)
+            .list_resources(resource_type, context)
             .await
             .map_err(|e| ScimError::ProviderError(e.to_string()))
     }
@@ -161,9 +153,10 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &str,
+        value: &serde_json::Value,
         context: &RequestContext,
-    ) -> ScimResult<Option<DynamicResource>> {
+    ) -> ScimResult<Option<Resource>> {
+        // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Search)?;
 
         self.provider
@@ -202,6 +195,11 @@ impl<P: DynamicResourceProvider> DynamicScimServer<P> {
             .values()
             .map(|handler| &handler.schema)
             .collect()
+    }
+
+    /// Get schema from schema registry by ID
+    pub fn get_schema_by_id(&self, schema_id: &str) -> Option<&Schema> {
+        self.schema_registry.get_schema(schema_id)
     }
 
     /// Get supported operations for a resource type
@@ -251,13 +249,14 @@ mod tests {
     use async_trait::async_trait;
     use serde_json::{Value, json};
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     #[derive(Debug, thiserror::Error)]
     #[error("Test provider error")]
     struct TestError;
 
     struct TestProvider {
-        resources: std::sync::Mutex<HashMap<String, HashMap<String, DynamicResource>>>,
+        resources: Mutex<HashMap<String, HashMap<String, Resource>>>,
     }
 
     impl TestProvider {
@@ -275,20 +274,23 @@ mod tests {
         async fn create_resource(
             &self,
             resource_type: &str,
-            mut data: DynamicResource,
+            mut data: Value,
             _context: &RequestContext,
-        ) -> Result<DynamicResource, Self::Error> {
+        ) -> Result<Resource, Self::Error> {
             let id = uuid::Uuid::new_v4().to_string();
-            data.set_attribute_dynamic("id", Value::String(id.clone()))
-                .map_err(|_| TestError)?;
+            if let Some(obj) = data.as_object_mut() {
+                obj.insert("id".to_string(), Value::String(id.clone()));
+            }
+
+            let resource = Resource::new(resource_type.to_string(), data);
 
             let mut resources = self.resources.lock().unwrap();
             resources
                 .entry(resource_type.to_string())
                 .or_insert_with(HashMap::new)
-                .insert(id, data.clone());
+                .insert(id, resource.clone());
 
-            Ok(data)
+            Ok(resource)
         }
 
         async fn get_resource(
@@ -296,7 +298,7 @@ mod tests {
             resource_type: &str,
             id: &str,
             _context: &RequestContext,
-        ) -> Result<Option<DynamicResource>, Self::Error> {
+        ) -> Result<Option<Resource>, Self::Error> {
             let resources = self.resources.lock().unwrap();
             Ok(resources
                 .get(resource_type)
@@ -308,18 +310,21 @@ mod tests {
             &self,
             resource_type: &str,
             id: &str,
-            mut data: DynamicResource,
+            mut data: Value,
             _context: &RequestContext,
-        ) -> Result<DynamicResource, Self::Error> {
-            data.set_attribute_dynamic("id", Value::String(id.to_string()))
-                .map_err(|_| TestError)?;
+        ) -> Result<Resource, Self::Error> {
+            if let Some(obj) = data.as_object_mut() {
+                obj.insert("id".to_string(), Value::String(id.to_string()));
+            }
+
+            let resource = Resource::new(resource_type.to_string(), data);
 
             let mut resources = self.resources.lock().unwrap();
             if let Some(type_resources) = resources.get_mut(resource_type) {
-                type_resources.insert(id.to_string(), data.clone());
+                type_resources.insert(id.to_string(), resource.clone());
             }
 
-            Ok(data)
+            Ok(resource)
         }
 
         async fn delete_resource(
@@ -338,9 +343,8 @@ mod tests {
         async fn list_resources(
             &self,
             resource_type: &str,
-            _query: &ListQuery,
             _context: &RequestContext,
-        ) -> Result<Vec<DynamicResource>, Self::Error> {
+        ) -> Result<Vec<Resource>, Self::Error> {
             let resources = self.resources.lock().unwrap();
             Ok(resources
                 .get(resource_type)
@@ -352,14 +356,14 @@ mod tests {
             &self,
             resource_type: &str,
             attribute: &str,
-            value: &str,
+            value: &Value,
             _context: &RequestContext,
-        ) -> Result<Option<DynamicResource>, Self::Error> {
+        ) -> Result<Option<Resource>, Self::Error> {
             let resources = self.resources.lock().unwrap();
             if let Some(type_resources) = resources.get(resource_type) {
                 for resource in type_resources.values() {
-                    if let Some(attr_value) = resource.get_attribute_dynamic(attribute) {
-                        if attr_value.as_str() == Some(value) {
+                    if let Some(attr_value) = resource.get_attribute(attribute) {
+                        if attr_value == value {
                             return Ok(Some(resource.clone()));
                         }
                     }
@@ -499,7 +503,7 @@ mod tests {
             .expect("Failed to create user");
 
         let user_id = created_user
-            .get_attribute_dynamic("id")
+            .get_attribute("id")
             .unwrap()
             .as_str()
             .unwrap()
@@ -513,8 +517,8 @@ mod tests {
             .expect("User not found");
 
         assert_eq!(
-            retrieved_user.get_attribute_dynamic("userName"),
-            Some(Value::String("testuser".to_string()))
+            retrieved_user.get_attribute("userName"),
+            Some(&Value::String("testuser".to_string()))
         );
     }
 

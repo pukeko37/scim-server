@@ -1,22 +1,25 @@
-//! Basic usage example for the SCIM server library.
+//! Basic usage example for the SCIM server library using the dynamic approach.
 //!
-//! This example demonstrates how to create a simple in-memory SCIM server
-//! implementation and perform basic CRUD operations on User resources.
+//! This example demonstrates how to create a dynamic SCIM server implementation
+//! that can handle any resource type without hard-coding and perform CRUD operations.
 
 use async_trait::async_trait;
-use scim_server::{RequestContext, Resource, ResourceProvider, ScimServer, ServiceProviderConfig};
-use serde_json::json;
+use scim_server::{
+    DynamicResourceProvider, DynamicScimServer, RequestContext, Resource, ScimOperation,
+    create_user_resource_handler,
+};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Simple in-memory resource provider implementation.
+/// Dynamic in-memory resource provider implementation.
 ///
-/// This provider stores all users in memory using a HashMap. In a real
+/// This provider stores all resources in memory using a HashMap. In a real
 /// implementation, you would typically use a database or other persistent storage.
 #[derive(Debug)]
 struct InMemoryProvider {
-    users: Arc<RwLock<HashMap<String, Resource>>>,
+    resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>, // resource_type -> id -> resource
     next_id: Arc<RwLock<u64>>,
 }
 
@@ -24,222 +27,363 @@ impl InMemoryProvider {
     /// Create a new in-memory provider.
     fn new() -> Self {
         Self {
-            users: Arc::new(RwLock::new(HashMap::new())),
+            resources: Arc::new(RwLock::new(HashMap::new())),
             next_id: Arc::new(RwLock::new(1)),
         }
     }
 
-    /// Generate a new unique user ID.
+    /// Generate a new unique resource ID.
     async fn generate_id(&self) -> String {
         let mut next_id = self.next_id.write().await;
-        let id = format!("user_{}", *next_id);
+        let id = format!("resource_{}", *next_id);
         *next_id += 1;
         id
     }
 
-    /// Add server-managed metadata to a user resource.
-    async fn add_user_metadata(&self, mut user: Resource) -> Resource {
+    /// Add server-managed metadata to a resource.
+    async fn add_metadata(&self, mut data: Value, resource_type: &str) -> Value {
         let now = chrono::Utc::now().to_rfc3339();
 
         // Add timestamp metadata
-        user.add_metadata("https://example.com/scim", &now, &now);
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert(
+                "meta".to_string(),
+                json!({
+                    "resourceType": resource_type,
+                    "created": now,
+                    "lastModified": now,
+                    "location": format!("/{}/{}", resource_type, obj.get("id").and_then(|v| v.as_str()).unwrap_or("unknown"))
+                }),
+            );
 
-        // Ensure active field defaults to true if not provided
-        if user.get_attribute("active").is_none() {
-            user.set_attribute("active".to_string(), json!(true));
+            // Ensure active field defaults to true for User resources if not provided
+            if resource_type == "User" && !obj.contains_key("active") {
+                obj.insert("active".to_string(), json!(true));
+            }
         }
 
-        user
+        data
     }
 }
 
 /// Custom error type for our provider.
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
-    #[error("User not found: {id}")]
-    UserNotFound { id: String },
-    #[error("Username already exists: {username}")]
-    DuplicateUsername { username: String },
-    #[error("Invalid user data: {message}")]
+    #[error("Resource not found: {resource_type}/{id}")]
+    ResourceNotFound { resource_type: String, id: String },
+    #[error("Duplicate attribute in {resource_type}: {attribute}={value}")]
+    DuplicateAttribute {
+        resource_type: String,
+        attribute: String,
+        value: String,
+    },
+    #[error("Invalid resource data: {message}")]
     InvalidData { message: String },
     #[error("Internal error: {message}")]
     Internal { message: String },
 }
 
 #[async_trait]
-impl ResourceProvider for InMemoryProvider {
+impl DynamicResourceProvider for InMemoryProvider {
     type Error = ProviderError;
 
-    async fn create_user(
+    async fn create_resource(
         &self,
-        mut user: Resource,
+        resource_type: &str,
+        mut data: Value,
         context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
-        println!("Creating user with request ID: {}", context.request_id);
+        println!(
+            "Creating {} resource with request ID: {}",
+            resource_type, context.request_id
+        );
 
-        // Generate a unique ID for the new user
+        // Generate a unique ID for the new resource
         let id = self.generate_id().await;
-        user.set_attribute("id".to_string(), json!(id.clone()));
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert("id".to_string(), json!(id.clone()));
+        }
 
-        // Check for duplicate usernames
-        let username = user
-            .get_username()
-            .ok_or_else(|| ProviderError::InvalidData {
-                message: "userName is required".to_string(),
-            })?
-            .to_string();
-
-        // Check if username already exists
-        let users = self.users.read().await;
-        for existing_user in users.values() {
-            if existing_user.get_username() == Some(&username) {
-                return Err(ProviderError::DuplicateUsername {
-                    username: username.clone(),
-                });
+        // Check for duplicate userName for User resources
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                let resources = self.resources.read().await;
+                if let Some(users) = resources.get("User") {
+                    for existing_user in users.values() {
+                        if existing_user
+                            .get_attribute("userName")
+                            .and_then(|v| v.as_str())
+                            == Some(username)
+                        {
+                            return Err(ProviderError::DuplicateAttribute {
+                                resource_type: resource_type.to_string(),
+                                attribute: "userName".to_string(),
+                                value: username.to_string(),
+                            });
+                        }
+                    }
+                }
             }
         }
-        drop(users); // Release read lock
 
-        // Add metadata and store the user
-        user = self.add_user_metadata(user).await;
+        // Add metadata
+        data = self.add_metadata(data, resource_type).await;
 
-        let mut users = self.users.write().await;
-        users.insert(id, user.clone());
+        let resource = Resource::new(resource_type.to_string(), data);
 
-        println!("Created user: {} ({})", username, user.get_id().unwrap());
-        Ok(user)
+        // Store the resource
+        let mut resources = self.resources.write().await;
+        resources
+            .entry(resource_type.to_string())
+            .or_insert_with(HashMap::new)
+            .insert(id, resource.clone());
+
+        println!(
+            "Created {} resource with ID: {}",
+            resource_type,
+            resource.get_id().unwrap_or("unknown")
+        );
+        Ok(resource)
     }
 
-    async fn get_user(
+    async fn get_resource(
         &self,
+        resource_type: &str,
         id: &str,
         context: &RequestContext,
     ) -> Result<Option<Resource>, Self::Error> {
         println!(
-            "Getting user {} with request ID: {}",
-            id, context.request_id
+            "Getting {} resource {} with request ID: {}",
+            resource_type, id, context.request_id
         );
 
-        let users = self.users.read().await;
-        let user = users.get(id).cloned();
+        let resources = self.resources.read().await;
+        let resource = resources
+            .get(resource_type)
+            .and_then(|type_resources| type_resources.get(id))
+            .cloned();
 
-        if let Some(ref user) = user {
-            println!("Found user: {}", user.get_username().unwrap_or("unknown"));
+        if resource.is_some() {
+            println!("Found {} resource: {}", resource_type, id);
         } else {
-            println!("User {} not found", id);
+            println!("{} resource {} not found", resource_type, id);
         }
 
-        Ok(user)
+        Ok(resource)
     }
 
-    async fn update_user(
+    async fn update_resource(
         &self,
+        resource_type: &str,
         id: &str,
-        mut user: Resource,
+        mut data: Value,
         context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
         println!(
-            "Updating user {} with request ID: {}",
-            id, context.request_id
+            "Updating {} resource {} with request ID: {}",
+            resource_type, id, context.request_id
         );
 
         // Ensure the ID matches
-        user.set_attribute("id".to_string(), json!(id));
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert("id".to_string(), json!(id));
+        }
 
-        // Check if user exists
+        // Check if resource exists
         {
-            let users = self.users.read().await;
-            if !users.contains_key(id) {
-                return Err(ProviderError::UserNotFound { id: id.to_string() });
+            let resources = self.resources.read().await;
+            if !resources
+                .get(resource_type)
+                .map(|type_resources| type_resources.contains_key(id))
+                .unwrap_or(false)
+            {
+                return Err(ProviderError::ResourceNotFound {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                });
             }
         }
 
         // Update metadata
         let now = chrono::Utc::now().to_rfc3339();
-        let created_time = user
-            .get_attribute("meta")
-            .and_then(|m| m.get("created"))
-            .and_then(|c| c.as_str())
-            .unwrap_or(&now)
-            .to_string();
+        if let Some(obj) = data.as_object_mut() {
+            let created_time = obj
+                .get("meta")
+                .and_then(|m| m.get("created"))
+                .and_then(|c| c.as_str())
+                .unwrap_or(&now);
 
-        user.add_metadata("https://example.com/scim", &created_time, &now);
+            obj.insert(
+                "meta".to_string(),
+                json!({
+                    "resourceType": resource_type,
+                    "created": created_time,
+                    "lastModified": now,
+                    "location": format!("/{}/{}", resource_type, id)
+                }),
+            );
+        }
 
-        // Store the updated user
-        let mut users = self.users.write().await;
-        users.insert(id.to_string(), user.clone());
+        let resource = Resource::new(resource_type.to_string(), data);
 
-        println!("Updated user: {}", user.get_username().unwrap_or("unknown"));
-        Ok(user)
+        // Store the updated resource
+        let mut resources = self.resources.write().await;
+        resources
+            .entry(resource_type.to_string())
+            .or_insert_with(HashMap::new)
+            .insert(id.to_string(), resource.clone());
+
+        println!("Updated {} resource: {}", resource_type, id);
+        Ok(resource)
     }
 
-    async fn delete_user(&self, id: &str, context: &RequestContext) -> Result<(), Self::Error> {
+    async fn delete_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<(), Self::Error> {
         println!(
-            "Deleting user {} with request ID: {}",
-            id, context.request_id
+            "Deleting {} resource {} with request ID: {}",
+            resource_type, id, context.request_id
         );
 
-        let mut users = self.users.write().await;
-        let removed = users.remove(id);
+        let mut resources = self.resources.write().await;
+        let removed = resources
+            .get_mut(resource_type)
+            .and_then(|type_resources| type_resources.remove(id));
 
-        if let Some(user) = removed {
-            println!("Deleted user: {}", user.get_username().unwrap_or("unknown"));
+        if removed.is_some() {
+            println!("Deleted {} resource: {}", resource_type, id);
         } else {
-            println!("User {} was already deleted or didn't exist", id);
+            println!(
+                "{} resource {} was already deleted or didn't exist",
+                resource_type, id
+            );
         }
 
         Ok(()) // Idempotent operation
     }
 
-    async fn list_users(&self, context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
-        println!("Listing users with request ID: {}", context.request_id);
+    async fn list_resources(
+        &self,
+        resource_type: &str,
+        context: &RequestContext,
+    ) -> Result<Vec<Resource>, Self::Error> {
+        println!(
+            "Listing {} resources with request ID: {}",
+            resource_type, context.request_id
+        );
 
-        let users = self.users.read().await;
-        let user_list: Vec<Resource> = users.values().cloned().collect();
+        let resources = self.resources.read().await;
+        let resource_list: Vec<Resource> = resources
+            .get(resource_type)
+            .map(|type_resources| type_resources.values().cloned().collect())
+            .unwrap_or_default();
 
-        println!("Found {} users", user_list.len());
-        Ok(user_list)
+        println!("Found {} {} resources", resource_list.len(), resource_type);
+        Ok(resource_list)
+    }
+
+    async fn find_resource_by_attribute(
+        &self,
+        resource_type: &str,
+        attribute: &str,
+        value: &Value,
+        context: &RequestContext,
+    ) -> Result<Option<Resource>, Self::Error> {
+        println!(
+            "Finding {} resource by {}={} with request ID: {}",
+            resource_type, attribute, value, context.request_id
+        );
+
+        let resources = self.resources.read().await;
+        let found_resource = resources
+            .get(resource_type)
+            .and_then(|type_resources| {
+                type_resources.values().find(|resource| {
+                    resource
+                        .get_attribute(attribute)
+                        .map(|attr_value| attr_value == value)
+                        .unwrap_or(false)
+                })
+            })
+            .cloned();
+
+        if found_resource.is_some() {
+            println!(
+                "Found {} resource by {}={}",
+                resource_type, attribute, value
+            );
+        } else {
+            println!(
+                "No {} resource found with {}={}",
+                resource_type, attribute, value
+            );
+        }
+
+        Ok(found_resource)
+    }
+
+    async fn resource_exists(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<bool, Self::Error> {
+        println!(
+            "Checking if {} resource {} exists with request ID: {}",
+            resource_type, id, context.request_id
+        );
+
+        let resources = self.resources.read().await;
+        let exists = resources
+            .get(resource_type)
+            .map(|type_resources| type_resources.contains_key(id))
+            .unwrap_or(false);
+
+        println!("{} resource {} exists: {}", resource_type, id, exists);
+        Ok(exists)
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("SCIM Server Library - Basic Usage Example");
-    println!("=========================================\n");
+    println!("SCIM Server Library - Dynamic Usage Example");
+    println!("===========================================\n");
 
     // Create the resource provider
     let provider = InMemoryProvider::new();
 
-    // Configure service provider capabilities
-    let service_config = ServiceProviderConfig {
-        patch_supported: false,
-        bulk_supported: false,
-        filter_supported: false,
-        change_password_supported: false,
-        sort_supported: false,
-        etag_supported: false,
-        authentication_schemes: vec![],
-        bulk_max_operations: None,
-        bulk_max_payload_size: None,
-        filter_max_results: Some(100),
-    };
+    // Create the dynamic SCIM server
+    let mut server = DynamicScimServer::new(provider)?;
 
-    // Build the SCIM server
-    // Note: Schemas are loaded from JSON files in the current directory
-    // You can specify a custom schema directory with .with_schema_dir("path/to/schemas")
-    let server = ScimServer::builder()
-        .with_resource_provider(provider)
-        .with_service_config(service_config)
-        .with_schema_dir(".") // Load schemas from current directory
-        .build()?;
+    // Register resource types with their handlers and supported operations
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .expect("User schema should be available in schema registry")
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    let _ = server.register_resource_type(
+        "User",
+        user_handler,
+        vec![
+            ScimOperation::Create,
+            ScimOperation::Read,
+            ScimOperation::Update,
+            ScimOperation::Delete,
+            ScimOperation::List,
+            ScimOperation::Search,
+        ],
+    );
 
-    println!("✓ SCIM server created successfully (schemas loaded from files)\n");
+    println!("✓ Dynamic SCIM server created and configured\n");
 
     // Demonstrate schema discovery
     println!("1. Schema Discovery");
     println!("-------------------");
 
-    let schemas = server.get_schemas().await?;
+    let schemas = server.get_all_schemas();
     println!("Available schemas: {}", schemas.len());
     for schema in &schemas {
         println!("  - {} ({})", schema.name, schema.id);
@@ -247,33 +391,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("    Attributes: {}", schema.attributes.len());
     }
 
-    let user_schema = server
-        .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
-        .await?;
-    if let Some(schema) = user_schema {
-        println!("\nUser schema details:");
-        for attr in &schema.attributes {
-            println!(
-                "  - {}: {:?} (required: {})",
-                attr.name, attr.data_type, attr.required
-            );
-        }
-    }
+    let supported_types = server.get_supported_resource_types();
+    println!("\nSupported resource types: {:?}", supported_types);
 
-    let config = server.get_service_provider_config().await?;
-    println!("\nService Provider Configuration:");
-    println!("  - PATCH supported: {}", config.patch_supported);
-    println!("  - Bulk supported: {}", config.bulk_supported);
-    println!("  - Filter supported: {}", config.filter_supported);
+    let supported_ops = server.get_supported_operations("User");
+    println!("User operations: {:?}", supported_ops);
 
-    println!("\n2. User Management");
-    println!("------------------");
+    println!("\n2. Dynamic Resource Management");
+    println!("------------------------------");
 
     // Create request context
-    let context = RequestContext::new("basic-usage-example".to_string())
+    let context = RequestContext::new("dynamic-usage-example".to_string())
         .with_metadata("source".to_string(), "example".to_string());
 
-    // Create a sample user
+    // Create a sample user using dynamic operations
     let user_data = json!({
         "userName": "jdoe",
         "displayName": "John Doe",
@@ -303,10 +434,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    println!("Creating user...");
-    let created_user = server.create_user(user_data, context.clone()).await?;
+    println!("Creating User resource...");
+    let created_user = server.create_resource("User", user_data, &context).await?;
     let user_id = created_user.get_id().unwrap();
-    println!("✓ User created with ID: {}", user_id);
+    println!("✓ User resource created with ID: {}", user_id);
 
     // Create another user
     let user2_data = json!({
@@ -321,16 +452,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]
     });
 
-    println!("\nCreating second user...");
-    let created_user2 = server.create_user(user2_data, context.clone()).await?;
+    println!("\nCreating second User resource...");
+    let created_user2 = server.create_resource("User", user2_data, &context).await?;
     let user2_id = created_user2.get_id().unwrap();
-    println!("✓ Second user created with ID: {}", user2_id);
+    println!("✓ Second User resource created with ID: {}", user2_id);
 
     // Retrieve the user
-    println!("\nRetrieving user {}...", user_id);
-    let retrieved_user = server.get_user(user_id, context.clone()).await?;
+    println!("\nRetrieving User resource {}...", user_id);
+    let retrieved_user = server.get_resource("User", user_id, &context).await?;
     if let Some(user) = retrieved_user {
-        println!("✓ Retrieved user: {}", user.get_username().unwrap());
+        println!(
+            "✓ Retrieved user: {}",
+            user.get_attribute("userName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+        );
         println!(
             "  Display name: {}",
             user.get_attribute("displayName")
@@ -338,31 +474,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or("N/A")
         );
 
-        let emails = user.get_emails();
-        println!("  Emails: {}", emails.len());
-        for email in emails {
-            println!(
-                "    - {} ({})",
-                email.value,
-                email.email_type.as_deref().unwrap_or("unspecified")
-            );
+        if let Some(emails) = user.get_attribute("emails").and_then(|v| v.as_array()) {
+            println!("  Emails: {}", emails.len());
+            for email in emails {
+                if let (Some(value), Some(type_)) = (
+                    email.get("value").and_then(|v| v.as_str()),
+                    email.get("type").and_then(|v| v.as_str()),
+                ) {
+                    println!("    - {} ({})", value, type_);
+                }
+            }
         }
     }
 
     // List all users
-    println!("\nListing all users...");
-    let users = server.list_users(context.clone()).await?;
-    println!("✓ Found {} users:", users.len());
+    println!("\nListing all User resources...");
+    let users = server.list_resources("User", &context).await?;
+    println!("✓ Found {} User resources:", users.len());
     for user in &users {
         println!(
             "  - {} ({})",
-            user.get_username().unwrap_or("unknown"),
+            user.get_attribute("userName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown"),
             user.get_id().unwrap_or("no-id")
         );
     }
 
     // Update a user
-    println!("\nUpdating user {}...", user_id);
+    println!("\nUpdating User resource {}...", user_id);
     let updated_data = json!({
         "userName": "jdoe",
         "displayName": "John F. Doe", // Changed display name
@@ -383,10 +523,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let updated_user = server
-        .update_user(user_id, updated_data, context.clone())
+        .update_resource("User", user_id, updated_data, &context)
         .await?;
     println!(
-        "✓ User updated. New display name: {}",
+        "✓ User resource updated. New display name: {}",
         updated_user
             .get_attribute("displayName")
             .and_then(|v| v.as_str())
@@ -394,81 +534,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Search for user by username
-    println!("\nSearching for user by username 'asmith'...");
+    println!("\nSearching for User resource by userName 'asmith'...");
     let found_user = server
-        .find_user_by_username("asmith", context.clone())
+        .find_resource_by_attribute("User", "userName", &json!("asmith"), &context)
         .await?;
     if let Some(user) = found_user {
         println!(
             "✓ Found user: {} ({})",
-            user.get_username().unwrap(),
-            user.get_id().unwrap()
+            user.get_attribute("userName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown"),
+            user.get_id().unwrap_or("no-id")
         );
     }
 
     // Check if user exists
-    println!("\nChecking if user {} exists...", user_id);
-    let exists = server.user_exists(user_id, context.clone()).await?;
-    println!("✓ User exists: {}", exists);
+    println!("\nChecking if User resource {} exists...", user_id);
+    let exists = server.resource_exists("User", user_id, &context).await?;
+    println!("✓ User resource exists: {}", exists);
 
     // Delete a user
-    println!("\nDeleting user {}...", user2_id);
-    server.delete_user(user2_id, context.clone()).await?;
-    println!("✓ User deleted");
+    println!("\nDeleting User resource {}...", user2_id);
+    server.delete_resource("User", user2_id, &context).await?;
+    println!("✓ User resource deleted");
 
     // Verify deletion
     println!("\nVerifying deletion...");
-    let deleted_user = server.get_user(user2_id, context.clone()).await?;
+    let deleted_user = server.get_resource("User", user2_id, &context).await?;
     if deleted_user.is_none() {
-        println!("✓ User successfully deleted");
+        println!("✓ User resource successfully deleted");
     }
 
     // Final user count
-    let final_users = server.list_users(context.clone()).await?;
-    println!("\nFinal user count: {}", final_users.len());
+    let final_users = server.list_resources("User", &context).await?;
+    println!("\nFinal User resource count: {}", final_users.len());
 
     println!("\n3. Error Handling");
     println!("-----------------");
 
-    // Try to create a user with invalid data
-    println!("Attempting to create user with missing userName...");
-    let invalid_data = json!({
-        "displayName": "Invalid User"
-        // Missing required userName
-    });
-
-    match server.create_user(invalid_data, context.clone()).await {
-        Ok(_) => println!("❌ Should have failed validation"),
-        Err(e) => println!("✓ Validation failed as expected: {}", e),
-    }
-
-    // Try to get a non-existent user
-    println!("\nAttempting to get non-existent user...");
-    let missing_user = server.get_user("nonexistent", context.clone()).await?;
-    if missing_user.is_none() {
-        println!("✓ Non-existent user correctly returned None");
-    }
-
-    // Try to create user with duplicate username
-    println!("\nAttempting to create user with duplicate username...");
+    // Try to create a user with duplicate username
+    println!("Attempting to create User with duplicate userName...");
     let duplicate_data = json!({
         "userName": "jdoe", // This username already exists
         "displayName": "Duplicate User"
     });
 
-    match server.create_user(duplicate_data, context).await {
+    match server
+        .create_resource("User", duplicate_data, &context)
+        .await
+    {
         Ok(_) => println!("❌ Should have failed due to duplicate username"),
         Err(e) => println!("✓ Duplicate username prevented: {}", e),
     }
 
-    println!("\n✓ Example completed successfully!");
+    // Try to get a non-existent user
+    println!("\nAttempting to get non-existent User resource...");
+    let missing_user = server.get_resource("User", "nonexistent", &context).await?;
+    if missing_user.is_none() {
+        println!("✓ Non-existent User resource correctly returned None");
+    }
+
+    // Try to perform unsupported operation
+    println!("\nAttempting unsupported operation on unregistered resource type...");
+    match server
+        .create_resource("Group", json!({"name": "test"}), &context)
+        .await
+    {
+        Ok(_) => println!("❌ Should have failed for unregistered resource type"),
+        Err(e) => println!("✓ Unregistered resource type prevented: {}", e),
+    }
+
+    println!("\n✓ Dynamic example completed successfully!");
     println!("\nThis example demonstrated:");
-    println!("- Server creation and configuration");
-    println!("- Schema discovery");
-    println!("- User CRUD operations");
-    println!("- Search functionality");
-    println!("- Error handling and validation");
-    println!("- Type-safe state management");
+    println!("- Dynamic server creation and resource type registration");
+    println!("- Schema discovery for registered types");
+    println!("- Dynamic resource CRUD operations");
+    println!("- Resource search functionality");
+    println!("- Error handling for business rules");
+    println!("- Resource type validation");
+    println!("- Flexible, schema-driven approach");
 
     Ok(())
 }
