@@ -65,9 +65,10 @@
 ///     // Implement your data access layer
 ///     let provider = MyResourceProvider::new();
 ///
-///     // Build the SCIM server
+///     // Build the SCIM server (schemas loaded from JSON files)
 ///     let server = ScimServer::builder()
 ///         .with_resource_provider(provider)
+///         .with_schema_dir(".") // Load schemas from current directory
 ///         .build()?;
 ///
 ///     // Use server for SCIM operations

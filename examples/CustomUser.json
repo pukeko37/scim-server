@@ -1,0 +1,394 @@
+{
+  "id": "urn:example:params:scim:schemas:extension:2.0:CustomUser",
+  "name": "CustomUser",
+  "description": "Extended User schema with custom attributes for enterprise use",
+  "attributes": [
+    {
+      "name": "id",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": true,
+      "mutability": "readOnly",
+      "returned": "always",
+      "uniqueness": "server"
+    },
+    {
+      "name": "userName",
+      "type": "string",
+      "multiValued": false,
+      "required": true,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "server"
+    },
+    {
+      "name": "displayName",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "employeeId",
+      "type": "string",
+      "multiValued": false,
+      "required": true,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "server"
+    },
+    {
+      "name": "department",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "canonicalValues": ["Engineering", "Marketing", "Sales", "HR", "Finance", "Operations"]
+    },
+    {
+      "name": "manager",
+      "type": "complex",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "multiValued": false,
+          "required": true,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "$ref",
+          "type": "reference",
+          "multiValued": false,
+          "required": false,
+          "caseExact": true,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "type": "complex",
+      "multiValued": true,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "multiValued": false,
+          "required": true,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none",
+          "canonicalValues": ["admin", "user", "manager", "developer", "readonly"]
+        },
+        {
+          "name": "primary",
+          "type": "boolean",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "display",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "costCenter",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "startDate",
+      "type": "dateTime",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "endDate",
+      "type": "dateTime",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "workLocation",
+      "type": "complex",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "office",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none",
+          "canonicalValues": ["New York", "San Francisco", "London", "Tokyo", "Remote"]
+        },
+        {
+          "name": "building",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "floor",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "desk",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "emails",
+      "type": "complex",
+      "multiValued": true,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "multiValued": false,
+          "required": true,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none",
+          "canonicalValues": ["work", "personal", "other"]
+        },
+        {
+          "name": "primary",
+          "type": "boolean",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "phoneNumbers",
+      "type": "complex",
+      "multiValued": true,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "multiValued": false,
+          "required": true,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none",
+          "canonicalValues": ["work", "mobile", "home", "fax"]
+        },
+        {
+          "name": "primary",
+          "type": "boolean",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "meta",
+      "type": "complex",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readOnly",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "resourceType",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": true,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "created",
+          "type": "dateTime",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "lastModified",
+          "type": "dateTime",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "location",
+          "type": "reference",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": true,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    }
+  ]
+}

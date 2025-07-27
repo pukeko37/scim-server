@@ -225,12 +225,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Build the SCIM server
+    // Note: Schemas are loaded from JSON files in the current directory
+    // You can specify a custom schema directory with .with_schema_dir("path/to/schemas")
     let server = ScimServer::builder()
         .with_resource_provider(provider)
         .with_service_config(service_config)
+        .with_schema_dir(".") // Load schemas from current directory
         .build()?;
 
-    println!("✓ SCIM server created successfully\n");
+    println!("✓ SCIM server created successfully (schemas loaded from files)\n");
 
     // Demonstrate schema discovery
     println!("1. Schema Discovery");

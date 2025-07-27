@@ -11,19 +11,21 @@ A comprehensive **System for Cross-domain Identity Management (SCIM) server libr
 - **Type-safe state machine** preventing invalid operations at compile time
 - **Trait-based architecture** for flexible data access patterns  
 - **Full RFC 7643/7644 compliance** for core User schema
+- **File-based schema definitions** in JSON format for easy customization
 - **Async-first design** with functional programming patterns
 - **Comprehensive validation** with detailed error reporting
 - **Zero-cost abstractions** leveraging Rust's type system
-- **Extensible schema system** (future versions)
+- **Extensible schema system** supporting custom schemas
 
 ## 📋 Current Status - MVP
 
 This is the **Minimum Viable Product (MVP)** release focusing on core functionality:
 
 ### ✅ Included
-- Core SCIM User schema with validation
+- Core SCIM User schema loaded from JSON files
 - Basic CRUD operations (Create, Read, Update, Delete, List)
 - Schema discovery endpoints (`/Schemas`, `/ServiceProviderConfig`)
+- File-based schema definitions for easy customization
 - Type-safe server state management
 - Comprehensive error handling
 - In-memory reference implementation
@@ -132,9 +134,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         users: Arc::new(RwLock::new(HashMap::new())),
     };
 
-    // Build the SCIM server
+    // Build the SCIM server with schemas loaded from files
     let server = ScimServer::builder()
         .with_resource_provider(provider)
+        .with_schema_dir(".") // Load schemas from current directory
         .build()?;
 
     // Create a user
@@ -162,6 +165,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ## 🏗️ Architecture
+
+### File-Based Schema System
+
+Schemas are defined in JSON files that follow the SCIM specification format:
+
+```json
+{
+  "id": "urn:ietf:params:scim:schemas:core:2.0:User",
+  "name": "User",
+  "description": "User Account",
+  "attributes": [
+    {
+      "name": "userName",
+      "type": "string",
+      "multiValued": false,
+      "required": true,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "server"
+    }
+  ]
+}
+```
+
+The server loads schemas from JSON files at startup:
+
+```rust
+// Load schemas from current directory (default)
+let server = ScimServer::builder()
+    .with_resource_provider(provider)
+    .build()?;
+
+// Or specify a custom schema directory
+let server = ScimServer::builder()
+    .with_resource_provider(provider)
+    .with_schema_dir("/path/to/schemas")
+    .build()?;
+```
 
 ### Type-Safe State Machine
 
@@ -265,9 +307,27 @@ match server.create_user(invalid_data, context).await {
 
 ## 🔧 Configuration
 
+### Schema Files
+
+The library expects schema files to be named after the schema (e.g., `User.json`). Required schema files:
+
+- **User.json** - Core User schema (required)
+- **ServiceProviderConfig.json** - Service provider configuration schema (optional)
+
+### Custom Schema Directory
+
+You can specify a custom directory for schema files:
+
+```rust
+let server = ScimServer::builder()
+    .with_resource_provider(provider)
+    .with_schema_dir("./schemas") // Custom schema directory
+    .build()?;
+```
+
 ### Service Provider Configuration
 
-Configure server capabilities:
+Configure server capabilities programmatically:
 
 ```rust
 use scim_server::ServiceProviderConfig;
@@ -288,8 +348,30 @@ let config = ServiceProviderConfig {
 let server = ScimServer::builder()
     .with_resource_provider(provider)
     .with_service_config(config)
+    .with_schema_dir("./schemas")
     .build()?;
 ```
+
+### Schema File Format
+
+Schema files follow the SCIM specification format with these key fields:
+
+- `id`: Unique schema identifier (URI)
+- `name`: Human-readable schema name  
+- `description`: Schema description
+- `attributes`: Array of attribute definitions
+
+Each attribute definition includes:
+- `name`: Attribute name
+- `type`: Data type (string, boolean, integer, decimal, dateTime, binary, reference, complex)
+- `multiValued`: Whether the attribute can have multiple values
+- `required`: Whether the attribute is required
+- `caseExact`: Whether string comparisons are case-sensitive
+- `mutability`: How the attribute can be modified (readOnly, readWrite, immutable, writeOnly)
+- `returned`: When the attribute is returned (always, never, default, request)
+- `uniqueness`: Uniqueness constraint (none, server, global)
+- `canonicalValues`: Valid values for the attribute (optional)
+- `subAttributes`: Sub-attributes for complex types (optional)
 
 ## 🧪 Testing
 

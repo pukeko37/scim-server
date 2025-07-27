@@ -71,8 +71,10 @@ pub struct Ready;
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let provider = MyProvider;
 ///
+///     // Build server with schemas loaded from JSON files
 ///     let server = ScimServer::builder()
 ///         .with_resource_provider(provider)
+///         .with_schema_dir(".") // Load schemas from current directory
 ///         .build()?;
 ///
 ///     // Server is now ready for SCIM operations
@@ -381,6 +383,7 @@ where
 pub struct ScimServerBuilder<P = ()> {
     resource_provider: Option<P>,
     service_config: Option<ServiceProviderConfig>,
+    schema_dir: Option<String>,
 }
 
 impl ScimServerBuilder {
@@ -389,6 +392,7 @@ impl ScimServerBuilder {
         Self {
             resource_provider: None,
             service_config: None,
+            schema_dir: None,
         }
     }
 
@@ -412,6 +416,7 @@ impl ScimServerBuilder {
         ScimServerBuilder {
             resource_provider: Some(provider),
             service_config: self.service_config,
+            schema_dir: self.schema_dir,
         }
     }
 }
@@ -431,6 +436,17 @@ where
         self
     }
 
+    /// Configure the directory from which to load schema files.
+    ///
+    /// If not provided, schemas will be loaded from the current directory.
+    ///
+    /// # Arguments
+    /// * `dir` - The directory path containing schema JSON files
+    pub fn with_schema_dir<S: Into<String>>(mut self, dir: S) -> Self {
+        self.schema_dir = Some(dir.into());
+        self
+    }
+
     /// Build the configured SCIM server.
     ///
     /// This method validates the configuration and creates a ready-to-use server instance.
@@ -447,8 +463,16 @@ where
 
         let service_config = self.service_config.unwrap_or_default();
 
+        let schema_registry = match &self.schema_dir {
+            Some(dir) => SchemaRegistry::from_schema_dir(dir),
+            None => SchemaRegistry::new(),
+        }
+        .map_err(|_e| BuildError::SchemaLoadError {
+            schema_id: "User".to_string(),
+        })?;
+
         let inner = ServerInner {
-            schema_registry: SchemaRegistry::new(),
+            schema_registry,
             resource_provider,
             service_config,
         };
@@ -465,6 +489,7 @@ impl<P> std::fmt::Debug for ScimServerBuilder<P> {
         f.debug_struct("ScimServerBuilder")
             .field("has_resource_provider", &self.resource_provider.is_some())
             .field("has_service_config", &self.service_config.is_some())
+            .field("schema_dir", &self.schema_dir)
             .finish()
     }
 }
