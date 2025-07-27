@@ -170,52 +170,24 @@ pub struct EmailAddress {
 
 /// Request context for SCIM operations.
 ///
-/// Provides contextual information for each SCIM request, enabling
-/// providers to implement proper auditing, logging, and request tracking.
+/// Provides request tracking for logging and auditing purposes.
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     /// Unique identifier for this request
     pub request_id: String,
-    /// Optional user context for authorization
-    pub user_context: Option<UserContext>,
-    /// Additional metadata for the request
-    pub metadata: HashMap<String, String>,
 }
 
 impl RequestContext {
     /// Create a new request context with a specific request ID.
     pub fn new(request_id: String) -> Self {
-        Self {
-            request_id,
-            user_context: None,
-            metadata: HashMap::new(),
-        }
+        Self { request_id }
     }
 
     /// Create a new request context with a generated request ID.
     pub fn with_generated_id() -> Self {
         Self {
             request_id: uuid::Uuid::new_v4().to_string(),
-            user_context: None,
-            metadata: HashMap::new(),
         }
-    }
-
-    /// Add user context for authorization.
-    pub fn with_user_context(mut self, user_context: UserContext) -> Self {
-        self.user_context = Some(user_context);
-        self
-    }
-
-    /// Add metadata to the request context.
-    pub fn with_metadata(mut self, key: String, value: String) -> Self {
-        self.metadata.insert(key, value);
-        self
-    }
-
-    /// Get metadata value by key.
-    pub fn get_metadata(&self, key: &str) -> Option<&String> {
-        self.metadata.get(key)
     }
 }
 
@@ -540,33 +512,6 @@ pub trait ResourceProvider {
     ) -> impl Future<Output = Result<bool, Self::Error>> + Send;
 }
 
-/// User context for authorization and auditing.
-#[derive(Debug, Clone)]
-pub struct UserContext {
-    /// User identifier
-    pub user_id: String,
-    /// User roles or permissions
-    pub roles: Vec<String>,
-    /// Additional user attributes
-    pub attributes: HashMap<String, String>,
-}
-
-impl UserContext {
-    /// Create a new user context.
-    pub fn new(user_id: String, roles: Vec<String>) -> Self {
-        Self {
-            user_id,
-            roles,
-            attributes: HashMap::new(),
-        }
-    }
-
-    /// Check if the user has a specific role.
-    pub fn has_role(&self, role: &str) -> bool {
-        self.roles.contains(&role.to_string())
-    }
-}
-
 /// Trait for implementing SCIM resource data access.
 ///
 /// This trait defines the interface that users must implement to provide
@@ -826,18 +771,6 @@ mod tests {
 
         let context_with_id = RequestContext::new("test-123".to_string());
         assert_eq!(context_with_id.request_id, "test-123");
-    }
-
-    #[test]
-    fn test_user_context() {
-        let user_context = UserContext::new(
-            "user123".to_string(),
-            vec!["admin".to_string(), "user".to_string()],
-        );
-
-        assert!(user_context.has_role("admin"));
-        assert!(user_context.has_role("user"));
-        assert!(!user_context.has_role("superuser"));
     }
 
     #[test]
