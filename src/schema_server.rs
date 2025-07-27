@@ -1,8 +1,9 @@
-//! Type-safe SCIM server implementation with state machine design.
+//! Schema discovery server implementation with state machine design.
 //!
-//! This module implements the core SCIM server using a type-parameterized state machine
-//! to ensure compile-time safety and prevent invalid operations. The design follows
-//! the builder pattern for configuration and provides async operations for all SCIM endpoints.
+//! This module implements a specialized SCIM server for schema discovery and service provider
+//! configuration using a type-parameterized state machine to ensure compile-time safety.
+//! This server is designed specifically for schema introspection endpoints, not for
+//! resource CRUD operations. For full SCIM resource management, use the dynamic ScimServer.
 
 use crate::error::{BuildError, BuildResult, ScimResult};
 
@@ -23,39 +24,41 @@ pub struct Uninitialized;
 #[derive(Debug)]
 pub struct Ready;
 
-/// Type-safe SCIM server with state machine design.
+/// Schema discovery server with state machine design.
 ///
 /// The server uses phantom types to encode its configuration state at compile time,
 /// preventing invalid operations and ensuring proper initialization sequence.
+/// This server is specifically designed for schema discovery and service provider
+/// configuration endpoints, not for resource CRUD operations.
 ///
 /// # Type Parameters
 /// * `State` - The current state of the server (Uninitialized or Ready)
 ///
 /// # Example
 /// ```rust,no_run
-/// use scim_server::TypeSafeScimServer;
+/// use scim_server::SchemaServer;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Create a basic type-safe SCIM server for schema discovery
-///     let server = TypeSafeScimServer::new()?;
+///     // Create a schema discovery server
+///     let server = SchemaServer::new()?;
 ///
 ///     // Get available schemas
 ///     let schemas = server.get_schemas().await?;
 ///     println!("Available schemas: {}", schemas.len());
 ///
-///     // For dynamic resource operations, use ScimServer instead
+///     // For resource CRUD operations, use ScimServer instead
 ///     Ok(())
 /// }
 /// ```
-pub struct ScimServer<State = Ready> {
+pub struct SchemaServer<State = Ready> {
     inner: Option<ServerInner>,
     _state: PhantomData<State>,
 }
 
-impl<State> std::fmt::Debug for ScimServer<State> {
+impl<State> std::fmt::Debug for SchemaServer<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ScimServer")
+        f.debug_struct("SchemaServer")
             .field("inner", &self.inner.is_some())
             .field("state", &std::any::type_name::<State>())
             .finish()
@@ -77,12 +80,13 @@ impl std::fmt::Debug for ServerInner {
     }
 }
 
-impl ScimServer<Uninitialized> {
-    /// Create a new basic SCIM server.
+impl SchemaServer<Uninitialized> {
+    /// Create a new schema discovery server.
     ///
-    /// This creates a server with default configuration and schema registry.
-    /// For dynamic resource operations, use DynamicScimServer.
-    pub fn new() -> BuildResult<ScimServer<Ready>> {
+    /// This creates a server with default configuration and schema registry
+    /// for schema discovery and service provider configuration endpoints.
+    /// For resource CRUD operations, use ScimServer instead.
+    pub fn new() -> BuildResult<SchemaServer<Ready>> {
         let schema_registry = SchemaRegistry::new().map_err(|_e| BuildError::SchemaLoadError {
             schema_id: "Core".to_string(),
         })?;
@@ -94,14 +98,14 @@ impl ScimServer<Uninitialized> {
             service_config,
         };
 
-        Ok(ScimServer {
+        Ok(SchemaServer {
             inner: Some(inner),
             _state: PhantomData,
         })
     }
 }
 
-impl ScimServer<Ready> {
+impl SchemaServer<Ready> {
     // Discovery endpoints
 
     /// Get all available schemas.
@@ -248,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_creation() {
-        let server = ScimServer::new().expect("Failed to create server");
+        let server = SchemaServer::new().expect("Failed to create server");
 
         // Test that the server can access schemas
         let schemas = server.get_schemas().await.expect("Failed to get schemas");
@@ -257,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_access() {
-        let server = ScimServer::new().expect("Failed to create server");
+        let server = SchemaServer::new().expect("Failed to create server");
 
         // Test schema retrieval
         let user_schema = server

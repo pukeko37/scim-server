@@ -52,7 +52,7 @@ serde_json = "1.0"
 
 ```rust
 use scim_server::{
-    DynamicScimServer, DynamicResourceProvider, Resource, RequestContext,
+    ScimServer, ResourceProvider, Resource, RequestContext,
     ScimOperation, create_user_resource_handler
 };
 use async_trait::async_trait;
@@ -66,7 +66,7 @@ struct MyProvider {
 }
 
 #[async_trait]
-impl DynamicResourceProvider for MyProvider {
+impl ResourceProvider for MyProvider {
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
     async fn create_resource(
@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create dynamic server
-    let mut server = DynamicScimServer::new(provider)?;
+    let mut server = ScimServer::new(provider)?;
 
     // Register User resource type
     let user_schema = server
@@ -189,7 +189,7 @@ Implement one simple trait to handle all resource types:
 
 ```rust
 #[async_trait]
-pub trait DynamicResourceProvider {
+pub trait ResourceProvider {
     type Error: std::error::Error + Send + Sync + 'static;
 
     async fn create_resource(&self, resource_type: &str, data: Value, context: &RequestContext) -> Result<Resource, Self::Error>;
@@ -268,7 +268,7 @@ cargo test
 cargo test -- --nocapture
 
 # Test specific module
-cargo test dynamic_server
+cargo test scim_server
 ```
 
 ## 🚧 Current Status

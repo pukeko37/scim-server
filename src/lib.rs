@@ -3,17 +3,25 @@
 //! A comprehensive System for Cross-domain Identity Management (SCIM) server library
 //! that enables developers to implement SCIM-compliant identity providers with minimal effort.
 //!
+//! ## Two Server Types
+//!
+//! This library provides two distinct server implementations:
+//!
+//! - **`ScimServer`** - Full-featured dynamic server for production SCIM endpoints with runtime resource registration and CRUD operations
+//! - **`SchemaServer`** - Lightweight server for schema discovery and service provider configuration endpoints only
+//!
 //! ## Features
 //!
 //! - Type-safe state machine preventing invalid operations at compile time
 //! - Trait-based architecture for flexible data access patterns
 //! - Full RFC 7643/7644 compliance for core User schema
 //! - Async-first design with functional programming patterns
+//! - Runtime schema validation and dynamic resource type registration
 //!
-//! ## Quick Start
+//! ## Quick Start - Full SCIM Server
 //!
 /// ```rust,no_run
-/// use scim_server::{ScimServer, ResourceProvider, Resource, RequestContext, ScimOperation, ListQuery};
+/// use scim_server::{ScimServer, ResourceProvider, Resource, RequestContext, ScimOperation, ListQuery, create_user_resource_handler};
 /// use std::collections::HashMap;
 /// use tokio::sync::RwLock;
 /// use std::sync::Arc;
@@ -78,7 +86,7 @@
 ///
 ///     // Register resource types with their operations
 ///     let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User").unwrap().clone();
-///     let user_handler = scim_server::create_user_resource_handler(user_schema);
+///     let user_handler = create_user_resource_handler(user_schema);
 ///     let _ = server.register_resource_type("User", user_handler, vec![ScimOperation::Create, ScimOperation::Read]);
 ///
 ///     // Use server for SCIM operations
@@ -88,22 +96,46 @@
 ///     Ok(())
 /// }
 /// ```
-pub mod dynamic_server;
+///
+/// ## Schema Discovery Server
+///
+/// For schema discovery and service provider configuration only:
+///
+/// ```rust,no_run
+/// use scim_server::SchemaServer;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Create schema discovery server
+///     let server = SchemaServer::new()?;
+///
+///     // Get available schemas
+///     let schemas = server.get_schemas().await?;
+///     println!("Available schemas: {}", schemas.len());
+///
+///     // Get service provider configuration
+///     let config = server.get_service_provider_config().await?;
+///     println!("Service provider config: {:?}", config);
+///
+///     Ok(())
+/// }
+/// ```
 pub mod error;
 pub mod resource;
+pub mod resource_handlers;
 pub mod schema;
-pub mod server;
-pub mod user_handler;
+pub mod schema_server;
+pub mod scim_server;
 
 // Core re-exports for library users
-pub use dynamic_server::ScimServer;
 pub use error::{BuildError, ScimError, ValidationError};
 pub use resource::{
     DatabaseMapper, DynamicResource, ListQuery, RequestContext, Resource, ResourceProvider,
     SchemaResourceBuilder, ScimOperation,
 };
+pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
 pub use schema::{
     AttributeDefinition, AttributeType, Mutability, Schema, SchemaRegistry, Uniqueness,
 };
-pub use server::{ScimServer as TypeSafeScimServer, ServiceProviderConfig};
-pub use user_handler::{create_group_resource_handler, create_user_resource_handler};
+pub use schema_server::{SchemaServer, ServiceProviderConfig};
+pub use scim_server::ScimServer;

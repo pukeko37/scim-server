@@ -8,7 +8,7 @@ This guide shows you how to use the new dynamic SCIM server to build flexible, s
 
 ```rust
 use scim_server::{
-    DynamicScimServer, DynamicResourceProvider, DynamicResource,
+    ScimServer, ResourceProvider, Resource,
     RequestContext, ScimOperation, create_user_resource_handler
 };
 
@@ -16,7 +16,7 @@ use scim_server::{
 let provider = MyProvider::new();
 
 // 2. Create the dynamic server
-let mut server = DynamicScimServer::new(provider)?;
+let mut server = ScimServer::new(provider)?;
 
 // 3. Register resource types
 let user_schema = load_schema_from_file("User.json")?;

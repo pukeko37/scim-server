@@ -16,5 +16,5 @@ async-trait = "0.1.85"
 tokio-test = "0.4.4"
 
 [[bin]]
-name = "validate-schema"
-path = "src/bin/validate-schema.rs"
+name = "schema-validator"
+path = "src/bin/schema-validator.rs"

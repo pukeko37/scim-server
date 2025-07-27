@@ -12,11 +12,11 @@ The complete API documentation is generated using `cargo doc` and includes:
 
 ### Core Modules
 
-#### 🏗️ [Dynamic Server](target/doc/scim_server/dynamic_server/index.html)
+#### 🏗️ [SCIM Server](target/doc/scim_server/scim_server/index.html)
 The heart of the library - provides runtime resource type registration and dynamic operations.
 
 **Key Components:**
-- `DynamicScimServer` - Main server implementation
+- `ScimServer` - Main server implementation
 - Resource type registration system
 - Schema-driven validation
 - Generic CRUD operations
@@ -25,7 +25,7 @@ The heart of the library - provides runtime resource type registration and dynam
 Resource models and provider interfaces for handling SCIM entities.
 
 **Key Components:**
-- `DynamicResourceProvider` trait - Implement to handle resource storage
+- `ResourceProvider` trait - Implement to handle resource storage
 - `Resource` - Core resource representation
 - `RequestContext` - Request metadata and auditing
 - `ScimOperation` - Supported operations enum
@@ -47,14 +47,14 @@ Comprehensive error types with detailed context.
 - `ValidationError` - Schema validation failures
 - `BuildError` - Server configuration errors
 
-#### 🛠️ [Server Utilities](target/doc/scim_server/server/index.html)
+#### 🛠️ [Server Utilities](target/doc/scim_server/schema_server/index.html)
 Basic server implementation and service provider configuration.
 
 **Key Components:**
-- `ScimServer` - Basic server for schema access
+- `SchemaServer` - Basic server for schema access
 - `ServiceProviderConfig` - SCIM service capabilities
 
-#### 👤 [User Handlers](target/doc/scim_server/user_handler/index.html)
+#### 👤 [Resource Handlers](target/doc/scim_server/resource_handlers/index.html)
 Pre-built resource handlers for common SCIM resource types.
 
 **Key Components:**
@@ -66,15 +66,15 @@ Pre-built resource handlers for common SCIM resource types.
 ### For New Users
 1. **[Library Overview](target/doc/scim_server/index.html)** - Start here for an introduction
 2. **[Basic Example](examples/basic_usage.rs)** - Complete working example
-3. **[DynamicScimServer](target/doc/scim_server/dynamic_server/struct.DynamicScimServer.html)** - Main server API
+3. **[ScimServer](target/doc/scim_server/scim_server/struct.ScimServer.html)** - Main server API
 
 ### For Implementation
-1. **[DynamicResourceProvider](target/doc/scim_server/resource/trait.DynamicResourceProvider.html)** - Implement this trait
+1. **[ResourceProvider](target/doc/scim_server/resource/trait.ResourceProvider.html)** - Implement this trait
 2. **[Schema Guide](SCHEMAS.md)** - Understanding SCIM schemas
 3. **[Error Types](target/doc/scim_server/error/index.html)** - Handle errors properly
 
 ### For Advanced Usage
-1. **[Resource Handlers](target/doc/scim_server/user_handler/index.html)** - Custom resource types
+1. **[Resource Handlers](target/doc/scim_server/resource_handlers/index.html)** - Custom resource types
 2. **[Schema Registry](target/doc/scim_server/schema/struct.SchemaRegistry.html)** - Schema management
 3. **[Database Mapping](target/doc/scim_server/resource/struct.DatabaseMapper.html)** - Database integration
 
@@ -82,13 +82,13 @@ Pre-built resource handlers for common SCIM resource types.
 
 ### Basic Server Setup
 ```rust
-use scim_server::{DynamicScimServer, DynamicResourceProvider};
+use scim_server::{ScimServer, ResourceProvider};
 
 // 1. Create your provider
 let provider = MyProvider::new();
 
 // 2. Create dynamic server
-let mut server = DynamicScimServer::new(provider)?;
+let mut server = ScimServer::new(provider)?;
 
 // 3. Register resource types
 let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
@@ -99,7 +99,7 @@ server.register_resource_type("User", user_handler, operations)?;
 ### Provider Implementation
 ```rust
 #[async_trait]
-impl DynamicResourceProvider for MyProvider {
+impl ResourceProvider for MyProvider {
     type Error = MyError;
 
     async fn create_resource(
@@ -169,7 +169,7 @@ let user = server.create_resource("User", user_data, &context).await?;
 - **By Function**: Search using your browser's find function (Ctrl+F)
 
 ### Key Traits to Implement
-1. **`DynamicResourceProvider`** - Core data access interface
+1. **`ResourceProvider`** - Core data access interface
 2. **`std::error::Error`** - For custom error types
 3. **`Send + Sync`** - Required for async operations
 
@@ -248,10 +248,10 @@ RUSTDOCFLAGS="-D missing_docs" cargo doc --no-deps
 
 - [ ] Read the [library overview](target/doc/scim_server/index.html)
 - [ ] Run the [basic example](examples/basic_usage.rs)
-- [ ] Understand [DynamicResourceProvider](target/doc/scim_server/resource/trait.DynamicResourceProvider.html)
+- [ ] Understand [ResourceProvider](target/doc/scim_server/resource/trait.ResourceProvider.html)
 - [ ] Review [error handling](target/doc/scim_server/error/index.html) patterns
 - [ ] Explore [schema system](target/doc/scim_server/schema/index.html)
-- [ ] Check [resource handlers](target/doc/scim_server/user_handler/index.html) for common types
+- [ ] Check [resource handlers](target/doc/scim_server/resource_handlers/index.html) for common types
 - [ ] Implement your first provider
 - [ ] Test with multiple resource types
 
