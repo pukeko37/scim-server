@@ -24,6 +24,16 @@
       "uniqueness": "server"
     },
     {
+      "name": "externalId",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": true,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
       "name": "displayName",
       "type": "string",
       "multiValued": false,

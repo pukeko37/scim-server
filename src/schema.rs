@@ -322,10 +322,14 @@ impl SchemaRegistry {
         // 1. Validate schemas array
         self.validate_schemas_attribute(obj)?;
 
-        // 2. Validate meta attributes
+        // 2. Validate common attributes
+        self.validate_id_attribute(obj)?;
+        self.validate_external_id(obj)?;
+
+        // 3. Validate meta attributes
         self.validate_meta_attribute(obj)?;
 
-        // 3. Extract schema IDs and validate against each
+        // 4. Extract schema IDs and validate against each
         let schemas = self.extract_schema_uris(obj)?;
         for schema_uri in &schemas {
             if let Some(schema) = self.get_schema_by_id(schema_uri) {
@@ -396,6 +400,49 @@ impl SchemaRegistry {
     }
 
     /// Validate the meta attribute structure.
+    /// Validate the id attribute (Errors 9-12)
+    fn validate_id_attribute(&self, obj: &serde_json::Map<String, Value>) -> ValidationResult<()> {
+        // Check if id attribute exists
+        let id_value = obj.get("id").ok_or_else(|| ValidationError::MissingId)?;
+
+        // Check if id is a string
+        let id_str = id_value
+            .as_str()
+            .ok_or_else(|| ValidationError::InvalidIdFormat {
+                id: format!("{:?}", id_value),
+            })?;
+
+        // Check if id is empty
+        if id_str.is_empty() {
+            return Err(ValidationError::EmptyId);
+        }
+
+        // TODO: Add more sophisticated ID format validation if needed
+        // For now, we accept any non-empty string as a valid ID
+
+        Ok(())
+    }
+
+    /// Validate the externalId attribute (Error 13)
+    fn validate_external_id(&self, obj: &serde_json::Map<String, Value>) -> ValidationResult<()> {
+        // externalId is optional, so only validate if present
+        if let Some(external_id_value) = obj.get("externalId") {
+            // If present, it must be a string (null is also acceptable)
+            if !external_id_value.is_string() && !external_id_value.is_null() {
+                return Err(ValidationError::InvalidExternalId);
+            }
+
+            // If it's a string, it should not be empty
+            if let Some(external_id_str) = external_id_value.as_str() {
+                if external_id_str.is_empty() {
+                    return Err(ValidationError::InvalidExternalId);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn validate_meta_attribute(
         &self,
         obj: &serde_json::Map<String, Value>,
@@ -414,6 +461,13 @@ impl SchemaRegistry {
                 if resource_type_str.is_empty() {
                     return Err(ValidationError::MissingResourceType);
                 }
+
+                // Validate that resourceType matches expected values
+                if !["User", "Group"].contains(&resource_type_str) {
+                    return Err(ValidationError::InvalidResourceType {
+                        resource_type: resource_type_str.to_string(),
+                    });
+                }
             }
 
             // Validate datetime fields
@@ -427,6 +481,7 @@ impl SchemaRegistry {
                         }
                     }
                     // TODO: Add RFC3339 datetime format validation
+                    // For now, we just check that it's a string
                 }
             }
 
@@ -436,6 +491,7 @@ impl SchemaRegistry {
                     return Err(ValidationError::InvalidLocationUri);
                 }
                 // TODO: Add URI format validation
+                // For now, we just check that it's a string
             }
 
             // Validate version
@@ -764,5 +820,233 @@ mod tests {
                 .validate_resource(&registry.core_user_schema, &user)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn test_id_validation() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+
+        // Test valid resource with ID
+        let valid_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "12345",
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        assert!(registry.validate_scim_resource(&valid_user).is_ok());
+
+        // Test missing ID
+        let missing_id_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&missing_id_user) {
+            Err(ValidationError::MissingId) => {
+                // Expected error
+            }
+            other => panic!("Expected MissingId error, got {:?}", other),
+        }
+
+        // Test empty ID
+        let empty_id_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "",
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&empty_id_user) {
+            Err(ValidationError::EmptyId) => {
+                // Expected error
+            }
+            other => panic!("Expected EmptyId error, got {:?}", other),
+        }
+
+        // Test invalid ID type
+        let invalid_id_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": 12345,
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&invalid_id_user) {
+            Err(ValidationError::InvalidIdFormat { .. }) => {
+                // Expected error
+            }
+            other => panic!("Expected InvalidIdFormat error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_external_id_validation() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+
+        // Test valid external ID
+        let valid_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "12345",
+            "userName": "testuser@example.com",
+            "externalId": "ext123",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        assert!(registry.validate_scim_resource(&valid_user).is_ok());
+
+        // Test invalid external ID type
+        let invalid_external_id_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "12345",
+            "userName": "testuser@example.com",
+            "externalId": 999,
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&invalid_external_id_user) {
+            Err(ValidationError::InvalidExternalId) => {
+                // Expected error
+            }
+            other => panic!("Expected InvalidExternalId error, got {:?}", other),
+        }
+
+        // Test empty external ID
+        let empty_external_id_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "12345",
+            "userName": "testuser@example.com",
+            "externalId": "",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&empty_external_id_user) {
+            Err(ValidationError::InvalidExternalId) => {
+                // Expected error
+            }
+            other => panic!("Expected InvalidExternalId error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_phase_2_integration() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+
+        // Test that Phase 2 validation is actually being called in the main validation flow
+
+        // Test 1: Comprehensive valid resource passes all Phase 2 validations
+        let valid_user = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "valid-id-123",
+            "userName": "testuser@example.com",
+            "externalId": "ext-valid-123",
+            "meta": {
+                "resourceType": "User",
+                "created": "2023-01-01T00:00:00Z",
+                "lastModified": "2023-01-01T00:00:00Z",
+                "location": "https://example.com/Users/valid-id-123",
+                "version": "v1.0"
+            }
+        });
+
+        assert!(
+            registry.validate_scim_resource(&valid_user).is_ok(),
+            "Valid user should pass all Phase 2 validations"
+        );
+
+        // Test 2: Multiple Phase 2 errors are caught correctly
+        let invalid_user_missing_id = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            // Missing id
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&invalid_user_missing_id) {
+            Err(ValidationError::MissingId) => {
+                // Expected - ID validation caught the missing ID
+            }
+            other => panic!(
+                "Expected MissingId error from Phase 2 validation, got {:?}",
+                other
+            ),
+        }
+
+        // Test 3: External ID validation is integrated
+        let invalid_external_id = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "valid-id",
+            "userName": "testuser@example.com",
+            "externalId": false, // Invalid type
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&invalid_external_id) {
+            Err(ValidationError::InvalidExternalId) => {
+                // Expected - External ID validation caught the invalid type
+            }
+            other => panic!(
+                "Expected InvalidExternalId error from Phase 2 validation, got {:?}",
+                other
+            ),
+        }
+
+        // Test 4: Meta validation enhancements are working
+        let invalid_resource_type = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": "valid-id",
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "InvalidType" // Should fail our enhanced validation
+            }
+        });
+
+        match registry.validate_scim_resource(&invalid_resource_type) {
+            Err(ValidationError::InvalidResourceType { resource_type }) => {
+                assert_eq!(resource_type, "InvalidType");
+            }
+            other => panic!(
+                "Expected InvalidResourceType error from Phase 2 validation, got {:?}",
+                other
+            ),
+        }
+
+        // Test 5: Validation order - ID validation happens before schema validation
+        let missing_id_and_schemas = json!({
+            // Missing schemas array AND missing id
+            "userName": "testuser@example.com",
+            "meta": {
+                "resourceType": "User"
+            }
+        });
+
+        match registry.validate_scim_resource(&missing_id_and_schemas) {
+            Err(ValidationError::MissingSchemas) => {
+                // Schema validation happens first, so this is expected
+            }
+            other => panic!(
+                "Expected MissingSchemas error (schema validation first), got {:?}",
+                other
+            ),
+        }
     }
 }

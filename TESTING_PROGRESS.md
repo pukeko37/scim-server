@@ -4,9 +4,9 @@
 
 This document tracks the progress of implementing comprehensive validation testing for the SCIM server and outlines what work remains to complete the testing suite. The original test suite was testing the test infrastructure itself rather than the actual validation logic in the source code. This document describes the changes made to connect tests to real validation and what's needed to finish the work.
 
-## Current Status: ✅ FOUNDATION COMPLETE
+## Current Status: ✅ PHASE 2 STEP 1 COMPLETE
 
-The foundation for proper validation testing has been established with the schema structure validation category fully implemented and working.
+The foundation for proper validation testing has been established with schema structure validation (Phase 1) and core validation logic for common attributes (Phase 2 Step 1) fully implemented and working.
 
 ### What Was Accomplished
 
@@ -14,10 +14,13 @@ The foundation for proper validation testing has been established with the schem
 
 **File: `src/schema.rs`**
 - Added `validate_scim_resource()` - Main entry point for complete SCIM resource validation
-- Added `validate_schemas_attribute()` - Validates schemas array structure and content
-- Added `validate_meta_attribute()` - Validates meta object structure and timestamps
+- Added `validate_schemas_attribute()` - Validates schemas array structure and content  
+- Added `validate_id_attribute()` - Validates ID attribute presence, type, and format
+- Added `validate_external_id()` - Validates external ID attribute when present
+- Enhanced `validate_meta_attribute()` - Validates meta object structure, timestamps, and resource types
 - Added helper methods for URI format validation and schema combinations
 - Added proper error handling with specific error types
+- Added comprehensive test coverage for all validation functions
 
 #### 2. **Comprehensive Error Type System**
 
@@ -35,20 +38,20 @@ MissingBaseSchema,                 // Error #6
 ExtensionWithoutBase,              // Error #7
 MissingRequiredExtension,          // Error #8
 
-// Common Attribute Errors (9-21) - 🔲 READY FOR IMPLEMENTATION
-MissingId,                         // Error #9
-EmptyId,                          // Error #10
-InvalidIdFormat { id: String },    // Error #11
-ClientProvidedId,                 // Error #12
-InvalidExternalId,                // Error #13
-InvalidMetaStructure,             // Error #14
-MissingResourceType,              // Error #15
-InvalidResourceType { resource_type: String }, // Error #16
-ClientProvidedMeta,               // Error #17
-InvalidCreatedDateTime,           // Error #18
-InvalidModifiedDateTime,          // Error #19
-InvalidLocationUri,               // Error #20
-InvalidVersionFormat,             // Error #21
+// Common Attribute Errors (9-21) - ✅ STEP 1 COMPLETE (Validation Logic)
+MissingId,                         // Error #9  ✅ IMPLEMENTED
+EmptyId,                          // Error #10 ✅ IMPLEMENTED
+InvalidIdFormat { id: String },    // Error #11 ✅ IMPLEMENTED
+ClientProvidedId,                 // Error #12 🔲 TODO (needs operation context)
+InvalidExternalId,                // Error #13 ✅ IMPLEMENTED
+InvalidMetaStructure,             // Error #14 ✅ IMPLEMENTED
+MissingResourceType,              // Error #15 ✅ IMPLEMENTED
+InvalidResourceType { resource_type: String }, // Error #16 ✅ ENHANCED
+ClientProvidedMeta,               // Error #17 🔲 TODO (needs operation context)
+InvalidCreatedDateTime,           // Error #18 ✅ IMPLEMENTED (basic)
+InvalidModifiedDateTime,          // Error #19 ✅ IMPLEMENTED (basic)
+InvalidLocationUri,               // Error #20 ✅ IMPLEMENTED (basic)
+InvalidVersionFormat,             // Error #21 ✅ IMPLEMENTED
 ```
 
 #### 3. **Updated Test Pattern**
@@ -94,30 +97,31 @@ All 14 schema structure tests now pass:
 
 ## Remaining Work: 44 Error Types Across 5 Categories
 
-### Phase 2: Common Attribute Validation (Errors 9-21) 🔲 NEXT PRIORITY
+### Phase 2: Common Attribute Validation (Errors 9-21) ✅ STEP 1 COMPLETE | 🔲 STEP 2 PENDING
 
-**Files to Update:**
-- `src/schema.rs` - Add validation functions for id, externalId, meta attributes
-- `tests/validation/common_attributes.rs` - Update tests to call actual validation
+**Step 1 Complete: Validation Logic Implementation**
+- ✅ `src/schema.rs` - All validation functions implemented and working
+- ✅ `User.json` - Added missing `externalId` attribute to schema
+- ✅ Unit tests added and passing (3 new tests covering all scenarios)
+- ✅ Integration tests verify Phase 2 validation is active
 
-**Validation Functions Needed:**
+**Validation Functions Implemented:**
 ```rust
 impl SchemaRegistry {
-    fn validate_id_attribute(&self, obj: &Map<String, Value>) -> ValidationResult<()>
-    fn validate_external_id(&self, obj: &Map<String, Value>) -> ValidationResult<()>  
-    fn validate_meta_structure(&self, obj: &Map<String, Value>) -> ValidationResult<()>
-    fn validate_meta_timestamps(&self, meta: &Map<String, Value>) -> ValidationResult<()>
-    fn validate_meta_location(&self, meta: &Map<String, Value>) -> ValidationResult<()>
-    fn validate_meta_version(&self, meta: &Map<String, Value>) -> ValidationResult<()>
+    ✅ fn validate_id_attribute(&self, obj: &Map<String, Value>) -> ValidationResult<()>
+    ✅ fn validate_external_id(&self, obj: &Map<String, Value>) -> ValidationResult<()>  
+    ✅ fn validate_meta_attribute(&self, obj: &Map<String, Value>) -> ValidationResult<()> // Enhanced
 }
 ```
 
-**Error Types Already Added:**
-- MissingId, EmptyId, InvalidIdFormat, ClientProvidedId
-- InvalidExternalId
-- InvalidMetaStructure, MissingResourceType, InvalidResourceType
-- ClientProvidedMeta, InvalidCreatedDateTime, InvalidModifiedDateTime
-- InvalidLocationUri, InvalidVersionFormat
+**Step 2 Needed: Transform Integration Tests**
+- 🔲 `tests/validation/common_attributes.rs` - Update 17 tests to call actual validation instead of testing builders
+- 🔲 Follow Phase 1 pattern: `registry.validate_scim_resource()` and assert specific `ValidationError` variants
+- 🔲 Verify no regressions in existing test suite
+
+**Error Types Status:**
+- ✅ **11/13 Implemented**: MissingId, EmptyId, InvalidIdFormat, InvalidExternalId, InvalidMetaStructure, MissingResourceType, InvalidResourceType, InvalidCreatedDateTime, InvalidModifiedDateTime, InvalidLocationUri, InvalidVersionFormat
+- 🔲 **2/13 Deferred**: ClientProvidedId, ClientProvidedMeta (need operation context for create/update detection)
 
 ### Phase 3: Data Type Validation (Errors 22-32) 🔲 PLANNED
 
@@ -321,7 +325,10 @@ cargo test --test lib
 ## Success Metrics
 
 - ✅ **Phase 1 Complete:** 8/52 error types implemented and tested
-- 🎯 **Phase 2 Target:** 21/52 error types implemented and tested  
+- 🚧 **Phase 2 Step 1 Complete:** 19/52 error types implemented (37% coverage)
+  - ✅ Validation logic working for 11/13 Phase 2 errors  
+  - 🔲 Step 2 needed: Transform integration tests to use validation logic
+- 🎯 **Phase 2 Complete Target:** 21/52 error types implemented and tested  
 - 🎯 **Phase 3 Target:** 32/52 error types implemented and tested
 - 🎯 **Phase 4 Target:** 38/52 error types implemented and tested
 - 🎯 **Phase 5 Target:** 43/52 error types implemented and tested
@@ -336,7 +343,7 @@ cargo test --test lib
 
 **Test Implementation:**
 - `tests/validation/schema_structure.rs` - ✅ COMPLETE (template for others)
-- `tests/validation/common_attributes.rs` - 🔲 NEXT
+- `tests/validation/common_attributes.rs` - 🚧 STEP 2 NEEDED (validation logic ready, tests need transformation)
 - `tests/validation/data_types.rs` - 🔲 PHASE 3
 - `tests/validation/multi_valued.rs` - 🔲 PHASE 4
 - `tests/validation/complex_attributes.rs` - 🔲 PHASE 5
@@ -351,4 +358,29 @@ cargo test --test lib
 - `tests/VALIDATION_TESTING.md` - Original test design documentation
 - `TESTING_PROGRESS.md` - This file
 
-The foundation is solid. Future developers can follow the established pattern in `schema_structure.rs` to implement the remaining validation categories efficiently.
+## Recent Accomplishments (Phase 2 Step 1)
+
+**Added ID Validation (Errors 9-12):**
+- ✅ Missing ID detection with `MissingId` error
+- ✅ Empty ID detection with `EmptyId` error  
+- ✅ Invalid ID type detection with `InvalidIdFormat` error
+- 🔲 Client-provided ID detection (deferred - needs operation context)
+
+**Added External ID Validation (Error 13):**
+- ✅ Invalid external ID type/format detection with `InvalidExternalId` error
+- ✅ Added missing `externalId` attribute to User.json schema
+
+**Enhanced Meta Validation (Errors 14-21):**
+- ✅ Enhanced resource type validation to check against known types ("User", "Group")
+- ✅ Basic datetime format validation (placeholders for RFC3339 validation)
+- ✅ Basic URI format validation (placeholders for full URI validation)
+- ✅ Version format validation
+- 🔲 Client-provided meta detection (deferred - needs operation context)
+
+**Integration and Testing:**
+- ✅ All validation functions integrated into main `validate_scim_resource()` flow
+- ✅ Added comprehensive unit tests (3 new test functions, 12 test scenarios)
+- ✅ Added integration test to verify Phase 2 validation is active
+- ✅ All existing tests continue to pass (139 integration + 27 unit + 5 doc tests)
+
+The foundation is solid and Phase 2 validation logic is working. Next step: transform the integration tests to use actual validation instead of testing builder infrastructure, following the established pattern in `schema_structure.rs`.

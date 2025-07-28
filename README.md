@@ -47,20 +47,25 @@ let user = json!({
     }
 });
 
-// This will validate schemas array, meta structure, and attribute compliance
+// This will validate schemas array, ID, external ID, meta structure, and attribute compliance
 let result = registry.validate_scim_resource(&user)?;
 ```
 
 ## Testing Status
 
-### ✅ Implemented and Working (8/52 validation errors)
+### ✅ Implemented and Working (19/52 validation errors)
 - **Schema Structure Validation (Errors 1-8)**: Complete with 14 passing tests
   - Missing/empty schemas arrays
-  - Invalid/unknown schema URIs
+  - Invalid/unknown schema URIs  
   - Duplicate schemas and extension validation
 
-### 🔲 Ready for Implementation (44/52 validation errors)
-- **Common Attributes (Errors 9-21)**: ID, meta, externalId validation
+- **Common Attributes Validation (Errors 9-21)**: Validation logic complete, Step 2 pending
+  - ✅ ID validation: Missing, empty, invalid format (Errors 9-11)
+  - ✅ External ID validation: Type and format checking (Error 13)
+  - ✅ Meta validation: Structure, resource type, timestamps, location, version (Errors 14-21)
+  - 🔲 Test transformation needed: 17 tests ready to use actual validation
+
+### 🔲 Ready for Implementation (33/52 validation errors)
 - **Data Types (Errors 22-32)**: String, boolean, integer, datetime validation
 - **Multi-valued (Errors 33-38)**: Array attribute validation
 - **Complex Attributes (Errors 39-43)**: Nested object validation
@@ -107,6 +112,8 @@ The project follows a systematic approach to implementing validation:
 2. **Read the Guide**: See `TESTING_IMPLEMENTATION_GUIDE.md` for exact steps
 3. **Check Progress**: Review `TESTING_PROGRESS.md` for current status
 
+**Current Focus**: Phase 2 Step 2 - Transform `tests/validation/common_attributes.rs` to use actual validation logic instead of testing builders.
+
 ### Development Workflow
 
 ```bash
@@ -130,6 +137,7 @@ The server provides detailed error information for all validation failures:
 
 ```rust
 match registry.validate_scim_resource(&invalid_resource) {
+    // Schema validation errors (Phase 1)
     Err(ValidationError::MissingSchemas) => {
         // Handle missing schemas array
     }
@@ -141,6 +149,26 @@ match registry.validate_scim_resource(&invalid_resource) {
         // Handle unregistered schema
         println!("Unknown schema: {}", uri);
     }
+    
+    // Common attribute validation errors (Phase 2)
+    Err(ValidationError::MissingId) => {
+        // Handle missing ID attribute
+    }
+    Err(ValidationError::EmptyId) => {
+        // Handle empty ID value
+    }
+    Err(ValidationError::InvalidIdFormat { id }) => {
+        // Handle invalid ID format
+        println!("Invalid ID format: {}", id);
+    }
+    Err(ValidationError::InvalidExternalId) => {
+        // Handle invalid external ID
+    }
+    Err(ValidationError::InvalidResourceType { resource_type }) => {
+        // Handle invalid meta.resourceType
+        println!("Invalid resource type: {}", resource_type);
+    }
+    
     Ok(_) => {
         // Resource is valid
     }
@@ -152,7 +180,8 @@ match registry.validate_scim_resource(&invalid_resource) {
 - Only User schema is currently loaded (Group schema planned)
 - Extension schemas not yet supported
 - Some validation functions marked as TODO (RFC3339 dates, base64, etc.)
-- Test suite is in active development (8/52 error types implemented)
+- Test suite is in active development (19/52 error types implemented)
+- 2 Phase 2 errors deferred (ClientProvidedId, ClientProvidedMeta - need operation context)
 
 ## License
 
@@ -167,7 +196,17 @@ This implementation follows:
 
 ## Development Status
 
-**Phase 1 Complete**: Foundation established with working schema structure validation.
-**Next**: Common attribute validation (ID, meta, externalId) - see implementation guide for details.
+**Phase 1 Complete**: Foundation established with working schema structure validation (8/52 errors).
+**Phase 2 Step 1 Complete**: Validation logic implemented for common attributes (11/13 errors working, 19/52 total).
+**Next**: Phase 2 Step 2 - Transform integration tests to use actual validation logic.
+
+### Validation Functions Working
+- ✅ Schema structure validation (errors 1-8)
+- ✅ ID attribute validation (errors 9-11)  
+- ✅ External ID validation (error 13)
+- ✅ Meta attribute validation (errors 14-21, enhanced)
+
+### Ready for Testing Transformation
+- 🔲 `tests/validation/common_attributes.rs` - 17 tests ready to use validation logic
 
 The project is designed for incremental development with each phase building on the previous foundation.
