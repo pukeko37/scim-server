@@ -1,0 +1,89 @@
+{
+  "id": "urn:ietf:params:scim:schemas:core:2.0:User",
+  "name": "User",
+  "description": "User Account",
+  "attributes": [
+    {
+      "name": "id",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": true,
+      "mutability": "readOnly",
+      "returned": "always",
+      "uniqueness": "server"
+    },
+    {
+      "name": "userName",
+      "type": "string",
+      "multiValued": false,
+      "required": true,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "server"
+    },
+    {
+      "name": "meta",
+      "type": "complex",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readOnly",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "resourceType",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": true,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "created",
+          "type": "dateTime",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "lastModified",
+          "type": "dateTime",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "location",
+          "type": "reference",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": true,
+          "mutability": "readOnly",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    }
+  ]
+}
