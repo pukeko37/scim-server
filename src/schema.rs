@@ -312,6 +312,208 @@ impl SchemaRegistry {
     pub fn get_schema_by_id(&self, schema_id: &str) -> Option<&Schema> {
         self.schemas.get(schema_id)
     }
+
+    /// Validate a complete SCIM resource including schemas array and meta attributes.
+    pub fn validate_scim_resource(&self, resource: &Value) -> ValidationResult<()> {
+        let obj = resource
+            .as_object()
+            .ok_or_else(|| ValidationError::custom("Resource must be a JSON object"))?;
+
+        // 1. Validate schemas array
+        self.validate_schemas_attribute(obj)?;
+
+        // 2. Validate meta attributes
+        self.validate_meta_attribute(obj)?;
+
+        // 3. Extract schema IDs and validate against each
+        let schemas = self.extract_schema_uris(obj)?;
+        for schema_uri in &schemas {
+            if let Some(schema) = self.get_schema_by_id(schema_uri) {
+                self.validate_resource(schema, resource)?;
+            } else {
+                return Err(ValidationError::UnknownSchemaUri {
+                    uri: schema_uri.to_string(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the schemas attribute according to SCIM requirements.
+    fn validate_schemas_attribute(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        // Check if schemas attribute exists
+        let schemas_value = obj
+            .get("schemas")
+            .ok_or_else(|| ValidationError::MissingSchemas)?;
+
+        // Check if schemas is an array
+        let schemas_array = schemas_value
+            .as_array()
+            .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+
+        // Check if schemas array is not empty
+        if schemas_array.is_empty() {
+            return Err(ValidationError::EmptySchemas);
+        }
+
+        // Validate each schema URI
+        let mut seen_uris = std::collections::HashSet::new();
+        for schema_value in schemas_array {
+            let schema_uri = schema_value
+                .as_str()
+                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+
+            // Check for duplicates
+            if !seen_uris.insert(schema_uri) {
+                return Err(ValidationError::DuplicateSchemaUri {
+                    uri: schema_uri.to_string(),
+                });
+            }
+
+            // Validate URI format first
+            if !self.is_valid_schema_uri(schema_uri) {
+                return Err(ValidationError::InvalidSchemaUri {
+                    uri: schema_uri.to_string(),
+                });
+            }
+
+            // Then check if the URI is registered (only after format validation passes)
+            if !self.schemas.contains_key(schema_uri) {
+                return Err(ValidationError::UnknownSchemaUri {
+                    uri: schema_uri.to_string(),
+                });
+            }
+        }
+
+        // Validate schema URI combinations
+        self.validate_schema_combinations(&seen_uris)?;
+
+        Ok(())
+    }
+
+    /// Validate the meta attribute structure.
+    fn validate_meta_attribute(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        if let Some(meta_value) = obj.get("meta") {
+            let meta_obj = meta_value
+                .as_object()
+                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+
+            // Validate resourceType if present
+            if let Some(resource_type) = meta_obj.get("resourceType") {
+                let resource_type_str = resource_type
+                    .as_str()
+                    .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+
+                if resource_type_str.is_empty() {
+                    return Err(ValidationError::MissingResourceType);
+                }
+            }
+
+            // Validate datetime fields
+            for field in &["created", "lastModified"] {
+                if let Some(datetime_value) = meta_obj.get(*field) {
+                    if !datetime_value.is_string() {
+                        match *field {
+                            "created" => return Err(ValidationError::InvalidCreatedDateTime),
+                            "lastModified" => return Err(ValidationError::InvalidModifiedDateTime),
+                            _ => return Err(ValidationError::InvalidMetaStructure),
+                        }
+                    }
+                    // TODO: Add RFC3339 datetime format validation
+                }
+            }
+
+            // Validate location URI
+            if let Some(location_value) = meta_obj.get("location") {
+                if !location_value.is_string() {
+                    return Err(ValidationError::InvalidLocationUri);
+                }
+                // TODO: Add URI format validation
+            }
+
+            // Validate version
+            if let Some(version_value) = meta_obj.get("version") {
+                if !version_value.is_string() {
+                    return Err(ValidationError::InvalidVersionFormat);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Extract schema URIs from the schemas array.
+    fn extract_schema_uris(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<Vec<String>> {
+        let schemas_value = obj
+            .get("schemas")
+            .ok_or_else(|| ValidationError::MissingSchemas)?;
+
+        let schemas_array = schemas_value
+            .as_array()
+            .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+
+        let mut uris = Vec::new();
+        for schema_value in schemas_array {
+            let uri = schema_value
+                .as_str()
+                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+            uris.push(uri.to_string());
+        }
+
+        Ok(uris)
+    }
+
+    /// Check if a schema URI has valid format.
+    fn is_valid_schema_uri(&self, uri: &str) -> bool {
+        // Basic validation: must be a URN that starts with correct prefix
+        uri.starts_with("urn:") && uri.contains("scim:schemas")
+    }
+
+    /// Validate schema URI combinations (base vs extension schemas).
+    fn validate_schema_combinations(
+        &self,
+        uris: &std::collections::HashSet<&str>,
+    ) -> ValidationResult<()> {
+        let has_user_base = uris.contains("urn:ietf:params:scim:schemas:core:2.0:User");
+        let has_group_base = uris.contains("urn:ietf:params:scim:schemas:core:2.0:Group");
+
+        let user_extensions: Vec<_> = uris
+            .iter()
+            .filter(|uri| uri.contains("extension") && uri.contains("User"))
+            .collect();
+
+        let group_extensions: Vec<_> = uris
+            .iter()
+            .filter(|uri| uri.contains("extension") && uri.contains("Group"))
+            .collect();
+
+        // If there are User extensions, there must be a User base schema
+        if !user_extensions.is_empty() && !has_user_base {
+            return Err(ValidationError::ExtensionWithoutBase);
+        }
+
+        // If there are Group extensions, there must be a Group base schema
+        if !group_extensions.is_empty() && !has_group_base {
+            return Err(ValidationError::ExtensionWithoutBase);
+        }
+
+        // Cannot have both User and Group schemas in the same resource
+        if has_user_base && has_group_base {
+            return Err(ValidationError::InvalidMetaStructure);
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for SchemaRegistry {

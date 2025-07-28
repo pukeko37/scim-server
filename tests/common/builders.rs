@@ -111,7 +111,7 @@ impl UserBuilder {
 
     /// Set unknown schema URI - Error #4: Unknown/unregistered schema URI
     pub fn with_unknown_schema_uri(mut self) -> Self {
-        self.data["schemas"] = json!(["urn:example:unknown:schema"]);
+        self.data["schemas"] = json!(["urn:ietf:params:scim:schemas:core:2.0:UnknownResource"]);
         self.expected_errors
             .push(ValidationErrorCode::UnknownSchemaUri);
         self

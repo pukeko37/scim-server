@@ -8,71 +8,118 @@ use serde_json::json;
 // Import test utilities
 use crate::common::{ValidationErrorCode, builders::UserBuilder, fixtures::rfc_examples};
 
+// Import SCIM server types
+use scim_server::error::ValidationError;
+use scim_server::schema::SchemaRegistry;
+
 /// Test Error #1: Missing required `schemas` attribute in resource
 #[test]
 fn test_missing_schemas_attribute() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Create a User resource without the schemas attribute
     let invalid_user = UserBuilder::new().without_schemas().build();
 
-    // This should trigger ValidationError::MissingRequiredAttribute for schemas
-    // Since schemas is a fundamental requirement for all SCIM resources
+    // Verify the test data is constructed correctly
     assert!(!invalid_user.as_object().unwrap().contains_key("schemas"));
 
-    // In a real validation context, this would fail
-    // For now, we verify the test data is constructed correctly
-    let builder = UserBuilder::new().without_schemas();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(expected_errors, &[ValidationErrorCode::MissingSchemas]);
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&invalid_user);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::MissingSchemas) => {
+            // Expected error occurred
+        }
+        Err(other) => panic!("Expected MissingSchemas error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #2: Empty `schemas` array in resource
 #[test]
 fn test_empty_schemas_array() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Create a User resource with empty schemas array
     let invalid_user = UserBuilder::new().with_empty_schemas().build();
 
     // Verify schemas array is empty
     assert_eq!(invalid_user["schemas"], json!([]));
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_empty_schemas();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(expected_errors, &[ValidationErrorCode::EmptySchemas]);
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&invalid_user);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::EmptySchemas) => {
+            // Expected error occurred
+        }
+        Err(other) => panic!("Expected EmptySchemas error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #3: Invalid schema URI format in `schemas` attribute
 #[test]
 fn test_invalid_schema_uri_format() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Create a User resource with malformed schema URI
     let invalid_user = UserBuilder::new().with_invalid_schema_uri().build();
 
     // Verify the invalid URI is present
     assert_eq!(invalid_user["schemas"][0], "not-a-valid-uri");
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_invalid_schema_uri();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(expected_errors, &[ValidationErrorCode::InvalidSchemaUri]);
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&invalid_user);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::InvalidSchemaUri { uri }) => {
+            assert_eq!(uri, "not-a-valid-uri");
+        }
+        Err(other) => panic!("Expected InvalidSchemaUri error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #4: Unknown/unregistered schema URI referenced
 #[test]
 fn test_unknown_schema_uri() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Create a User resource with unknown schema URI
     let invalid_user = UserBuilder::new().with_unknown_schema_uri().build();
 
     // Verify the unknown URI is present
-    assert_eq!(invalid_user["schemas"][0], "urn:example:unknown:schema");
+    assert_eq!(
+        invalid_user["schemas"][0],
+        "urn:ietf:params:scim:schemas:core:2.0:UnknownResource"
+    );
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_unknown_schema_uri();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(expected_errors, &[ValidationErrorCode::UnknownSchemaUri]);
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&invalid_user);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::UnknownSchemaUri { uri }) => {
+            assert_eq!(uri, "urn:ietf:params:scim:schemas:core:2.0:UnknownResource");
+        }
+        Err(other) => panic!("Expected UnknownSchemaUri error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #5: Duplicate schema URIs in `schemas` array
 #[test]
 fn test_duplicate_schema_uris() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Create a User resource with duplicate schema URIs
     let invalid_user = UserBuilder::new().with_duplicate_schema_uris().build();
 
@@ -82,10 +129,18 @@ fn test_duplicate_schema_uris() {
     assert_eq!(schemas[0], schemas[1]);
     assert_eq!(schemas[0], "urn:ietf:params:scim:schemas:core:2.0:User");
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_duplicate_schema_uris();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(expected_errors, &[ValidationErrorCode::DuplicateSchemaUri]);
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&invalid_user);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::DuplicateSchemaUri { uri }) => {
+            assert_eq!(uri, "urn:ietf:params:scim:schemas:core:2.0:User");
+        }
+        Err(other) => panic!("Expected DuplicateSchemaUri error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #6: Missing base/core schema URI for resource type
@@ -167,13 +222,19 @@ fn test_missing_required_extension() {
 /// Test valid schema configurations to ensure we don't have false positives
 #[test]
 fn test_valid_schema_configurations() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Test 1: Valid minimal User with just core schema
     let valid_minimal = rfc_examples::user_minimal();
     let schemas = valid_minimal["schemas"].as_array().unwrap();
     assert_eq!(schemas.len(), 1);
     assert_eq!(schemas[0], "urn:ietf:params:scim:schemas:core:2.0:User");
 
-    // Test 2: Valid User with extension
+    // This should pass validation
+    let result = registry.validate_scim_resource(&valid_minimal);
+    assert!(result.is_ok(), "Valid minimal user should pass validation");
+
+    // Test 2: Valid User with extension (this will fail until we add Group schema support)
     let valid_enterprise = rfc_examples::user_enterprise();
     let schemas = valid_enterprise["schemas"].as_array().unwrap();
     assert_eq!(schemas.len(), 2);
@@ -182,7 +243,7 @@ fn test_valid_schema_configurations() {
         "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
     )));
 
-    // Test 3: Valid Group
+    // Test 3: Valid Group (this will fail until we add Group schema support)
     let valid_group = rfc_examples::group_basic();
     let schemas = valid_group["schemas"].as_array().unwrap();
     assert_eq!(schemas.len(), 1);

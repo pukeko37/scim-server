@@ -116,6 +116,90 @@ pub enum ValidationError {
     /// General validation error with custom message
     #[error("Validation failed: {message}")]
     Custom { message: String },
+
+    /// Missing schemas attribute
+    #[error("Missing required 'schemas' attribute")]
+    MissingSchemas,
+
+    /// Empty schemas array
+    #[error("'schemas' array cannot be empty")]
+    EmptySchemas,
+
+    /// Invalid schema URI format
+    #[error("Invalid schema URI format: {uri}")]
+    InvalidSchemaUri { uri: String },
+
+    /// Unknown schema URI
+    #[error("Unknown schema URI: {uri}")]
+    UnknownSchemaUri { uri: String },
+
+    /// Duplicate schema URI
+    #[error("Duplicate schema URI: {uri}")]
+    DuplicateSchemaUri { uri: String },
+
+    /// Missing base schema
+    #[error("Missing base schema for resource type")]
+    MissingBaseSchema,
+
+    /// Extension without base schema
+    #[error("Extension schema requires base schema")]
+    ExtensionWithoutBase,
+
+    /// Missing required extension
+    #[error("Missing required extension schema")]
+    MissingRequiredExtension,
+
+    /// Missing id attribute
+    #[error("Missing required 'id' attribute")]
+    MissingId,
+
+    /// Empty id value
+    #[error("'id' attribute cannot be empty")]
+    EmptyId,
+
+    /// Invalid id format
+    #[error("Invalid 'id' format: {id}")]
+    InvalidIdFormat { id: String },
+
+    /// Client provided id in creation
+    #[error("Client cannot provide 'id' during resource creation")]
+    ClientProvidedId,
+
+    /// Invalid external id
+    #[error("Invalid 'externalId' format")]
+    InvalidExternalId,
+
+    /// Invalid meta structure
+    #[error("Invalid 'meta' structure")]
+    InvalidMetaStructure,
+
+    /// Missing meta resource type
+    #[error("Missing 'meta.resourceType'")]
+    MissingResourceType,
+
+    /// Invalid meta resource type
+    #[error("Invalid 'meta.resourceType': {resource_type}")]
+    InvalidResourceType { resource_type: String },
+
+    /// Client provided meta
+    #[error("Client cannot provide read-only meta attributes")]
+    ClientProvidedMeta,
+
+    /// Invalid created datetime
+    #[error("Invalid 'meta.created' datetime format")]
+    InvalidCreatedDateTime,
+
+    /// Invalid modified datetime
+    #[error("Invalid 'meta.lastModified' datetime format")]
+    InvalidModifiedDateTime,
+
+    /// Invalid location URI
+    #[error("Invalid 'meta.location' URI format")]
+    InvalidLocationUri,
+
+    /// Invalid version format
+    #[error("Invalid 'meta.version' format")]
+    InvalidVersionFormat,
 }
 
 /// Errors that can occur during server building/configuration.
