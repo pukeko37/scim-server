@@ -3,12 +3,12 @@
 //! A comprehensive System for Cross-domain Identity Management (SCIM) server library
 //! that enables developers to implement SCIM-compliant identity providers with minimal effort.
 //!
-//! ## Two Server Types
+//! ## Two Main Components
 //!
-//! This library provides two distinct server implementations:
+//! This library provides two distinct components:
 //!
 //! - **`ScimServer`** - Full-featured dynamic server for production SCIM endpoints with runtime resource registration and CRUD operations
-//! - **`SchemaServer`** - Lightweight server for schema discovery and service provider configuration endpoints only
+//! - **`SchemaDiscovery`** - Lightweight component for schema discovery and service provider configuration
 //!
 //! ## Features
 //!
@@ -97,24 +97,24 @@
 /// }
 /// ```
 ///
-/// ## Schema Discovery Server
+/// ## Schema Discovery
 ///
 /// For schema discovery and service provider configuration only:
 ///
 /// ```rust,no_run
-/// use scim_server::SchemaServer;
+/// use scim_server::SchemaDiscovery;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Create schema discovery server
-///     let server = SchemaServer::new()?;
+///     // Create schema discovery component
+///     let discovery = SchemaDiscovery::new()?;
 ///
 ///     // Get available schemas
-///     let schemas = server.get_schemas().await?;
+///     let schemas = discovery.get_schemas().await?;
 ///     println!("Available schemas: {}", schemas.len());
 ///
 ///     // Get service provider configuration
-///     let config = server.get_service_provider_config().await?;
+///     let config = discovery.get_service_provider_config().await?;
 ///     println!("Service provider config: {:?}", config);
 ///
 ///     Ok(())
@@ -124,7 +124,7 @@ pub mod error;
 pub mod resource;
 pub mod resource_handlers;
 pub mod schema;
-pub mod schema_server;
+pub mod schema_discovery;
 pub mod scim_server;
 
 // Core re-exports for library users
@@ -137,5 +137,5 @@ pub use resource_handlers::{create_group_resource_handler, create_user_resource_
 pub use schema::{
     AttributeDefinition, AttributeType, Mutability, Schema, SchemaRegistry, Uniqueness,
 };
-pub use schema_server::{SchemaServer, ServiceProviderConfig};
+pub use schema_discovery::{SchemaDiscovery, ServiceProviderConfig};
 pub use scim_server::ScimServer;

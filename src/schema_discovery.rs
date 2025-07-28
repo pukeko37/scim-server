@@ -1,8 +1,8 @@
-//! Schema discovery server implementation with state machine design.
+//! Schema discovery implementation with state machine design.
 //!
-//! This module implements a specialized SCIM server for schema discovery and service provider
+//! This module implements a specialized SCIM component for schema discovery and service provider
 //! configuration using a type-parameterized state machine to ensure compile-time safety.
-//! This server is designed specifically for schema introspection endpoints, not for
+//! This component is designed specifically for schema introspection, not for
 //! resource CRUD operations. For full SCIM resource management, use ScimServer.
 
 use crate::error::{BuildError, BuildResult, ScimResult};
@@ -12,105 +12,105 @@ use serde::{Deserialize, Serialize};
 
 use std::marker::PhantomData;
 
-/// State marker for uninitialized server.
+/// State marker for uninitialized discovery component.
 ///
-/// This state prevents any SCIM operations until the server is properly configured.
+/// This state prevents any SCIM operations until the component is properly configured.
 #[derive(Debug)]
 pub struct Uninitialized;
 
-/// State marker for fully configured and ready server.
+/// State marker for fully configured and ready discovery component.
 ///
-/// Only servers in this state can perform SCIM operations.
+/// Only components in this state can perform SCIM operations.
 #[derive(Debug)]
 pub struct Ready;
 
-/// Schema discovery server with state machine design.
+/// Schema discovery component with state machine design.
 ///
-/// The server uses phantom types to encode its configuration state at compile time,
+/// The component uses phantom types to encode its configuration state at compile time,
 /// preventing invalid operations and ensuring proper initialization sequence.
-/// This server is specifically designed for schema discovery and service provider
-/// configuration endpoints, not for resource CRUD operations.
+/// This component is specifically designed for schema discovery and service provider
+/// configuration, not for resource CRUD operations.
 ///
 /// # Type Parameters
-/// * `State` - The current state of the server (Uninitialized or Ready)
+/// * `State` - The current state of the component (Uninitialized or Ready)
 ///
 /// # Example
 /// ```rust,no_run
-/// use scim_server::SchemaServer;
+/// use scim_server::SchemaDiscovery;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Create a schema discovery server
-///     let server = SchemaServer::new()?;
+///     // Create a schema discovery component
+///     let discovery = SchemaDiscovery::new()?;
 ///
 ///     // Get available schemas
-///     let schemas = server.get_schemas().await?;
+///     let schemas = discovery.get_schemas().await?;
 ///     println!("Available schemas: {}", schemas.len());
 ///
 ///     // For resource CRUD operations, use ScimServer instead
 ///     Ok(())
 /// }
 /// ```
-pub struct SchemaServer<State = Ready> {
-    inner: Option<ServerInner>,
+pub struct SchemaDiscovery<State = Ready> {
+    inner: Option<DiscoveryInner>,
     _state: PhantomData<State>,
 }
 
-impl<State> std::fmt::Debug for SchemaServer<State> {
+impl<State> std::fmt::Debug for SchemaDiscovery<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SchemaServer")
+        f.debug_struct("SchemaDiscovery")
             .field("inner", &self.inner.is_some())
             .field("state", &std::any::type_name::<State>())
             .finish()
     }
 }
 
-/// Internal server state shared across all server instances.
-struct ServerInner {
+/// Internal discovery state shared across all component instances.
+struct DiscoveryInner {
     schema_registry: SchemaRegistry,
     service_config: ServiceProviderConfig,
 }
 
-impl std::fmt::Debug for ServerInner {
+impl std::fmt::Debug for DiscoveryInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ServerInner")
+        f.debug_struct("DiscoveryInner")
             .field("schema_registry", &"SchemaRegistry")
             .field("service_config", &self.service_config)
             .finish()
     }
 }
 
-impl SchemaServer<Uninitialized> {
-    /// Create a new schema discovery server.
+impl SchemaDiscovery<Uninitialized> {
+    /// Create a new schema discovery component.
     ///
-    /// This creates a server with default configuration and schema registry
-    /// for schema discovery and service provider configuration endpoints.
+    /// This creates a component with default configuration and schema registry
+    /// for schema discovery and service provider configuration.
     /// For resource CRUD operations, use ScimServer instead.
-    pub fn new() -> BuildResult<SchemaServer<Ready>> {
+    pub fn new() -> BuildResult<SchemaDiscovery<Ready>> {
         let schema_registry = SchemaRegistry::new().map_err(|_e| BuildError::SchemaLoadError {
             schema_id: "Core".to_string(),
         })?;
 
         let service_config = ServiceProviderConfig::default();
 
-        let inner = ServerInner {
+        let inner = DiscoveryInner {
             schema_registry,
             service_config,
         };
 
-        Ok(SchemaServer {
+        Ok(SchemaDiscovery {
             inner: Some(inner),
             _state: PhantomData,
         })
     }
 }
 
-impl SchemaServer<Ready> {
+impl SchemaDiscovery<Ready> {
     // Discovery endpoints
 
     /// Get all available schemas.
     ///
-    /// Returns the complete list of schemas supported by this server instance.
+    /// Returns the complete list of schemas supported by this component instance.
     /// For the MVP, this includes only the core User schema.
     pub async fn get_schemas(&self) -> ScimResult<Vec<Schema>> {
         let inner = self.inner.as_ref().expect("Server should be initialized");
@@ -144,20 +144,24 @@ impl SchemaServer<Ready> {
         Ok(inner.service_config.clone())
     }
 
-    // User CRUD operations
-
     /// Get the schema registry for advanced usage.
     ///
     /// This provides access to the underlying schema registry for custom validation
     /// or schema introspection.
     pub fn schema_registry(&self) -> &SchemaRegistry {
-        let inner = self.inner.as_ref().expect("Server should be initialized");
+        let inner = self
+            .inner
+            .as_ref()
+            .expect("Discovery component should be initialized");
         &inner.schema_registry
     }
 
     /// Get the service provider configuration.
     pub fn service_config(&self) -> &ServiceProviderConfig {
-        let inner = self.inner.as_ref().expect("Server should be initialized");
+        let inner = self
+            .inner
+            .as_ref()
+            .expect("Discovery component should be initialized");
         &inner.service_config
     }
 }
@@ -251,20 +255,23 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_server_creation() {
-        let server = SchemaServer::new().expect("Failed to create server");
+    async fn test_discovery_creation() {
+        let discovery = SchemaDiscovery::new().expect("Failed to create discovery component");
 
-        // Test that the server can access schemas
-        let schemas = server.get_schemas().await.expect("Failed to get schemas");
+        // Test that the component can access schemas
+        let schemas = discovery
+            .get_schemas()
+            .await
+            .expect("Failed to get schemas");
         assert!(!schemas.is_empty());
     }
 
     #[tokio::test]
     async fn test_schema_access() {
-        let server = SchemaServer::new().expect("Failed to create server");
+        let discovery = SchemaDiscovery::new().expect("Failed to create discovery component");
 
         // Test schema retrieval
-        let user_schema = server
+        let user_schema = discovery
             .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
             .await
             .expect("Failed to get schema");
