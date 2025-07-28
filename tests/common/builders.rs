@@ -152,6 +152,58 @@ impl UserBuilder {
         self
     }
 
+    /// Set specific id value - Helper for valid id
+    pub fn with_id(mut self, id: &str) -> Self {
+        self.data["id"] = json!(id);
+        self
+    }
+
+    /// Set numeric id value - Error #11: Invalid id format (non-string)
+    pub fn with_numeric_id(mut self) -> Self {
+        self.data["id"] = json!(123);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidIdFormat);
+        self
+    }
+
+    /// Set array id value - Error #11: Invalid id format (array)
+    pub fn with_array_id(mut self) -> Self {
+        self.data["id"] = json!(["123", "456"]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidIdFormat);
+        self
+    }
+
+    /// Set object id value - Error #11: Invalid id format (object)
+    pub fn with_object_id(mut self) -> Self {
+        self.data["id"] = json!({"nested": "value"});
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidIdFormat);
+        self
+    }
+
+    /// Set specific external id value - Helper for valid external id
+    pub fn with_external_id(mut self, external_id: &str) -> Self {
+        self.data["externalId"] = json!(external_id);
+        self
+    }
+
+    /// Set numeric external id value - Error #13: Invalid external id format
+    pub fn with_numeric_external_id(mut self) -> Self {
+        self.data["externalId"] = json!(123);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidExternalId);
+        self
+    }
+
+    /// Set array external id value - Error #13: Invalid external id format
+    pub fn with_array_external_id(mut self) -> Self {
+        self.data["externalId"] = json!(["ext1", "ext2"]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidExternalId);
+        self
+    }
+
     /// Remove userName attribute - Error #22: Missing required attribute
     pub fn without_username(mut self) -> Self {
         self.data.as_object_mut().unwrap().remove("userName");
@@ -176,6 +228,22 @@ impl UserBuilder {
         self
     }
 
+    /// Set string meta value - Error #14: Invalid meta structure
+    pub fn with_string_meta(mut self) -> Self {
+        self.data["meta"] = json!("string-meta");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidMetaStructure);
+        self
+    }
+
+    /// Set array meta value - Error #14: Invalid meta structure
+    pub fn with_array_meta(mut self) -> Self {
+        self.data["meta"] = json!(["array", "meta"]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidMetaStructure);
+        self
+    }
+
     /// Remove meta.resourceType - Error #15: Missing required meta.resourceType
     pub fn without_meta_resource_type(mut self) -> Self {
         if let Some(meta) = self.data["meta"].as_object_mut() {
@@ -194,11 +262,51 @@ impl UserBuilder {
         self
     }
 
+    /// Set numeric meta.resourceType - Error #16: Invalid meta.resourceType value
+    pub fn with_numeric_meta_resource_type(mut self) -> Self {
+        self.data["meta"]["resourceType"] = json!(123);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidResourceType);
+        self
+    }
+
     /// Set invalid created datetime - Error #18: Invalid meta.created datetime format
     pub fn with_invalid_created_datetime(mut self) -> Self {
-        self.data["meta"]["created"] = json!("not-a-datetime");
+        self.data["meta"]["created"] = json!("invalid-date");
         self.expected_errors
             .push(ValidationErrorCode::InvalidCreatedDateTime);
+        self
+    }
+
+    /// Set numeric created datetime - Error #18: Invalid meta.created datetime format
+    pub fn with_numeric_created_datetime(mut self) -> Self {
+        self.data["meta"]["created"] = json!(123456789);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidCreatedDateTime);
+        self
+    }
+
+    /// Set invalid last modified datetime - Error #19: Invalid meta.lastModified datetime format
+    pub fn with_invalid_last_modified_datetime(mut self) -> Self {
+        self.data["meta"]["lastModified"] = json!("not-a-date");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidModifiedDateTime);
+        self
+    }
+
+    /// Set invalid location URI - Error #20: Invalid meta.location URI format
+    pub fn with_invalid_location_uri(mut self) -> Self {
+        self.data["meta"]["location"] = json!("not-a-uri");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidLocationUri);
+        self
+    }
+
+    /// Set invalid version format - Error #21: Invalid meta.version format
+    pub fn with_invalid_version_format(mut self) -> Self {
+        self.data["meta"]["version"] = json!(["invalid", "version"]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidVersionFormat);
         self
     }
 

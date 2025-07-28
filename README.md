@@ -53,19 +53,20 @@ let result = registry.validate_scim_resource(&user)?;
 
 ## Testing Status
 
-### ✅ Implemented and Working (19/52 validation errors)
+### ✅ Implemented and Working (18/52 validation errors)
 - **Schema Structure Validation (Errors 1-8)**: Complete with 14 passing tests
   - Missing/empty schemas arrays
   - Invalid/unknown schema URIs  
   - Duplicate schemas and extension validation
 
-- **Common Attributes Validation (Errors 9-21)**: Validation logic complete, Step 2 pending
+- **Common Attributes Validation (Errors 9-21)**: Complete with 22 passing tests
   - ✅ ID validation: Missing, empty, invalid format (Errors 9-11)
   - ✅ External ID validation: Type and format checking (Error 13)
   - ✅ Meta validation: Structure, resource type, timestamps, location, version (Errors 14-21)
-  - 🔲 Test transformation needed: 17 tests ready to use actual validation
+  - ✅ Integration tests transformed to use actual validation logic
+  - 🔲 3 errors deferred: 2 need operation context, 1 currently optional
 
-### 🔲 Ready for Implementation (33/52 validation errors)
+### 🔲 Ready for Implementation (34/52 validation errors)
 - **Data Types (Errors 22-32)**: String, boolean, integer, datetime validation
 - **Multi-valued (Errors 33-38)**: Array attribute validation
 - **Complex Attributes (Errors 39-43)**: Nested object validation
@@ -112,7 +113,7 @@ The project follows a systematic approach to implementing validation:
 2. **Read the Guide**: See `TESTING_IMPLEMENTATION_GUIDE.md` for exact steps
 3. **Check Progress**: Review `TESTING_PROGRESS.md` for current status
 
-**Current Focus**: Phase 2 Step 2 - Transform `tests/validation/common_attributes.rs` to use actual validation logic instead of testing builders.
+**Current Focus**: Phase 3 - Data type validation implementation (Errors 22-32).
 
 ### Development Workflow
 
@@ -197,8 +198,8 @@ This implementation follows:
 ## Development Status
 
 **Phase 1 Complete**: Foundation established with working schema structure validation (8/52 errors).
-**Phase 2 Step 1 Complete**: Validation logic implemented for common attributes (11/13 errors working, 19/52 total).
-**Next**: Phase 2 Step 2 - Transform integration tests to use actual validation logic.
+**Phase 2 Complete**: Common attributes validation fully implemented and tested (10/13 testable errors working, 18/52 total).
+**Next**: Phase 3 - Data type validation implementation.
 
 ### Validation Functions Working
 - ✅ Schema structure validation (errors 1-8)
@@ -206,7 +207,8 @@ This implementation follows:
 - ✅ External ID validation (error 13)
 - ✅ Meta attribute validation (errors 14-21, enhanced)
 
-### Ready for Testing Transformation
-- 🔲 `tests/validation/common_attributes.rs` - 17 tests ready to use validation logic
+### Integration Tests Complete
+- ✅ `tests/validation/schema_structure.rs` - 14 tests using validation logic
+- ✅ `tests/validation/common_attributes.rs` - 22 tests using validation logic
 
 The project is designed for incremental development with each phase building on the previous foundation.
