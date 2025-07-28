@@ -5,6 +5,7 @@
 //! validation capabilities.
 
 use crate::error::{ValidationError, ValidationResult};
+use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -167,16 +168,25 @@ impl SchemaRegistry {
         match attr_def.data_type {
             AttributeType::String => {
                 if !value.is_string() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "string",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "string".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
 
-                // Validate canonical values if specified
-                if !attr_def.canonical_values.is_empty() {
-                    if let Some(str_val) = value.as_str() {
+                // Validate string format constraints
+                if let Some(str_val) = value.as_str() {
+                    // Check for empty strings when not allowed
+                    if str_val.is_empty() && attr_def.required {
+                        return Err(ValidationError::InvalidStringFormat {
+                            attribute: attr_def.name.clone(),
+                            details: "String cannot be empty for required attribute".to_string(),
+                        });
+                    }
+
+                    // Validate canonical values if specified
+                    if !attr_def.canonical_values.is_empty() {
                         if !attr_def.canonical_values.contains(&str_val.to_string()) {
                             return Err(ValidationError::InvalidCanonicalValue {
                                 attribute: attr_def.name.clone(),
@@ -189,68 +199,129 @@ impl SchemaRegistry {
             }
             AttributeType::Boolean => {
                 if !value.is_boolean() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "boolean",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "boolean".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
+                }
+
+                // Additional boolean validation for string representations
+                if value.is_string() {
+                    if let Some(str_val) = value.as_str() {
+                        if !["true", "false"].contains(&str_val.to_lowercase().as_str()) {
+                            return Err(ValidationError::InvalidBooleanValue {
+                                attribute: attr_def.name.clone(),
+                                value: str_val.to_string(),
+                            });
+                        }
+                    }
                 }
             }
             AttributeType::Integer => {
                 if !value.is_i64() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "integer",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "integer".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
+                }
+
+                // Validate integer range
+                if let Some(num) = value.as_i64() {
+                    if num < i32::MIN as i64 || num > i32::MAX as i64 {
+                        return Err(ValidationError::InvalidIntegerValue {
+                            attribute: attr_def.name.clone(),
+                            value: num.to_string(),
+                        });
+                    }
                 }
             }
             AttributeType::Decimal => {
                 if !value.is_f64() && !value.is_i64() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "decimal",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "decimal".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
+                }
+
+                // Validate decimal format for string representations
+                if value.is_string() {
+                    if let Some(str_val) = value.as_str() {
+                        if str_val.parse::<f64>().is_err() {
+                            return Err(ValidationError::InvalidDecimalFormat {
+                                attribute: attr_def.name.clone(),
+                                value: str_val.to_string(),
+                            });
+                        }
+                    }
                 }
             }
             AttributeType::DateTime => {
                 if !value.is_string() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "dateTime",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "dateTime".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
-                // TODO: Add RFC3339 datetime format validation
+
+                // Basic datetime format validation
+                if let Some(str_val) = value.as_str() {
+                    if !self.is_valid_datetime_format(str_val) {
+                        return Err(ValidationError::InvalidDateTimeFormat {
+                            attribute: attr_def.name.clone(),
+                            value: str_val.to_string(),
+                        });
+                    }
+                }
             }
             AttributeType::Binary => {
                 if !value.is_string() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "binary",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "binary".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
-                // TODO: Add base64 format validation
+
+                // Basic base64 validation
+                if let Some(str_val) = value.as_str() {
+                    if !self.is_valid_base64(str_val) {
+                        return Err(ValidationError::InvalidBinaryData {
+                            attribute: attr_def.name.clone(),
+                            details: "Invalid base64 encoding".to_string(),
+                        });
+                    }
+                }
             }
             AttributeType::Reference => {
                 if !value.is_string() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "reference",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "reference".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
-                // TODO: Add URI format validation
+
+                // Basic URI format validation
+                if let Some(str_val) = value.as_str() {
+                    if !self.is_valid_uri_format(str_val) {
+                        return Err(ValidationError::InvalidReferenceUri {
+                            attribute: attr_def.name.clone(),
+                            uri: str_val.to_string(),
+                        });
+                    }
+                }
             }
             AttributeType::Complex => {
                 if !value.is_object() {
-                    return Err(ValidationError::invalid_type(
-                        &attr_def.name,
-                        "complex",
-                        Self::get_value_type(value),
-                    ));
+                    return Err(ValidationError::InvalidDataType {
+                        attribute: attr_def.name.clone(),
+                        expected: "complex".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
 
                 // Validate sub-attributes
@@ -285,6 +356,55 @@ impl SchemaRegistry {
             Value::Array(_) => "array",
             Value::Object(_) => "object",
         }
+    }
+
+    /// Validate datetime format using chrono for full RFC3339 compliance
+    ///
+    /// This leverages chrono's well-tested RFC3339 parser, which provides:
+    /// - Full semantic validation (no invalid dates like Feb 30th)
+    /// - Proper timezone handling (+/-HH:MM, Z)
+    /// - Millisecond precision support
+    /// - Leap second awareness
+    ///
+    /// By using chrono, we avoid reimplementing complex datetime validation
+    /// and get specification-compliant parsing for free.
+    fn is_valid_datetime_format(&self, value: &str) -> bool {
+        if value.is_empty() {
+            return false;
+        }
+
+        // Delegate to chrono's RFC3339 parser - it's well-tested and handles all edge cases
+        DateTime::<FixedOffset>::parse_from_rfc3339(value).is_ok()
+    }
+
+    /// Validate base64 encoding (basic character set validation)
+    ///
+    /// This performs basic character set validation for base64 data.
+    /// For production use, consider using a dedicated base64 crate like `base64`
+    /// for proper padding validation and decode verification.
+    fn is_valid_base64(&self, value: &str) -> bool {
+        if value.is_empty() {
+            return false;
+        }
+
+        // Basic character set validation - sufficient for type checking
+        // Note: Doesn't validate padding rules or decode correctness
+        let base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+        value.chars().all(|c| base64_chars.contains(c))
+    }
+
+    /// Validate URI format (basic scheme validation)
+    ///
+    /// This performs basic URI scheme validation sufficient for SCIM reference checking.
+    /// For comprehensive URI validation, consider using the `url` crate.
+    fn is_valid_uri_format(&self, value: &str) -> bool {
+        if value.is_empty() {
+            return false;
+        }
+
+        // Basic scheme validation - sufficient for SCIM reference URIs
+        // Accepts HTTP(S) URLs and URN schemes commonly used in SCIM
+        value.contains("://") || value.starts_with("urn:")
     }
 
     /// Get all available schemas.

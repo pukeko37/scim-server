@@ -200,6 +200,53 @@ pub enum ValidationError {
     /// Invalid version format
     #[error("Invalid 'meta.version' format")]
     InvalidVersionFormat,
+
+    /// Invalid data type for attribute
+    #[error("Attribute '{attribute}' has invalid type, expected {expected}, got {actual}")]
+    InvalidDataType {
+        attribute: String,
+        expected: String,
+        actual: String,
+    },
+
+    /// Invalid string format
+    #[error("Attribute '{attribute}' has invalid string format: {details}")]
+    InvalidStringFormat { attribute: String, details: String },
+
+    /// Invalid boolean value
+    #[error("Attribute '{attribute}' has invalid boolean value: {value}")]
+    InvalidBooleanValue { attribute: String, value: String },
+
+    /// Invalid decimal format
+    #[error("Attribute '{attribute}' has invalid decimal format: {value}")]
+    InvalidDecimalFormat { attribute: String, value: String },
+
+    /// Invalid integer value
+    #[error("Attribute '{attribute}' has invalid integer value: {value}")]
+    InvalidIntegerValue { attribute: String, value: String },
+
+    /// Invalid datetime format
+    #[error("Attribute '{attribute}' has invalid datetime format: {value}")]
+    InvalidDateTimeFormat { attribute: String, value: String },
+
+    /// Invalid binary data
+    #[error("Attribute '{attribute}' has invalid binary data: {details}")]
+    InvalidBinaryData { attribute: String, details: String },
+
+    /// Invalid reference URI
+    #[error("Attribute '{attribute}' has invalid reference URI: {uri}")]
+    InvalidReferenceUri { attribute: String, uri: String },
+
+    /// Invalid reference type
+    #[error("Attribute '{attribute}' has invalid reference type: {ref_type}")]
+    InvalidReferenceType { attribute: String, ref_type: String },
+
+    /// Broken reference
+    #[error("Attribute '{attribute}' contains broken reference: {reference}")]
+    BrokenReference {
+        attribute: String,
+        reference: String,
+    },
 }
 
 /// Errors that can occur during server building/configuration.

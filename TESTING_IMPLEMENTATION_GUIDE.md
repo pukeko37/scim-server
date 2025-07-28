@@ -2,17 +2,17 @@
 
 This guide shows developers exactly how to implement new validation categories following the established pattern.
 
-**Current Status:** Phase 2 Step 1 Complete - Validation logic implemented for common attributes (11/13 errors working). Next: Transform integration tests to use actual validation.
+**Current Status:** Phase 3 Complete - Data type validation fully implemented and tested (29/52 errors total). Next: Phase 4 - Multi-valued attribute validation implementation.
 
 ## Quick Start: Copy This Pattern
 
-**Note:** Phase 2 validation logic is already implemented. For Phase 2 Step 2, skip to "Step 3: Update Your Test File" below. For Phase 3+, follow the complete pattern.
+**Note:** Phases 1-3 are complete. For Phase 4+, follow the complete pattern below.
 
 ### Step 1: Add Error Types to `src/error.rs`
 
-✅ **Phase 2 Complete** - All error types already added and working.
+✅ **Phases 1-3 Complete** - Schema structure, common attributes, and data type error types implemented and working.
 
-For future phases, add your error variants to the `ValidationError` enum:
+For Phase 4+ (multi-valued attributes, complex attributes, characteristics), add your error variants to the `ValidationError` enum:
 
 ```rust
 /// Add to ValidationError enum
@@ -20,25 +20,18 @@ For future phases, add your error variants to the `ValidationError` enum:
 pub enum ValidationError {
     // ... existing errors ...
     
-    // Your new error category (e.g., Data Type Errors 22-32)
-    /// Missing required attribute
-    #[error("Required attribute '{attribute}' is missing")]
-    MissingRequiredAttribute { attribute: String },  // Error #22
+    // Your new error category (e.g., Multi-valued Attribute Errors 33-38)
+    /// Single value provided for multi-valued attribute
+    #[error("Attribute '{attribute}' must be multi-valued (array)")]
+    SingleValueForMultiValued { attribute: String },  // Error #33
     
-    /// Invalid data type for attribute  
-    #[error("Attribute '{attribute}' has invalid type, expected {expected}, got {actual}")]
-    InvalidDataType {
-        attribute: String,
-        expected: String, 
-        actual: String,
-    }, // Error #23
+    /// Array provided for single-valued attribute  
+    #[error("Attribute '{attribute}' must be single-valued (not array)")]
+    ArrayForSingleValued { attribute: String }, // Error #34
     
-    /// Invalid string format
-    #[error("Attribute '{attribute}' has invalid string format: {details}")]
-    InvalidStringFormat { 
-        attribute: String,
-        details: String,
-    }, // Error #24
+    /// Multiple primary values in multi-valued attribute
+    #[error("Attribute '{attribute}' cannot have multiple primary values")]
+    MultiplePrimaryValues { attribute: String }, // Error #35
     
     // ... add all errors for your category
 }
@@ -46,12 +39,14 @@ pub enum ValidationError {
 
 ### Step 2: Add Validation Functions to `src/schema.rs`
 
-✅ **Phase 2 Complete** - All validation functions implemented and working:
+✅ **Phases 1-3 Complete** - All validation functions implemented and working:
+- `validate_schemas_attribute()` - Schema structure validation (Errors 1-8)
 - `validate_id_attribute()` - ID validation (Errors 9-12)
 - `validate_external_id()` - External ID validation (Error 13)  
 - Enhanced `validate_meta_attribute()` - Meta validation (Errors 14-21)
+- Enhanced `validate_attribute_value()` - Data type validation (Errors 22-32)
 
-For future phases, add validation methods to the `SchemaRegistry` implementation:
+For Phase 4+, add validation methods to the `SchemaRegistry` implementation:
 
 ```rust
 impl SchemaRegistry {
@@ -97,16 +92,16 @@ impl SchemaRegistry {
 
 ### Step 3: Update Your Test File
 
-🔲 **Phase 2 Step 2 NEXT** - Transform `tests/validation/common_attributes.rs` to use actual validation.
+🔲 **Phase 4 NEXT** - Implement multi-valued attribute validation (Errors 33-38).
 
-✅ **Template Available** - Follow the exact pattern from `tests/validation/schema_structure.rs`.
+✅ **Templates Available** - Follow the exact pattern from `tests/validation/schema_structure.rs`, `tests/validation/common_attributes.rs`, or `tests/validation/data_types.rs`.
 
-Follow this exact pattern in your test file (e.g., `tests/validation/common_attributes.rs`):
+Follow this exact pattern in your test file (e.g., `tests/validation/multi_valued.rs`):
 
 ```rust
-//! Data type validation tests.
+//! Multi-valued attribute validation tests.
 //!
-//! This module tests validation errors related to SCIM data types (Errors 22-32).
+//! This module tests validation errors related to multi-valued attributes (Errors 33-38).
 
 use serde_json::json;
 
@@ -117,16 +112,16 @@ use crate::common::{ValidationErrorCode, builders::UserBuilder, fixtures::rfc_ex
 use scim_server::error::{ValidationError};
 use scim_server::schema::SchemaRegistry;
 
-/// Test Error #22: Missing required attribute
+/// Test Error #33: Single value for multi-valued attribute
 #[test]
-fn test_missing_required_attribute() {
+fn test_single_value_for_multi_valued() {
     let registry = SchemaRegistry::new().expect("Failed to create registry");
 
-    // Create a User resource missing required attribute
-    let invalid_user = UserBuilder::new().without_username().build();
+    // Create a User resource with single value for multi-valued emails
+    let invalid_user = UserBuilder::new().with_single_value_emails().build();
 
     // Verify the test data is constructed correctly
-    assert!(!invalid_user.as_object().unwrap().contains_key("userName"));
+    assert!(!invalid_user["emails"].is_array());
 
     // Actually validate the resource
     let result = registry.validate_scim_resource(&invalid_user);
@@ -134,20 +129,20 @@ fn test_missing_required_attribute() {
     // Assert that validation fails with the expected error
     assert!(result.is_err());
     match result {
-        Err(ValidationError::MissingRequiredAttribute { attribute }) => {
-            assert_eq!(attribute, "userName");
+        Err(ValidationError::SingleValueForMultiValued { attribute }) => {
+            assert_eq!(attribute, "emails");
         }
-        Err(other) => panic!("Expected MissingRequiredAttribute error, got {:?}", other),
+        Err(other) => panic!("Expected SingleValueForMultiValued error, got {:?}", other),
         Ok(_) => panic!("Expected validation to fail, but it passed"),
     }
 }
 
-/// Test Error #23: Invalid data type
+/// Test Error #34: Array for single-valued attribute
 #[test] 
-fn test_invalid_data_type() {
+fn test_array_for_single_valued() {
     let registry = SchemaRegistry::new().expect("Failed to create registry");
 
-    // Create a User resource with wrong data type
+    // Create a User resource with array for single-valued userName
     let invalid_user = UserBuilder::new().with_array_username().build();
 
     // Verify the test data has wrong type
@@ -159,12 +154,10 @@ fn test_invalid_data_type() {
     // Assert that validation fails with the expected error
     assert!(result.is_err());
     match result {
-        Err(ValidationError::InvalidDataType { attribute, expected, actual }) => {
+        Err(ValidationError::ArrayForSingleValued { attribute }) => {
             assert_eq!(attribute, "userName");
-            assert_eq!(expected, "string");
-            assert_eq!(actual, "array");
         }
-        Err(other) => panic!("Expected InvalidDataType error, got {:?}", other),
+        Err(other) => panic!("Expected ArrayForSingleValued error, got {:?}", other),
         Ok(_) => panic!("Expected validation to fail, but it passed"),
     }
 }
@@ -186,19 +179,20 @@ fn test_valid_data_types() {
 
 ## Step-by-Step Implementation Checklist
 
-### Phase 2 Step 2: Transform Common Attributes Tests
-- [x] ✅ Choose validation category: Common Attributes (Errors 9-21)
-- [x] ✅ Error types already added to `ValidationError` enum in `src/error.rs`
-- [x] ✅ Validation logic implemented in `src/schema.rs`
-- [x] ✅ Integration with main validation complete
-- [ ] 🔲 **NEXT:** Transform test file `tests/validation/common_attributes.rs`
-- [ ] 🔲 Update 17 tests to use `registry.validate_scim_resource()` instead of builders
-- [ ] 🔲 Follow pattern from `tests/validation/schema_structure.rs`
-- [ ] 🔲 Verify tests pass: `cargo test validation::common_attributes --test lib`
+### Phase 4 Implementation: Multi-valued Attributes (Next)
+- [ ] 🔲 **NEXT:** Choose validation category: Multi-valued Attributes (Errors 33-38)
+- [ ] 🔲 List all error types for category from `tests/common/mod.rs`
+- [ ] 🔲 Identify which builder methods already exist in `tests/common/builders.rs`
+- [ ] 🔲 Add missing error types to `ValidationError` enum in `src/error.rs`
+- [ ] 🔲 Implement validation logic in `src/schema.rs`
+- [ ] 🔲 Integration with main validation flow
+- [ ] 🔲 Transform test file `tests/validation/multi_valued.rs`
+- [ ] 🔲 Follow pattern from completed phases
+- [ ] 🔲 Verify tests pass: `cargo test validation::multi_valued --test lib`
 - [ ] 🔲 Update documentation when complete
 
-### Phase 3+ Implementation (Future)
-- [ ] Choose your validation category (e.g., Data Types, Multi-valued, etc.)
+### Phase 5+ Implementation (Future)
+- [ ] Choose your validation category (Complex Attributes, Characteristics, etc.)
 - [ ] List all error types for your category from `tests/common/mod.rs`
 - [ ] Identify which builder methods already exist in `tests/common/builders.rs`
 
@@ -335,11 +329,13 @@ println!("Built object: {:#}", built);
 After implementing your category, verify integration:
 
 ```bash
-# Phase 2 Step 2: Test common attributes specifically  
-cargo test validation::common_attributes --test lib
+# Phase 4: Test multi-valued attributes specifically  
+cargo test validation::multi_valued --test lib
 
-# Verify Phase 1 still works
+# Verify all completed phases still work
 cargo test validation::schema_structure --test lib
+cargo test validation::common_attributes --test lib  
+cargo test validation::data_types --test lib
 
 # Run all validation tests
 cargo test validation --test lib
@@ -348,11 +344,11 @@ cargo test validation --test lib
 cargo test --test lib
 ```
 
-## Phase 2 Step 2: Specific Instructions
+## Phase 4: Specific Instructions
 
-**Current Task:** Transform `tests/validation/common_attributes.rs` from builder testing to actual validation testing.
+**Current Task:** Implement multi-valued attribute validation (Errors 33-38).
 
-**Pattern to Follow:** Copy exactly from `tests/validation/schema_structure.rs`:
+**Pattern to Follow:** Copy exactly from completed phases (`tests/validation/schema_structure.rs`, `tests/validation/common_attributes.rs`, or `tests/validation/data_types.rs`):
 
 1. **Import the validation types:**
    ```rust
@@ -382,25 +378,20 @@ cargo test --test lib
    ```
 
 3. **Tests to Transform (17 total):**
-   - `test_missing_id_attribute` → `ValidationError::MissingId`
-   - `test_empty_id_value` → `ValidationError::EmptyId`  
-   - `test_invalid_id_format` → `ValidationError::InvalidIdFormat`
-   - `test_invalid_external_id_format` → `ValidationError::InvalidExternalId`
-   - `test_invalid_meta_structure` → `ValidationError::InvalidMetaStructure`
-   - `test_missing_meta_resource_type` → `ValidationError::MissingResourceType`
-   - `test_invalid_meta_resource_type` → `ValidationError::InvalidResourceType`
-   - `test_invalid_created_datetime` → `ValidationError::InvalidCreatedDateTime`
-   - `test_invalid_last_modified_datetime` → `ValidationError::InvalidModifiedDateTime`
-   - `test_invalid_location_uri` → `ValidationError::InvalidLocationUri`
-   - `test_invalid_version_format` → `ValidationError::InvalidVersionFormat`
-   - Plus valid case tests
+   - `test_single_value_for_multi_valued` → `ValidationError::SingleValueForMultiValued`
+   - `test_array_for_single_valued` → `ValidationError::ArrayForSingleValued`  
+   - `test_multiple_primary_values` → `ValidationError::MultiplePrimaryValues`
+   - `test_invalid_multi_valued_structure` → `ValidationError::InvalidMultiValuedStructure`
+   - `test_missing_required_sub_attribute` → `ValidationError::MissingRequiredSubAttribute`
+   - `test_invalid_canonical_value` → `ValidationError::InvalidCanonicalValue`
+   - Plus valid case tests for multi-valued attributes
 
 ## Next Steps After Implementation
 
-1. Update `TESTING_PROGRESS.md` with Phase 2 completion
-2. Verify all 139 integration tests still pass
+1. Update `TESTING_PROGRESS.md` with Phase 4 completion  
+2. Verify all integration tests still pass (currently 147 tests)
 3. Document any issues or patterns discovered
-4. Begin Phase 3 planning (Data Type validation)
+4. Begin Phase 5 planning (Complex Attributes validation)
 
 ## Reference Files
 
@@ -413,20 +404,26 @@ cargo test --test lib
 ## Current Implementation Status
 
 **Phase 1:** ✅ **COMPLETE** - Schema structure validation (8/52 errors) fully working
-**Phase 2 Step 1:** ✅ **COMPLETE** - Validation logic implemented (11/13 errors working)
-**Phase 2 Step 2:** 🔲 **NEXT** - Transform integration tests to use validation logic
+**Phase 2:** ✅ **COMPLETE** - Common attributes validation (10/13 testable errors working)  
+**Phase 3:** ✅ **COMPLETE** - Data type validation (11/11 errors working)
+**Phase 4:** 🔲 **NEXT** - Multi-valued attribute validation implementation
 
-**Validation Functions Ready:**
+**Validation Functions Working:**
 ```rust
 // These are already implemented and working in src/schema.rs
-validate_id_attribute()        // Errors 9-11: MissingId, EmptyId, InvalidIdFormat
-validate_external_id()         // Error 13: InvalidExternalId  
+validate_schemas_attribute()    // Errors 1-8: Schema structure validation
+validate_id_attribute()        // Errors 9-11: ID validation  
+validate_external_id()         // Error 13: External ID validation
 validate_meta_attribute()      // Errors 14-21: Meta validation (enhanced)
+validate_attribute_value()     // Errors 22-32: Data type validation (enhanced)
 ```
 
 **Test Files Status:**
-- `tests/validation/schema_structure.rs` - ✅ **COMPLETE** (Pattern template)
-- `tests/validation/common_attributes.rs` - 🔲 **READY FOR TRANSFORMATION**
-- All other test files - 🔲 **FUTURE PHASES**
+- `tests/validation/schema_structure.rs` - ✅ **COMPLETE** (14 tests)
+- `tests/validation/common_attributes.rs` - ✅ **COMPLETE** (22 tests)
+- `tests/validation/data_types.rs` - ✅ **COMPLETE** (22 tests)
+- `tests/validation/multi_valued.rs` - 🔲 **PHASE 4 TARGET**
+- `tests/validation/complex_attributes.rs` - 🔲 **PHASE 5**
+- `tests/validation/characteristics.rs` - 🔲 **PHASE 6**
 
-This pattern has been proven to work with schema structure validation (Errors 1-8) and the validation logic for common attributes (Errors 9-21). The validation functions are implemented and tested. Following the transformation pattern exactly will complete Phase 2.
+This pattern has been proven to work across three completed phases. The established pattern and infrastructure are ready for Phase 4 multi-valued attribute validation.

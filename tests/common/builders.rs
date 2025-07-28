@@ -341,6 +341,83 @@ impl UserBuilder {
         self
     }
 
+    /// Set invalid string format - Error #24: Invalid string format
+    pub fn with_invalid_string_format(mut self) -> Self {
+        self.data["userName"] = json!(""); // Empty string for required field
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidStringFormat);
+        self
+    }
+
+    /// Set invalid decimal format - Error #26: Invalid decimal format
+    pub fn with_invalid_decimal_format(mut self) -> Self {
+        self.data["urn:example:decimal"] = json!("not-a-number");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidDecimalFormat);
+        self
+    }
+
+    /// Set invalid integer value - Error #27: Invalid integer value
+    pub fn with_invalid_integer_value(mut self) -> Self {
+        self.data["urn:example:integer"] = json!("not-an-integer");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidIntegerValue);
+        self
+    }
+
+    /// Set invalid datetime format - Error #28: Invalid datetime format
+    pub fn with_invalid_datetime_format(mut self) -> Self {
+        self.data["meta"]["created"] = json!("not-a-datetime");
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidDateTimeFormat);
+        self
+    }
+
+    /// Set invalid binary data - Error #29: Invalid binary data
+    pub fn with_invalid_binary_data(mut self) -> Self {
+        self.data["x509Certificates"] = json!([{
+            "value": "not-base64!"
+        }]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidBinaryData);
+        self
+    }
+
+    /// Set invalid reference URI - Error #30: Invalid reference URI
+    pub fn with_invalid_reference_uri(mut self) -> Self {
+        self.data["groups"] = json!([{
+            "value": "group-123",
+            "$ref": "not-a-uri"
+        }]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidReferenceUri);
+        self
+    }
+
+    /// Set invalid reference type - Error #31: Invalid reference type
+    pub fn with_invalid_reference_type(mut self) -> Self {
+        self.data["groups"] = json!([{
+            "value": "group-123",
+            "$ref": "https://example.com/Groups/group-123",
+            "type": "invalid-type"
+        }]);
+        self.expected_errors
+            .push(ValidationErrorCode::InvalidReferenceType);
+        self
+    }
+
+    /// Set broken reference - Error #32: Broken reference
+    pub fn with_broken_reference(mut self) -> Self {
+        self.data["groups"] = json!([{
+            "value": "nonexistent-group",
+            "$ref": "https://example.com/Groups/nonexistent-group"
+        }]);
+        self.expected_errors
+            .push(ValidationErrorCode::BrokenReference);
+        self
+    }
+
+    // Multi-valued attribute modifications (Errors 33-38)
     /// Set multiple primary=true in emails - Error #35: Multiple primary=true values
     pub fn with_multiple_primary_emails(mut self) -> Self {
         self.data["emails"] = json!([
