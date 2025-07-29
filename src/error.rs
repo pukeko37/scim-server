@@ -305,6 +305,52 @@ pub enum ValidationError {
     /// Malformed complex attribute structure
     #[error("Complex attribute '{attribute}' has malformed structure: {details}")]
     MalformedComplexStructure { attribute: String, details: String },
+
+    // Attribute Characteristics Validation Errors (44-52)
+    /// Case sensitivity violation
+    #[error("Attribute '{attribute}' violates case sensitivity rules: {details}")]
+    CaseSensitivityViolation { attribute: String, details: String },
+
+    /// Read-only mutability violation
+    #[error("Attribute '{attribute}' is read-only and cannot be modified")]
+    ReadOnlyMutabilityViolation { attribute: String },
+
+    /// Immutable mutability violation
+    #[error("Attribute '{attribute}' is immutable and cannot be modified after creation")]
+    ImmutableMutabilityViolation { attribute: String },
+
+    /// Write-only attribute returned
+    #[error("Attribute '{attribute}' is write-only and should not be returned")]
+    WriteOnlyAttributeReturned { attribute: String },
+
+    /// Server uniqueness violation
+    #[error("Attribute '{attribute}' violates server uniqueness constraint with value '{value}'")]
+    ServerUniquenessViolation { attribute: String, value: String },
+
+    /// Global uniqueness violation
+    #[error("Attribute '{attribute}' violates global uniqueness constraint with value '{value}'")]
+    GlobalUniquenessViolation { attribute: String, value: String },
+
+    /// Invalid canonical value choice
+    #[error(
+        "Attribute '{attribute}' has invalid canonical value '{value}', allowed values: {allowed:?}"
+    )]
+    InvalidCanonicalValueChoice {
+        attribute: String,
+        value: String,
+        allowed: Vec<String>,
+    },
+
+    /// Unknown attribute for schema
+    #[error("Unknown attribute '{attribute}' for schema '{schema}'")]
+    UnknownAttributeForSchema { attribute: String, schema: String },
+
+    /// Required characteristic violation
+    #[error("Attribute '{attribute}' violates required characteristic '{characteristic}'")]
+    RequiredCharacteristicViolation {
+        attribute: String,
+        characteristic: String,
+    },
 }
 
 /// Errors that can occur during server building/configuration.
