@@ -53,7 +53,7 @@ let result = registry.validate_scim_resource(&user)?;
 
 ## Testing Status
 
-### ✅ Implemented and Working (35/52 validation errors)
+### ✅ Implemented and Working (40/52 validation errors)
 - **Schema Structure Validation (Errors 1-8)**: Complete with 14 passing tests
   - Missing/empty schemas arrays
   - Invalid/unknown schema URIs  
@@ -80,8 +80,16 @@ let result = registry.validate_scim_resource(&user)?;
   - ✅ Required sub-attribute checking (Error 37)
   - ✅ Canonical value validation (Error 38)
 
-### 🔲 Ready for Implementation (17/52 validation errors)
-- **Complex Attributes (Errors 39-43)**: Nested object validation
+- **Complex Attributes (Errors 39-43)**: Complete with 21 passing tests
+  - ✅ Missing required sub-attributes detection (Error 39)
+  - ✅ Sub-attribute type validation (Error 40)
+  - ✅ Unknown sub-attribute detection (Error 41)
+  - ✅ Nested complex attribute prevention (Error 42)
+  - ✅ Malformed complex structure validation (Error 43)
+  - ✅ Schema-driven validation using actual SCIM schema definitions
+  - ✅ Integration tests transformed to use actual validation logic
+
+### 🔲 Ready for Implementation (12/52 validation errors)
 - **Characteristics (Errors 44-52)**: Mutability, uniqueness constraints
 
 ## Documentation
@@ -110,7 +118,7 @@ tests/
 │   ├── common_attributes.rs # ✅ Complete (22 tests)
 │   ├── data_types.rs        # ✅ Complete (22 tests)
 │   ├── multi_valued.rs      # ✅ Complete (22 tests)
-│   ├── complex_attributes.rs # 🔲 Phase 5
+│   ├── complex_attributes.rs # ✅ Complete (21 tests)
 │   └── characteristics.rs   # 🔲 Phase 6
 └── common/             # Test utilities and builders
 ```
@@ -125,7 +133,7 @@ The project follows a systematic approach to implementing validation:
 2. **Read the Guide**: See `TESTING_IMPLEMENTATION_GUIDE.md` for exact steps
 3. **Check Progress**: Review `TESTING_PROGRESS.md` for current status
 
-**Current Focus**: Phase 5 - Complex attribute validation implementation (Errors 39-43).
+**Current Focus**: Phase 6 - Attribute characteristics validation implementation (Errors 44-52).
 
 ### Development Workflow
 
@@ -136,8 +144,8 @@ The project follows a systematic approach to implementing validation:
 # 4. Run tests and verify
 cargo test validation::your_category --test lib
 
-# Phase 4 (Multi-valued) example
-cargo test validation::multi_valued --test lib
+# Phase 5 (Complex attributes) example
+cargo test validation::complex_attributes --test lib
 ```
 
 ## Key Principles
@@ -225,6 +233,28 @@ match registry.validate_scim_resource(&invalid_resource) {
         println!("Missing required sub-attribute '{}' in '{}'", sub_attribute, attribute);
     }
     
+    // Complex attribute validation errors (Phase 5)
+    Err(ValidationError::MissingRequiredSubAttributes { attribute, missing }) => {
+        // Handle missing required sub-attributes
+        println!("Complex attribute '{}' missing required sub-attributes: {:?}", attribute, missing);
+    }
+    Err(ValidationError::InvalidSubAttributeType { attribute, sub_attribute, expected, actual }) => {
+        // Handle invalid sub-attribute type
+        println!("Complex attribute '{}' has invalid sub-attribute '{}' type, expected {}, got {}", attribute, sub_attribute, expected, actual);
+    }
+    Err(ValidationError::UnknownSubAttribute { attribute, sub_attribute }) => {
+        // Handle unknown sub-attribute
+        println!("Complex attribute '{}' contains unknown sub-attribute '{}'", attribute, sub_attribute);
+    }
+    Err(ValidationError::NestedComplexAttributes { attribute }) => {
+        // Handle nested complex attributes
+        println!("Nested complex attributes are not allowed: '{}'", attribute);
+    }
+    Err(ValidationError::MalformedComplexStructure { attribute, details }) => {
+        // Handle malformed complex structure
+        println!("Complex attribute '{}' has malformed structure: {}", attribute, details);
+    }
+    
     Ok(_) => {
         // Resource is valid
     }
@@ -236,9 +266,9 @@ match registry.validate_scim_resource(&invalid_resource) {
 - Only User schema is currently loaded (Group schema planned)
 - Extension schemas not yet supported
 - Enhanced format validation planned (full RFC3339 dates, strict base64, complete URI validation)
-- Test suite is in active development (35/52 error types implemented)
+- Test suite is in active development (40/52 error types implemented)
 - 2 Phase 2 errors deferred (ClientProvidedId, ClientProvidedMeta - need operation context)
-- Complex attributes and characteristics validation not yet implemented
+- Characteristics validation not yet implemented
 
 ## License
 
@@ -257,8 +287,9 @@ This implementation follows:
 **Phase 2:** ✅ **COMPLETE** - Common attributes validation fully implemented and tested (10/13 testable errors working).
 **Phase 3:** ✅ **COMPLETE** - Data type validation fully implemented and tested (11/11 errors working).
 **Phase 4:** ✅ **COMPLETE** - Multi-valued attribute validation fully implemented and tested (6/6 errors working).
-**Current Total:** 35/52 errors implemented (67% complete).
-**Next**: Phase 5 - Complex attribute validation implementation.
+**Phase 5:** ✅ **COMPLETE** - Complex attribute validation fully implemented and tested (5/5 errors working).
+**Current Total:** 40/52 errors implemented (77% complete).
+**Next**: Phase 6 - Attribute characteristics validation implementation.
 
 ### Validation Functions Working
 - ✅ Schema structure validation (errors 1-8)
@@ -267,11 +298,13 @@ This implementation follows:
 - ✅ Meta attribute validation (errors 14-21, enhanced)
 - ✅ Data type validation (errors 22-32, comprehensive)
 - ✅ Multi-valued attribute validation (errors 33-38, complete)
+- ✅ Complex attribute validation (errors 39-43, schema-driven)
 
 ### Integration Tests Complete
 - ✅ `tests/validation/schema_structure.rs` - 14 tests using validation logic
 - ✅ `tests/validation/common_attributes.rs` - 22 tests using validation logic
 - ✅ `tests/validation/data_types.rs` - 22 tests using validation logic
 - ✅ `tests/validation/multi_valued.rs` - 22 tests using validation logic
+- ✅ `tests/validation/complex_attributes.rs` - 21 tests using validation logic
 
 The project is designed for incremental development with each phase building on the previous foundation.

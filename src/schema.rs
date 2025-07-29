@@ -452,7 +452,10 @@ impl SchemaRegistry {
         // 4. Validate multi-valued attributes
         self.validate_multi_valued_attributes(obj)?;
 
-        // 5. Extract schema IDs and validate against each
+        // 5. Validate complex attributes
+        self.validate_complex_attributes(obj)?;
+
+        // 6. Extract schema IDs and validate against each
         let schemas = self.extract_schema_uris(obj)?;
         for schema_uri in &schemas {
             if let Some(schema) = self.get_schema_by_id(schema_uri) {
@@ -651,6 +654,182 @@ impl SchemaRegistry {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Validate complex attributes (Errors 39-43)
+    fn validate_complex_attributes(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        // Define complex attributes that need validation
+        let complex_attrs = ["name", "addresses"];
+
+        for attr_name in complex_attrs {
+            if let Some(attr_value) = obj.get(attr_name) {
+                // Skip if null
+                if attr_value.is_null() {
+                    continue;
+                }
+
+                // Error #43: Malformed complex structure - must be object
+                if !attr_value.is_object() {
+                    return Err(ValidationError::MalformedComplexStructure {
+                        attribute: attr_name.to_string(),
+                        details: "Complex attribute must be an object".to_string(),
+                    });
+                }
+
+                if let Some(obj) = attr_value.as_object() {
+                    self.validate_complex_attribute_structure(attr_name, obj)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the structure of a specific complex attribute
+    fn validate_complex_attribute_structure(
+        &self,
+        attr_name: &str,
+        attr_obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        // Get attribute definition from schema
+        if let Some(attr_def) = self.get_complex_attribute_definition(attr_name) {
+            if !attr_def.sub_attributes.is_empty() {
+                let sub_attrs = &attr_def.sub_attributes;
+
+                // Check for unknown sub-attributes (Error #41)
+                self.validate_known_sub_attributes(attr_name, attr_obj, sub_attrs)?;
+
+                // Check sub-attribute types (Error #40)
+                self.validate_sub_attribute_types(attr_name, attr_obj, sub_attrs)?;
+
+                // Check for nested complex attributes (Error #42)
+                self.validate_no_nested_complex(attr_name, attr_obj, sub_attrs)?;
+
+                // Check required sub-attributes (Error #39)
+                self.validate_required_sub_attributes_complex(attr_name, attr_obj, sub_attrs)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get attribute definition for a complex attribute
+    fn get_complex_attribute_definition(&self, attr_name: &str) -> Option<&AttributeDefinition> {
+        // Look in core user schema for the attribute
+        self.core_user_schema
+            .attributes
+            .iter()
+            .find(|attr| attr.name == attr_name && matches!(attr.data_type, AttributeType::Complex))
+    }
+
+    /// Validate that all sub-attributes are known/allowed
+    fn validate_known_sub_attributes(
+        &self,
+        attr_name: &str,
+        attr_obj: &serde_json::Map<String, Value>,
+        sub_attrs: &[AttributeDefinition],
+    ) -> ValidationResult<()> {
+        let valid_sub_attr_names: std::collections::HashSet<&str> =
+            sub_attrs.iter().map(|attr| attr.name.as_str()).collect();
+
+        for sub_attr_name in attr_obj.keys() {
+            if !valid_sub_attr_names.contains(sub_attr_name.as_str()) {
+                return Err(ValidationError::UnknownSubAttribute {
+                    attribute: attr_name.to_string(),
+                    sub_attribute: sub_attr_name.to_string(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate sub-attribute data types
+    fn validate_sub_attribute_types(
+        &self,
+        attr_name: &str,
+        attr_obj: &serde_json::Map<String, Value>,
+        sub_attrs: &[AttributeDefinition],
+    ) -> ValidationResult<()> {
+        for sub_attr_def in sub_attrs {
+            if let Some(sub_attr_value) = attr_obj.get(&sub_attr_def.name) {
+                // Skip null values
+                if sub_attr_value.is_null() {
+                    continue;
+                }
+
+                let expected_type = match sub_attr_def.data_type {
+                    AttributeType::String => "string",
+                    AttributeType::Boolean => "boolean",
+                    AttributeType::Integer => "integer",
+                    AttributeType::Decimal => "number",
+                    AttributeType::DateTime => "string",
+                    AttributeType::Binary => "string",
+                    AttributeType::Reference => "string",
+                    AttributeType::Complex => "object",
+                };
+
+                let actual_type = Self::get_value_type(sub_attr_value);
+
+                if expected_type != actual_type {
+                    return Err(ValidationError::InvalidSubAttributeType {
+                        attribute: attr_name.to_string(),
+                        sub_attribute: sub_attr_def.name.clone(),
+                        expected: expected_type.to_string(),
+                        actual: actual_type.to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate that no complex attributes are nested within this complex attribute
+    fn validate_no_nested_complex(
+        &self,
+        attr_name: &str,
+        attr_obj: &serde_json::Map<String, Value>,
+        sub_attrs: &[AttributeDefinition],
+    ) -> ValidationResult<()> {
+        for sub_attr_def in sub_attrs {
+            if matches!(sub_attr_def.data_type, AttributeType::Complex) {
+                if attr_obj.contains_key(&sub_attr_def.name) {
+                    return Err(ValidationError::NestedComplexAttributes {
+                        attribute: format!("{}.{}", attr_name, sub_attr_def.name),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate required sub-attributes for complex attributes
+    fn validate_required_sub_attributes_complex(
+        &self,
+        attr_name: &str,
+        attr_obj: &serde_json::Map<String, Value>,
+        sub_attrs: &[AttributeDefinition],
+    ) -> ValidationResult<()> {
+        let missing: Vec<String> = sub_attrs
+            .iter()
+            .filter(|attr| attr.required)
+            .filter(|attr| !attr_obj.contains_key(&attr.name) || attr_obj[&attr.name].is_null())
+            .map(|attr| attr.name.clone())
+            .collect();
+
+        if !missing.is_empty() {
+            return Err(ValidationError::MissingRequiredSubAttributes {
+                attribute: attr_name.to_string(),
+                missing,
+            });
+        }
+
         Ok(())
     }
 

@@ -197,22 +197,34 @@ fn test_valid_data_types() {
 - [x] ✅ All tests pass: `cargo test validation::multi_valued --test lib` (22 tests)
 - [x] ✅ Documentation updated
 
-### Phase 5 Implementation: Complex Attributes (Next)
-- [ ] 🔲 **NEXT:** Choose validation category: Complex Attributes (Errors 39-43)
+### Phase 5 Implementation: Complex Attributes ✅ COMPLETE
+- [x] ✅ **COMPLETE:** Complex Attributes (Errors 39-43)
+- [x] ✅ Listed all error types for category from `tests/common/mod.rs`
+- [x] ✅ Identified existing builder methods in `tests/common/builders.rs`
+- [x] ✅ Added 5 missing error types to `ValidationError` enum in `src/error.rs`
+- [x] ✅ Implemented schema-driven validation logic in `src/schema.rs`
+- [x] ✅ Integration with main validation flow
+- [x] ✅ Transformed test file `tests/validation/complex_attributes.rs`
+- [x] ✅ Followed established pattern from completed phases
+- [x] ✅ All tests pass: `cargo test validation::complex_attributes --test lib` (21 tests)
+- [x] ✅ Documentation updated
+
+### Phase 6 Implementation: Attribute Characteristics (Next)
+- [ ] 🔲 **NEXT:** Choose validation category: Attribute Characteristics (Errors 44-52)
 - [ ] 🔲 List all error types for category from `tests/common/mod.rs`
 - [ ] 🔲 Identify which builder methods already exist in `tests/common/builders.rs`
 - [ ] 🔲 Add missing error types to `ValidationError` enum in `src/error.rs`
 - [ ] 🔲 Implement validation logic in `src/schema.rs`
 - [ ] 🔲 Integration with main validation flow
-- [ ] 🔲 Transform test file `tests/validation/complex_attributes.rs`
+- [ ] 🔲 Transform test file `tests/validation/characteristics.rs`
 - [ ] 🔲 Follow pattern from completed phases
-- [ ] 🔲 Verify tests pass: `cargo test validation::complex_attributes --test lib`
+- [ ] 🔲 Verify tests pass: `cargo test validation::characteristics --test lib`
 - [ ] 🔲 Update documentation when complete
 
-### Phase 5+ Implementation (Future)
-- [ ] Choose your validation category (Complex Attributes, Characteristics, etc.)
-- [ ] List all error types for your category from `tests/common/mod.rs`
-- [ ] Identify which builder methods already exist in `tests/common/builders.rs`
+### Future Implementation (All Phases Complete)
+- [x] ✅ All validation categories implemented (Phases 1-5 complete)
+- [x] ✅ 40/52 validation errors implemented (77% complete)
+- [ ] 🔲 Final phase: Attribute Characteristics (Errors 44-52) - 9 errors remaining
 
 ### Error Types Implementation (Phase 3+)
 - [ ] Add all error variants to `ValidationError` enum in `src/error.rs`
@@ -362,11 +374,11 @@ cargo test validation --test lib
 cargo test --test lib
 ```
 
-## Phase 4: Specific Instructions
+## Phase 6: Specific Instructions
 
-**Current Task:** Implement multi-valued attribute validation (Errors 33-38).
+**Current Task:** Implement attribute characteristics validation (Errors 44-52).
 
-**Pattern to Follow:** Copy exactly from completed phases (`tests/validation/schema_structure.rs`, `tests/validation/common_attributes.rs`, or `tests/validation/data_types.rs`):
+**Pattern to Follow:** Copy exactly from completed phases (`tests/validation/schema_structure.rs`, `tests/validation/common_attributes.rs`, `tests/validation/data_types.rs`, `tests/validation/multi_valued.rs`, or `tests/validation/complex_attributes.rs`):
 
 1. **Import the validation types:**
    ```rust
@@ -395,13 +407,17 @@ cargo test --test lib
    }
    ```
 
-3. **Tests to Transform (estimated 15 total):**
-   - `test_missing_required_sub_attributes` → `ValidationError::MissingRequiredSubAttributes`
-   - `test_invalid_sub_attribute_type` → `ValidationError::InvalidSubAttributeType`  
-   - `test_unknown_sub_attribute` → `ValidationError::UnknownSubAttribute`
-   - `test_nested_complex_attributes` → `ValidationError::NestedComplexAttributes`
-   - `test_malformed_complex_structure` → `ValidationError::MalformedComplexStructure`
-   - Plus valid case tests for complex attributes
+3. **Tests to Transform (estimated 18-25 total):**
+   - `test_case_sensitivity_violation` → `ValidationError::CaseSensitivityViolation`
+   - `test_readonly_mutability_violation` → `ValidationError::ReadOnlyMutabilityViolation`  
+   - `test_immutable_mutability_violation` → `ValidationError::ImmutableMutabilityViolation`
+   - `test_writeonly_attribute_returned` → `ValidationError::WriteOnlyAttributeReturned`
+   - `test_server_uniqueness_violation` → `ValidationError::ServerUniquenessViolation`
+   - `test_global_uniqueness_violation` → `ValidationError::GlobalUniquenessViolation`
+   - `test_invalid_canonical_value_choice` → `ValidationError::InvalidCanonicalValueChoice`
+   - `test_unknown_attribute_for_schema` → `ValidationError::UnknownAttributeForSchema`
+   - `test_required_characteristic_violation` → `ValidationError::RequiredCharacteristicViolation`
+   - Plus valid case tests for attribute characteristics
 
 ## Next Steps After Implementation
 

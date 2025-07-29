@@ -271,6 +271,40 @@ pub enum ValidationError {
         attribute: String,
         sub_attribute: String,
     },
+
+    // Complex Attribute Validation Errors (39-43)
+    /// Missing required sub-attributes in complex attribute
+    #[error("Complex attribute '{attribute}' missing required sub-attributes: {missing:?}")]
+    MissingRequiredSubAttributes {
+        attribute: String,
+        missing: Vec<String>,
+    },
+
+    /// Invalid sub-attribute type in complex attribute
+    #[error(
+        "Complex attribute '{attribute}' has invalid sub-attribute '{sub_attribute}' type, expected {expected}, got {actual}"
+    )]
+    InvalidSubAttributeType {
+        attribute: String,
+        sub_attribute: String,
+        expected: String,
+        actual: String,
+    },
+
+    /// Unknown sub-attribute in complex attribute
+    #[error("Complex attribute '{attribute}' contains unknown sub-attribute '{sub_attribute}'")]
+    UnknownSubAttribute {
+        attribute: String,
+        sub_attribute: String,
+    },
+
+    /// Nested complex attributes (not allowed)
+    #[error("Nested complex attributes are not allowed: '{attribute}'")]
+    NestedComplexAttributes { attribute: String },
+
+    /// Malformed complex attribute structure
+    #[error("Complex attribute '{attribute}' has malformed structure: {details}")]
+    MalformedComplexStructure { attribute: String, details: String },
 }
 
 /// Errors that can occur during server building/configuration.

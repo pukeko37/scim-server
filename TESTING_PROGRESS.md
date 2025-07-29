@@ -4,9 +4,9 @@
 
 This document tracks the progress of implementing comprehensive validation testing for the SCIM server and outlines what work remains to complete the testing suite. The original test suite was testing the test infrastructure itself rather than the actual validation logic in the source code. This document describes the changes made to connect tests to real validation and what's needed to finish the work.
 
-## Current Status: ✅ PHASE 4 COMPLETE
+## Current Status: ✅ PHASE 5 COMPLETE
 
-The foundation for proper validation testing has been established with schema structure validation (Phase 1), common attributes validation (Phase 2), data type validation (Phase 3), and multi-valued attribute validation (Phase 4) fully implemented and working.
+The foundation for proper validation testing has been established with schema structure validation (Phase 1), common attributes validation (Phase 2), data type validation (Phase 3), multi-valued attribute validation (Phase 4), and complex attribute validation (Phase 5) fully implemented and working.
 
 ### What Was Accomplished
 
@@ -18,6 +18,8 @@ The foundation for proper validation testing has been established with schema st
 - Added `validate_id_attribute()` - Validates ID attribute presence, type, and format
 - Added `validate_external_id()` - Validates external ID attribute when present
 - Enhanced `validate_meta_attribute()` - Validates meta object structure, timestamps, and resource types
+- Added `validate_multi_valued_attributes()` - Validates multi-valued attribute structure and constraints
+- Added `validate_complex_attributes()` - Schema-driven complex attribute validation
 - Added helper methods for URI format validation and schema combinations
 - Added proper error handling with specific error types
 - Added comprehensive test coverage for all validation functions
@@ -25,7 +27,7 @@ The foundation for proper validation testing has been established with schema st
 #### 2. **Comprehensive Error Type System**
 
 **File: `src/error.rs`**
-Added 21 specific validation error variants to replace generic error messages:
+Added 31 specific validation error variants to replace generic error messages:
 
 ```rust
 // Schema Structure Errors (1-8) - ✅ IMPLEMENTED
@@ -95,10 +97,10 @@ All 14 schema structure tests now pass:
 - ✅ `test_valid_schema_configurations`
 - ✅ Plus 5 additional edge case and validation tests
 
-## Remaining Work: 17 Error Types Across 2 Categories
+## Remaining Work: 9 Error Types Across 1 Category
 
 **Progress Summary:**
-- ✅ **Phase 1-4 Complete**: 35/52 validation errors implemented (67% complete)
+- ✅ **Phase 1-5 Complete**: 40/52 validation errors implemented (77% complete)
 - ✅ **144 tests passing** with 3 deferred (requiring operation context)
 - 🔲 **Phase 5-6 Remaining**: Complex attributes and characteristics validation
 
@@ -176,39 +178,114 @@ impl SchemaRegistry {
 
 **Status:** ✅ **COMPLETE** - All 6 multi-valued validation error types implemented and working.
 
-**Implementation Results:**
-- ✅ **6 ValidationError variants** added to `src/error.rs` 
-- ✅ **4 validation functions** implemented in `src/schema.rs`:
-  - `validate_multi_valued_attributes()` - Main validation entry point
-  - `validate_multi_valued_array()` - Array structure validation  
-  - `validate_required_sub_attributes()` - Sub-attribute validation (emails, phoneNumbers, addresses)
-  - `validate_canonical_values()` - Type field canonical value checking
-- ✅ **22 tests passing** in `tests/validation/multi_valued.rs`
-- ✅ **Integration complete** with main validation flow
+**Error Types Implemented:**
+```rust
+// Multi-valued Attribute Errors (33-38) - ✅ IMPLEMENTED
+SingleValueForMultiValued { attribute: String },      // Error #33 ✅ IMPLEMENTED
+ArrayForSingleValued { attribute: String },           // Error #34 ✅ IMPLEMENTED  
+MultiplePrimaryValues { attribute: String },          // Error #35 ✅ IMPLEMENTED
+InvalidMultiValuedStructure { attribute: String, details: String }, // Error #36 ✅ IMPLEMENTED
+MissingRequiredSubAttribute { attribute: String, sub_attribute: String }, // Error #37 ✅ IMPLEMENTED
+InvalidCanonicalValue { attribute: String, value: String, allowed: Vec<String> }, // Error #38 ✅ IMPLEMENTED
+```
+
+**Validation Functions Implemented:**
+```rust
+impl SchemaRegistry {
+    ✅ fn validate_multi_valued_attributes(&self, obj: &Map<String, Value>) -> ValidationResult<()> // Main validation
+    ✅ fn validate_multi_valued_array(&self, attr_name: &str, array: &[Value]) -> ValidationResult<()> // Array structure
+    ✅ fn validate_required_sub_attributes(&self, attr_name: &str, obj: &Map<String, Value>) -> ValidationResult<()> // Sub-attributes
+    ✅ fn validate_canonical_values(&self, attr_name: &str, obj: &Map<String, Value>) -> ValidationResult<()> // Canonical values
+}
+```
+
+**Implementation Features:**
+- ✅ Validates multi-valued vs single-valued attribute constraints
+- ✅ Prevents multiple primary values in multi-valued arrays
+- ✅ Validates array structure for complex multi-valued attributes
+- ✅ Checks required sub-attributes in multi-valued objects
+- ✅ Validates canonical values for type fields
+- ✅ Comprehensive test coverage (22 tests passing)
+
+### Phase 5: Complex Attribute Validation (Errors 39-43) ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** - All 5 complex attribute validation error types implemented and working.
 
 **Error Types Implemented:**
-- Error #33: `SingleValueForMultiValued { attribute: String }` - Single value for multi-valued attribute
-- Error #34: `ArrayForSingleValued { attribute: String }` - Array for single-valued attribute  
-- Error #35: `MultiplePrimaryValues { attribute: String }` - Multiple primary=true values
-- Error #36: `InvalidMultiValuedStructure { attribute: String, details: String }` - Invalid array item structure
-- Error #37: `MissingRequiredSubAttribute { attribute: String, sub_attribute: String }` - Missing required sub-attributes
-- Error #38: `InvalidCanonicalValue` (reused existing) - Invalid canonical type values
+```rust
+// Complex Attribute Errors (39-43) - ✅ IMPLEMENTED
+MissingRequiredSubAttributes { attribute: String, missing: Vec<String> }, // Error #39 ✅ IMPLEMENTED
+InvalidSubAttributeType { attribute: String, sub_attribute: String, expected: String, actual: String }, // Error #40 ✅ IMPLEMENTED
+UnknownSubAttribute { attribute: String, sub_attribute: String }, // Error #41 ✅ IMPLEMENTED
+NestedComplexAttributes { attribute: String },       // Error #42 ✅ IMPLEMENTED
+MalformedComplexStructure { attribute: String, details: String }, // Error #43 ✅ IMPLEMENTED
+```
 
-**Key Validations Working:**
-- ✅ Multi-valued vs single-valued type checking (emails, phoneNumbers vs userName, displayName)
-- ✅ Primary value constraints (only one primary=true per multi-valued attribute)
-- ✅ Required sub-attribute validation (email.value, phoneNumber.value, address components)
-- ✅ Canonical value validation (email.type: work/home/other, phone.type: work/home/mobile/etc)
-- ✅ Array structure validation (complex multi-valued items must be objects)
-- ✅ Edge case handling (null values, empty arrays, mixed valid/invalid items)
+**Validation Functions Implemented:**
+```rust
+impl SchemaRegistry {
+    ✅ fn validate_complex_attributes(&self, obj: &Map<String, Value>) -> ValidationResult<()> // Main validation
+    ✅ fn validate_complex_attribute_structure(&self, attr_name: &str, attr_obj: &Map<String, Value>) -> ValidationResult<()> // Structure validation
+    ✅ fn get_complex_attribute_definition(&self, attr_name: &str) -> Option<&AttributeDefinition> // Schema lookup
+    ✅ fn validate_known_sub_attributes(&self, attr_name: &str, attr_obj: &Map<String, Value>, sub_attrs: &[AttributeDefinition]) -> ValidationResult<()> // Unknown sub-attributes
+    ✅ fn validate_sub_attribute_types(&self, attr_name: &str, attr_obj: &Map<String, Value>, sub_attrs: &[AttributeDefinition]) -> ValidationResult<()> // Type validation
+    ✅ fn validate_no_nested_complex(&self, attr_name: &str, attr_obj: &Map<String, Value>, sub_attrs: &[AttributeDefinition]) -> ValidationResult<()> // Nesting prevention
+    ✅ fn validate_required_sub_attributes_complex(&self, attr_name: &str, attr_obj: &Map<String, Value>, sub_attrs: &[AttributeDefinition]) -> ValidationResult<()> // Required sub-attributes
+}
+```
 
-**Files to Update:**
-- `src/schema.rs` - Add multi-valued attribute validation
-- `src/error.rs` - Add multi-valued specific errors
-- `tests/validation/multi_valued.rs` - Update tests
+**Implementation Features:**
+- ✅ **Schema-driven validation**: Uses actual SCIM schema definitions from User.json
+- ✅ Validates complex attributes like `name`, `addresses`, etc.
+- ✅ Checks sub-attribute data types against schema definitions
+- ✅ Detects unknown/invalid sub-attributes
+- ✅ Prevents nested complex attributes (SCIM constraint)
+- ✅ Validates required sub-attributes when defined in schema
+- ✅ Handles malformed complex structures (arrays instead of objects)
+- ✅ Comprehensive test coverage (21 tests passing)
+- ✅ Integration with main validation flow in `validate_scim_resource()`
+
+### Phase 6: Attribute Characteristics Validation (Errors 44-52) 🔲 NEXT
+
+**Status:** 🔲 **READY FOR IMPLEMENTATION** - 9 characteristic validation error types remaining.
 
 **Error Types Needed:**
 ```rust
+// Attribute Characteristics Errors (44-52) - 🔲 TODO
+CaseSensitivityViolation { attribute: String, details: String },     // Error #44
+ReadOnlyMutabilityViolation { attribute: String },                   // Error #45
+ImmutableMutabilityViolation { attribute: String },                  // Error #46
+WriteOnlyAttributeReturned { attribute: String },                    // Error #47
+ServerUniquenessViolation { attribute: String, value: String },      // Error #48
+GlobalUniquenessViolation { attribute: String, value: String },      // Error #49
+InvalidCanonicalValueChoice { attribute: String, value: String, allowed: Vec<String> }, // Error #50
+UnknownAttributeForSchema { attribute: String, schema: String },     // Error #51
+RequiredCharacteristicViolation { attribute: String, characteristic: String }, // Error #52
+```
+
+**Validation Functions Needed:**
+```rust
+impl SchemaRegistry {
+    🔲 fn validate_attribute_characteristics(&self, obj: &Map<String, Value>) -> ValidationResult<()> // Main validation
+    🔲 fn validate_mutability_constraints(&self, attr_name: &str, attr_def: &AttributeDefinition) -> ValidationResult<()> // Mutability checking
+    🔲 fn validate_uniqueness_constraints(&self, attr_name: &str, value: &Value, attr_def: &AttributeDefinition) -> ValidationResult<()> // Uniqueness checking
+    🔲 fn validate_case_sensitivity(&self, attr_name: &str, value: &str, attr_def: &AttributeDefinition) -> ValidationResult<()> // Case sensitivity
+    🔲 fn validate_schema_attribute_compliance(&self, obj: &Map<String, Value>, schema_uri: &str) -> ValidationResult<()> // Schema compliance
+}
+```
+
+**Implementation Plan:**
+- 🔲 Add 9 ValidationError variants to `src/error.rs`
+- 🔲 Implement validation functions in `src/schema.rs`
+- 🔲 Transform tests in `tests/validation/characteristics.rs` to use validation logic
+- 🔲 Integration with main validation flow
+- 🔲 Target: 18-25 tests passing
+
+**Key Challenges:**
+- Mutability validation requires operation context (CREATE vs UPDATE)
+- Uniqueness validation requires external state management
+- Case sensitivity rules from schema definitions
+- Complex characteristic interactions
 // Multi-valued Attribute Validation Errors (33-38)
 SingleValueForMultiValued,   // Error #33
 ArrayForSingleValued,        // Error #34 (partially exists as ExpectedSingleValue)
@@ -218,7 +295,7 @@ MissingRequiredSubAttribute, // Error #37
 InvalidCanonicalValue,       // Error #38 (already exists)
 ```
 
-### Phase 5: Complex Attribute Validation (Errors 39-43) 🔲 NEXT
+### Phase 6: Attribute Characteristics Validation (Errors 44-52) 🔲 NEXT
 
 **Target:** Validate nested object structures like `name`, `addresses`, and enterprise extension attributes.
 
@@ -237,7 +314,9 @@ NestedComplexAttributes,      // Error #42
 MalformedComplexStructure,    // Error #43
 ```
 
-### Phase 6: Attribute Characteristics Validation (Errors 44-52) 🔲 PLANNED
+### Historical: Previous Phase Status
+
+These phases are now complete and this section provides historical reference.
 
 **Target:** Validate mutability, uniqueness, case sensitivity, and other SCIM attribute characteristics.
 
@@ -414,7 +493,38 @@ cargo test --test lib
 - `tests/VALIDATION_TESTING.md` - Original test design documentation
 - `TESTING_PROGRESS.md` - This file
 
-## Recent Accomplishments (Phase 3 Complete)
+## Recent Accomplishments (Phase 5 Complete)
+
+### ✅ Phase 5: Complex Attribute Validation COMPLETED
+
+**What was achieved:**
+- ✅ **5 new ValidationError variants** added to `src/error.rs` with comprehensive error messages
+- ✅ **7 validation functions** implemented in `src/schema.rs`:
+  - `validate_complex_attributes()` - Main validation entry point
+  - `validate_complex_attribute_structure()` - Individual complex attribute validation
+  - `get_complex_attribute_definition()` - Schema lookup for complex attributes
+  - `validate_known_sub_attributes()` - Unknown sub-attribute detection
+  - `validate_sub_attribute_types()` - Sub-attribute type validation
+  - `validate_no_nested_complex()` - Prevents nested complex attributes
+  - `validate_required_sub_attributes_complex()` - Required sub-attribute checking
+- ✅ **21 tests passing** in `tests/validation/complex_attributes.rs`
+- ✅ **Schema-driven implementation** using actual SCIM schema definitions from User.json
+- ✅ **Integration complete** with main validation flow in `validate_scim_resource()`
+
+**Key Features Implemented:**
+- Complex attribute validation for `name`, `addresses`, and other complex types
+- Sub-attribute type checking against schema definitions (givenName: string, etc.)
+- Unknown sub-attribute detection (prevents invalid fields in complex attributes)
+- Nested complex attribute prevention (SCIM compliance requirement)
+- Required sub-attribute validation when defined in schema
+- Malformed structure detection (arrays where objects expected)
+
+**Error Coverage Progress:**
+- **Before Phase 5**: 35/52 errors (67% complete)
+- **After Phase 5**: 40/52 errors (77% complete)
+- **Remaining**: 12 errors in Phase 6 (23% remaining)
+
+## Previous Accomplishments (Phase 3 Complete)
 
 **Enhanced Data Type Validation System (Errors 22-32):**
 - ✅ Added 11 new specific validation error types to replace generic `InvalidAttributeType`
