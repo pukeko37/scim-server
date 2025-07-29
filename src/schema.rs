@@ -449,7 +449,10 @@ impl SchemaRegistry {
         // 3. Validate meta attributes
         self.validate_meta_attribute(obj)?;
 
-        // 4. Extract schema IDs and validate against each
+        // 4. Validate multi-valued attributes
+        self.validate_multi_valued_attributes(obj)?;
+
+        // 5. Extract schema IDs and validate against each
         let schemas = self.extract_schema_uris(obj)?;
         for schema_uri in &schemas {
             if let Some(schema) = self.get_schema_by_id(schema_uri) {
@@ -461,6 +464,193 @@ impl SchemaRegistry {
             }
         }
 
+        Ok(())
+    }
+
+    /// Validate multi-valued attributes (Errors 33-38)
+    fn validate_multi_valued_attributes(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        // Define multi-valued attributes that should be arrays
+        let multi_valued_attrs = [
+            "emails",
+            "phoneNumbers",
+            "ims",
+            "photos",
+            "addresses",
+            "groups",
+            "entitlements",
+            "roles",
+            "x509Certificates",
+        ];
+
+        // Define single-valued attributes that should NOT be arrays
+        let single_valued_attrs = [
+            "userName",
+            "displayName",
+            "nickName",
+            "profileUrl",
+            "title",
+            "userType",
+            "preferredLanguage",
+            "locale",
+            "timezone",
+            "active",
+            "password",
+        ];
+
+        // Check multi-valued attributes
+        for attr_name in multi_valued_attrs {
+            if let Some(value) = obj.get(attr_name) {
+                // Error #33: Single value for multi-valued attribute
+                if !value.is_array() {
+                    return Err(ValidationError::SingleValueForMultiValued {
+                        attribute: attr_name.to_string(),
+                    });
+                }
+
+                // Validate array structure and contents
+                if let Some(array) = value.as_array() {
+                    self.validate_multi_valued_array(attr_name, array)?;
+                }
+            }
+        }
+
+        // Check single-valued attributes
+        for attr_name in single_valued_attrs {
+            if let Some(value) = obj.get(attr_name) {
+                // Error #34: Array for single-valued attribute
+                if value.is_array() {
+                    return Err(ValidationError::ArrayForSingleValued {
+                        attribute: attr_name.to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the structure and contents of a multi-valued array
+    fn validate_multi_valued_array(
+        &self,
+        attr_name: &str,
+        array: &[Value],
+    ) -> ValidationResult<()> {
+        let mut primary_count = 0;
+
+        for (index, item) in array.iter().enumerate() {
+            // Error #36: Invalid multi-valued structure - items should be objects for complex multi-valued attributes
+            if matches!(
+                attr_name,
+                "emails" | "phoneNumbers" | "ims" | "photos" | "addresses"
+            ) {
+                if !item.is_object() {
+                    return Err(ValidationError::InvalidMultiValuedStructure {
+                        attribute: attr_name.to_string(),
+                        details: format!("Item at index {} is not an object", index),
+                    });
+                }
+
+                if let Some(obj) = item.as_object() {
+                    // Error #35: Multiple primary values
+                    if let Some(primary) = obj.get("primary") {
+                        if primary.as_bool() == Some(true) {
+                            primary_count += 1;
+                            if primary_count > 1 {
+                                return Err(ValidationError::MultiplePrimaryValues {
+                                    attribute: attr_name.to_string(),
+                                });
+                            }
+                        }
+                    }
+
+                    // Error #37: Missing required sub-attribute
+                    self.validate_required_sub_attributes(attr_name, obj)?;
+
+                    // Error #38: Invalid canonical value
+                    self.validate_canonical_values(attr_name, obj)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate required sub-attributes in multi-valued complex attributes
+    fn validate_required_sub_attributes(
+        &self,
+        attr_name: &str,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        match attr_name {
+            "emails" => {
+                // Email requires 'value' sub-attribute
+                if !obj.contains_key("value") {
+                    return Err(ValidationError::MissingRequiredSubAttribute {
+                        attribute: attr_name.to_string(),
+                        sub_attribute: "value".to_string(),
+                    });
+                }
+            }
+            "phoneNumbers" => {
+                // Phone number requires 'value' sub-attribute
+                if !obj.contains_key("value") {
+                    return Err(ValidationError::MissingRequiredSubAttribute {
+                        attribute: attr_name.to_string(),
+                        sub_attribute: "value".to_string(),
+                    });
+                }
+            }
+            "addresses" => {
+                // Address requires at least one of the core fields
+                let required_fields = [
+                    "formatted",
+                    "streetAddress",
+                    "locality",
+                    "region",
+                    "postalCode",
+                    "country",
+                ];
+                if !required_fields.iter().any(|field| obj.contains_key(*field)) {
+                    return Err(ValidationError::MissingRequiredSubAttribute {
+                        attribute: attr_name.to_string(),
+                        sub_attribute: "formatted or address components".to_string(),
+                    });
+                }
+            }
+            _ => {} // Other multi-valued attributes may not have strict requirements
+        }
+        Ok(())
+    }
+
+    /// Validate canonical values in multi-valued attributes
+    fn validate_canonical_values(
+        &self,
+        attr_name: &str,
+        obj: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<()> {
+        if let Some(type_value) = obj.get("type") {
+            if let Some(type_str) = type_value.as_str() {
+                let allowed_values = match attr_name {
+                    "emails" => vec!["work", "home", "other"],
+                    "phoneNumbers" => vec!["work", "home", "mobile", "fax", "pager", "other"],
+                    "ims" => vec!["aim", "gtalk", "icq", "xmpp", "msn", "skype", "qq", "yahoo"],
+                    "photos" => vec!["photo", "thumbnail"],
+                    "addresses" => vec!["work", "home", "other"],
+                    _ => return Ok(()), // No canonical values defined for this attribute
+                };
+
+                if !allowed_values.contains(&type_str) {
+                    return Err(ValidationError::InvalidCanonicalValue {
+                        attribute: attr_name.to_string(),
+                        value: type_str.to_string(),
+                        allowed: allowed_values.into_iter().map(String::from).collect(),
+                    });
+                }
+            }
+        }
         Ok(())
     }
 

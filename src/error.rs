@@ -247,6 +247,30 @@ pub enum ValidationError {
         attribute: String,
         reference: String,
     },
+
+    // Multi-valued Attribute Validation Errors (33-38)
+    /// Single value provided for multi-valued attribute
+    #[error("Attribute '{attribute}' must be multi-valued (array)")]
+    SingleValueForMultiValued { attribute: String },
+
+    /// Array provided for single-valued attribute
+    #[error("Attribute '{attribute}' must be single-valued (not array)")]
+    ArrayForSingleValued { attribute: String },
+
+    /// Multiple primary values in multi-valued attribute
+    #[error("Attribute '{attribute}' cannot have multiple primary values")]
+    MultiplePrimaryValues { attribute: String },
+
+    /// Invalid multi-valued structure
+    #[error("Attribute '{attribute}' has invalid multi-valued structure: {details}")]
+    InvalidMultiValuedStructure { attribute: String, details: String },
+
+    /// Missing required sub-attribute in multi-valued
+    #[error("Attribute '{attribute}' missing required sub-attribute '{sub_attribute}'")]
+    MissingRequiredSubAttribute {
+        attribute: String,
+        sub_attribute: String,
+    },
 }
 
 /// Errors that can occur during server building/configuration.

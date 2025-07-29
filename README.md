@@ -53,7 +53,7 @@ let result = registry.validate_scim_resource(&user)?;
 
 ## Testing Status
 
-### ✅ Implemented and Working (29/52 validation errors)
+### ✅ Implemented and Working (35/52 validation errors)
 - **Schema Structure Validation (Errors 1-8)**: Complete with 14 passing tests
   - Missing/empty schemas arrays
   - Invalid/unknown schema URIs  
@@ -73,8 +73,14 @@ let result = registry.validate_scim_resource(&user)?;
   - ✅ Enhanced error messages with specific validation details
   - ✅ Missing required attribute detection (Error 22)
 
-### 🔲 Ready for Implementation (23/52 validation errors)
-- **Multi-valued (Errors 33-38)**: Array attribute validation
+- **Multi-valued Attributes (Errors 33-38)**: Complete with 22 passing tests
+  - ✅ Single/multi-valued type checking (Errors 33-34)
+  - ✅ Primary value constraints (Error 35)  
+  - ✅ Array structure validation (Error 36)
+  - ✅ Required sub-attribute checking (Error 37)
+  - ✅ Canonical value validation (Error 38)
+
+### 🔲 Ready for Implementation (17/52 validation errors)
 - **Complex Attributes (Errors 39-43)**: Nested object validation
 - **Characteristics (Errors 44-52)**: Mutability, uniqueness constraints
 
@@ -100,10 +106,10 @@ src/
 
 tests/
 ├── validation/         # Validation test suites
-│   ├── schema_structure.rs  # ✅ Complete (template for others)
-│   ├── common_attributes.rs # 🔲 Next phase
-│   ├── data_types.rs        # 🔲 Phase 3
-│   ├── multi_valued.rs      # 🔲 Phase 4
+│   ├── schema_structure.rs  # ✅ Complete (14 tests)
+│   ├── common_attributes.rs # ✅ Complete (22 tests)
+│   ├── data_types.rs        # ✅ Complete (22 tests)
+│   ├── multi_valued.rs      # ✅ Complete (22 tests)
 │   ├── complex_attributes.rs # 🔲 Phase 5
 │   └── characteristics.rs   # 🔲 Phase 6
 └── common/             # Test utilities and builders
@@ -119,7 +125,7 @@ The project follows a systematic approach to implementing validation:
 2. **Read the Guide**: See `TESTING_IMPLEMENTATION_GUIDE.md` for exact steps
 3. **Check Progress**: Review `TESTING_PROGRESS.md` for current status
 
-**Current Focus**: Phase 4 - Multi-valued attribute validation implementation (Errors 33-38).
+**Current Focus**: Phase 5 - Complex attribute validation implementation (Errors 39-43).
 
 ### Development Workflow
 
@@ -130,8 +136,8 @@ The project follows a systematic approach to implementing validation:
 # 4. Run tests and verify
 cargo test validation::your_category --test lib
 
-# Phase 3 (Data Types) example
-cargo test validation::data_types --test lib
+# Phase 4 (Multi-valued) example
+cargo test validation::multi_valued --test lib
 ```
 
 ## Key Principles
@@ -197,6 +203,28 @@ match registry.validate_scim_resource(&invalid_resource) {
         println!("Binary data error in '{}': {}", attribute, details);
     }
     
+    // Multi-valued attribute validation errors (Phase 4)
+    Err(ValidationError::SingleValueForMultiValued { attribute }) => {
+        // Handle single value for multi-valued attribute
+        println!("Attribute '{}' must be an array", attribute);
+    }
+    Err(ValidationError::ArrayForSingleValued { attribute }) => {
+        // Handle array for single-valued attribute
+        println!("Attribute '{}' must not be an array", attribute);
+    }
+    Err(ValidationError::MultiplePrimaryValues { attribute }) => {
+        // Handle multiple primary values
+        println!("Attribute '{}' cannot have multiple primary values", attribute);
+    }
+    Err(ValidationError::InvalidMultiValuedStructure { attribute, details }) => {
+        // Handle invalid multi-valued structure
+        println!("Multi-valued structure error in '{}': {}", attribute, details);
+    }
+    Err(ValidationError::MissingRequiredSubAttribute { attribute, sub_attribute }) => {
+        // Handle missing required sub-attribute
+        println!("Missing required sub-attribute '{}' in '{}'", sub_attribute, attribute);
+    }
+    
     Ok(_) => {
         // Resource is valid
     }
@@ -208,9 +236,9 @@ match registry.validate_scim_resource(&invalid_resource) {
 - Only User schema is currently loaded (Group schema planned)
 - Extension schemas not yet supported
 - Enhanced format validation planned (full RFC3339 dates, strict base64, complete URI validation)
-- Test suite is in active development (29/52 error types implemented)
+- Test suite is in active development (35/52 error types implemented)
 - 2 Phase 2 errors deferred (ClientProvidedId, ClientProvidedMeta - need operation context)
-- Multi-valued attributes, complex attributes, and characteristics validation not yet implemented
+- Complex attributes and characteristics validation not yet implemented
 
 ## License
 
@@ -223,12 +251,14 @@ This implementation follows:
 - **RFC 7644**: SCIM Protocol (planned)
 - **RFC 3339**: Date and Time on the Internet (partially implemented)
 
-## Development Status
+**Development Status**
 
-**Phase 1 Complete**: Foundation established with working schema structure validation (8/52 errors).
-**Phase 2 Complete**: Common attributes validation fully implemented and tested (10/13 testable errors working, 18/52 total).
-**Phase 3 Complete**: Data type validation fully implemented and tested (11/11 errors working, 29/52 total).
-**Next**: Phase 4 - Multi-valued attribute validation implementation.
+**Phase 1:** ✅ **COMPLETE** - Schema structure validation fully implemented (8/52 errors).
+**Phase 2:** ✅ **COMPLETE** - Common attributes validation fully implemented and tested (10/13 testable errors working).
+**Phase 3:** ✅ **COMPLETE** - Data type validation fully implemented and tested (11/11 errors working).
+**Phase 4:** ✅ **COMPLETE** - Multi-valued attribute validation fully implemented and tested (6/6 errors working).
+**Current Total:** 35/52 errors implemented (67% complete).
+**Next**: Phase 5 - Complex attribute validation implementation.
 
 ### Validation Functions Working
 - ✅ Schema structure validation (errors 1-8)
@@ -236,10 +266,12 @@ This implementation follows:
 - ✅ External ID validation (error 13)
 - ✅ Meta attribute validation (errors 14-21, enhanced)
 - ✅ Data type validation (errors 22-32, comprehensive)
+- ✅ Multi-valued attribute validation (errors 33-38, complete)
 
 ### Integration Tests Complete
 - ✅ `tests/validation/schema_structure.rs` - 14 tests using validation logic
 - ✅ `tests/validation/common_attributes.rs` - 22 tests using validation logic
 - ✅ `tests/validation/data_types.rs` - 22 tests using validation logic
+- ✅ `tests/validation/multi_valued.rs` - 22 tests using validation logic
 
 The project is designed for incremental development with each phase building on the previous foundation.

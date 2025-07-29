@@ -8,9 +8,15 @@ use serde_json::json;
 // Import test utilities
 use crate::common::{ValidationErrorCode, builders::UserBuilder, fixtures::rfc_examples};
 
+// Import SCIM server types
+use scim_server::error::ValidationError;
+use scim_server::schema::SchemaRegistry;
+
 /// Test Error #33: Single value provided for multi-valued attribute
 #[test]
 fn test_single_value_for_multi_valued() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // emails should be an array, not a single object
     let user_single_email = UserBuilder::new().with_single_value_emails().build();
 
@@ -18,13 +24,18 @@ fn test_single_value_for_multi_valued() {
     assert!(!user_single_email["emails"].is_array());
     assert!(user_single_email["emails"].is_object());
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_single_value_emails();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(
-        expected_errors,
-        &[ValidationErrorCode::SingleValueForMultiValued]
-    );
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_single_email);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::SingleValueForMultiValued { attribute }) => {
+            assert_eq!(attribute, "emails");
+        }
+        Err(other) => panic!("Expected SingleValueForMultiValued error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #33: Single value for other multi-valued attributes
@@ -55,43 +66,67 @@ fn test_single_value_for_multi_valued_addresses() {
 /// Test Error #34: Array provided for single-valued attribute
 #[test]
 fn test_array_for_single_valued() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // userName should be a string, not an array
     let user_array_username = UserBuilder::new().with_array_username().build();
 
-    // Verify userName is an array when it should be a string
+    // Verify userName is an array
     assert!(user_array_username["userName"].is_array());
     assert!(!user_array_username["userName"].is_string());
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_array_username();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(
-        expected_errors,
-        &[ValidationErrorCode::ArrayForSingleValued]
-    );
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_array_username);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::ArrayForSingleValued { attribute }) => {
+            assert_eq!(attribute, "userName");
+        }
+        Err(other) => panic!("Expected ArrayForSingleValued error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #34: Array for other single-valued attributes
 #[test]
 fn test_array_for_single_valued_display_name() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // displayName should be a string, not an array
     let user_array_display_name = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "id": "123",
         "userName": "test@example.com",
-        "displayName": ["Display", "Name"], // Should be single string
+        "displayName": ["John", "Doe"],
         "meta": {
             "resourceType": "User"
         }
     });
 
+    // Verify displayName is an array
     assert!(user_array_display_name["displayName"].is_array());
-    assert!(!user_array_display_name["displayName"].is_string());
+
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_array_display_name);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::ArrayForSingleValued { attribute }) => {
+            assert_eq!(attribute, "displayName");
+        }
+        Err(other) => panic!("Expected ArrayForSingleValued error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #35: Multiple primary values in multi-valued attribute
 #[test]
 fn test_multiple_primary_values() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Only one email should have primary: true
     let user_multiple_primaries = UserBuilder::new().with_multiple_primary_emails().build();
 
@@ -104,13 +139,18 @@ fn test_multiple_primary_values() {
 
     assert!(primary_count > 1, "Should have multiple primary emails");
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_multiple_primary_emails();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(
-        expected_errors,
-        &[ValidationErrorCode::MultiplePrimaryValues]
-    );
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_multiple_primaries);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::MultiplePrimaryValues { attribute }) => {
+            assert_eq!(attribute, "emails");
+        }
+        Err(other) => panic!("Expected MultiplePrimaryValues error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #35: Multiple primary values in addresses
@@ -151,6 +191,8 @@ fn test_multiple_primary_addresses() {
 /// Test Error #36: Invalid multi-valued structure
 #[test]
 fn test_invalid_multi_valued_structure() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Test emails with incorrect structure
     let user_invalid_email_structure = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -171,6 +213,23 @@ fn test_invalid_multi_valued_structure() {
     let emails = user_invalid_email_structure["emails"].as_array().unwrap();
     assert!(emails[0].is_string()); // First email is invalid structure
     assert!(emails[1].is_object()); // Second email is valid structure
+
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_invalid_email_structure);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::InvalidMultiValuedStructure { attribute, details }) => {
+            assert_eq!(attribute, "emails");
+            assert!(details.contains("index 0"));
+        }
+        Err(other) => panic!(
+            "Expected InvalidMultiValuedStructure error, got {:?}",
+            other
+        ),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #36: Missing value in multi-valued complex attribute
@@ -200,6 +259,8 @@ fn test_multi_valued_missing_value() {
 /// Test Error #37: Missing required sub-attribute in multi-valued attribute
 #[test]
 fn test_missing_required_sub_attribute() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Test emails missing required "value" sub-attribute
     let user_email_missing_value = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -209,7 +270,7 @@ fn test_missing_required_sub_attribute() {
             {
                 "type": "work",
                 "primary": true
-                // Missing required "value" sub-attribute
+                // Missing "value" field - this is required
             }
         ],
         "meta": {
@@ -217,8 +278,30 @@ fn test_missing_required_sub_attribute() {
         }
     });
 
+    // Verify the email object doesn't have a "value" field
     let email = &user_email_missing_value["emails"][0];
     assert!(!email.as_object().unwrap().contains_key("value"));
+    assert!(email.as_object().unwrap().contains_key("type"));
+
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_email_missing_value);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::MissingRequiredSubAttribute {
+            attribute,
+            sub_attribute,
+        }) => {
+            assert_eq!(attribute, "emails");
+            assert_eq!(sub_attribute, "value");
+        }
+        Err(other) => panic!(
+            "Expected MissingRequiredSubAttribute error, got {:?}",
+            other
+        ),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #37: Missing required sub-attribute in addresses
@@ -249,6 +332,8 @@ fn test_missing_required_address_sub_attribute() {
 /// Test Error #38: Invalid canonical value in multi-valued attribute
 #[test]
 fn test_invalid_canonical_value() {
+    let registry = SchemaRegistry::new().expect("Failed to create registry");
+
     // Test invalid "type" values that don't match canonical values
     let user_invalid_email_type = UserBuilder::new().with_invalid_email_type().build();
 
@@ -257,13 +342,25 @@ fn test_invalid_canonical_value() {
     let invalid_email = emails.iter().find(|email| email["type"] == "invalid-type");
     assert!(invalid_email.is_some());
 
-    // Verify expected error is tracked
-    let builder = UserBuilder::new().with_invalid_email_type();
-    let expected_errors = builder.expected_errors();
-    assert_eq!(
-        expected_errors,
-        &[ValidationErrorCode::InvalidCanonicalValue]
-    );
+    // Actually validate the resource
+    let result = registry.validate_scim_resource(&user_invalid_email_type);
+
+    // Assert that validation fails with the expected error
+    assert!(result.is_err());
+    match result {
+        Err(ValidationError::InvalidCanonicalValue {
+            attribute,
+            value,
+            allowed,
+        }) => {
+            assert_eq!(attribute, "emails");
+            assert_eq!(value, "invalid-type");
+            assert!(allowed.contains(&"work".to_string()));
+            assert!(allowed.contains(&"home".to_string()));
+        }
+        Err(other) => panic!("Expected InvalidCanonicalValue error, got {:?}", other),
+        Ok(_) => panic!("Expected validation to fail, but it passed"),
+    }
 }
 
 /// Test Error #38: Invalid canonical values in phone numbers
