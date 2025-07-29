@@ -16,7 +16,7 @@ fn main() {
         eprintln!("Usage: {} <schema-file-or-directory>", args[0]);
         eprintln!();
         eprintln!("Examples:");
-        eprintln!("  {} User.json", args[0]);
+        eprintln!("  {} schemas/User.json", args[0]);
         eprintln!("  {} ./schemas/", args[0]);
         process::exit(1);
     }

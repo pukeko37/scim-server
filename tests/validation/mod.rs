@@ -9,6 +9,7 @@ pub mod common_attributes;
 pub mod complex_attributes;
 pub mod data_types;
 // pub mod extensions;
+pub mod group_validation;
 pub mod multi_valued;
 pub mod schema_structure;
 

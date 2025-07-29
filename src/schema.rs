@@ -19,13 +19,14 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct SchemaRegistry {
     core_user_schema: Schema,
+    core_group_schema: Schema,
     schemas: HashMap<String, Schema>,
 }
 
 impl SchemaRegistry {
     /// Create a new schema registry with core User schema loaded from file.
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        Self::from_schema_dir(".")
+        Self::from_schema_dir("schemas")
     }
 
     /// Create a schema registry by loading schemas from a directory.
@@ -35,11 +36,16 @@ impl SchemaRegistry {
         let user_schema_path = schema_dir.as_ref().join("User.json");
         let core_user_schema = Self::load_schema_from_file(&user_schema_path)?;
 
+        let group_schema_path = schema_dir.as_ref().join("Group.json");
+        let core_group_schema = Self::load_schema_from_file(&group_schema_path)?;
+
         let mut schemas = HashMap::new();
         schemas.insert(core_user_schema.id.clone(), core_user_schema.clone());
+        schemas.insert(core_group_schema.id.clone(), core_group_schema.clone());
 
         Ok(Self {
             core_user_schema,
+            core_group_schema,
             schemas,
         })
     }
@@ -420,6 +426,10 @@ impl SchemaRegistry {
     /// Get the core User schema.
     pub fn get_user_schema(&self) -> &Schema {
         &self.core_user_schema
+    }
+
+    pub fn get_group_schema(&self) -> &Schema {
+        &self.core_group_schema
     }
 
     /// Add a schema to the registry.
@@ -1215,10 +1225,15 @@ mod tests {
     #[test]
     fn test_schema_registry_creation() {
         let registry = SchemaRegistry::new().expect("Failed to create registry");
-        assert_eq!(registry.get_schemas().len(), 1);
+        assert_eq!(registry.get_schemas().len(), 2);
         assert!(
             registry
                 .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
+                .is_some()
+        );
+        assert!(
+            registry
+                .get_schema("urn:ietf:params:scim:schemas:core:2.0:Group")
                 .is_some()
         );
     }
@@ -1536,6 +1551,114 @@ mod tests {
                 "Expected MissingSchemas error (schema validation first), got {:?}",
                 other
             ),
+        }
+    }
+
+    #[test]
+    fn test_valid_group_validation() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "id": "e9e30dba-f08f-4109-8486-d5c6a331660a",
+            "displayName": "Tour Guides",
+            "meta": {
+                "resourceType": "Group",
+                "created": "2010-01-23T04:56:22Z",
+                "lastModified": "2011-05-13T04:42:34Z",
+                "version": "W/\"3694e05e9dff592\"",
+                "location": "https://example.com/v2/Groups/e9e30dba-f08f-4109-8486-d5c6a331660a"
+            }
+        });
+
+        let result = registry.validate_scim_resource(&group);
+        assert!(
+            result.is_ok(),
+            "Valid group should pass validation: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_group_missing_display_name() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "id": "e9e30dba-f08f-4109-8486-d5c6a331660a",
+            "meta": {
+                "resourceType": "Group"
+            }
+        });
+
+        let result = registry.validate_scim_resource(&group);
+        // Group schema allows displayName to be optional according to the schema
+        assert!(
+            result.is_ok(),
+            "Group without displayName should be valid: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_group_with_members() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "id": "e9e30dba-f08f-4109-8486-d5c6a331660a",
+            "displayName": "Tour Guides",
+            "members": [
+                {
+                    "value": "2819c223-7f76-453a-919d-413861904646",
+                    "$ref": "https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646",
+                    "type": "User"
+                }
+            ],
+            "meta": {
+                "resourceType": "Group"
+            }
+        });
+
+        let result = registry.validate_scim_resource(&group);
+        assert!(
+            result.is_ok(),
+            "Group with valid members should pass validation: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_group_schema_retrieval() {
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group_schema = registry.get_group_schema();
+
+        assert_eq!(
+            group_schema.id,
+            "urn:ietf:params:scim:schemas:core:2.0:Group"
+        );
+        assert_eq!(group_schema.name, "Group");
+        assert!(!group_schema.attributes.is_empty());
+
+        // Check that displayName attribute exists
+        let display_name_attr = group_schema
+            .attributes
+            .iter()
+            .find(|attr| attr.name == "displayName");
+        assert!(
+            display_name_attr.is_some(),
+            "Group schema should have displayName attribute"
+        );
+
+        // Check that members attribute exists and is complex
+        let members_attr = group_schema
+            .attributes
+            .iter()
+            .find(|attr| attr.name == "members");
+        assert!(
+            members_attr.is_some(),
+            "Group schema should have members attribute"
+        );
+        if let Some(attr) = members_attr {
+            assert!(matches!(attr.data_type, AttributeType::Complex));
+            assert!(attr.multi_valued);
         }
     }
 }

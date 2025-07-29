@@ -580,4 +580,173 @@ mod tests {
             ScimError::UnsupportedOperation { .. }
         ));
     }
+
+    /// Test Group resource registration and CRUD operations
+    #[tokio::test]
+    async fn test_group_resource_operations() {
+        let provider = TestProvider::new();
+        let mut server = ScimServer::new(provider).expect("Failed to create server");
+
+        // Create and register Group resource type
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group_schema = registry.get_group_schema().clone();
+        let group_handler = crate::resource_handlers::create_group_resource_handler(group_schema);
+
+        server
+            .register_resource_type(
+                "Group",
+                group_handler,
+                vec![
+                    ScimOperation::Create,
+                    ScimOperation::Read,
+                    ScimOperation::Update,
+                    ScimOperation::Delete,
+                    ScimOperation::List,
+                ],
+            )
+            .expect("Failed to register Group resource type");
+
+        let group_data = json!({
+            "displayName": "Engineering Team",
+            "members": [
+                {
+                    "value": "user-123",
+                    "$ref": "https://example.com/v2/Users/user-123",
+                    "type": "User"
+                }
+            ]
+        });
+
+        let context = RequestContext::new("test-req".to_string());
+
+        // Create group
+        let created_group = server
+            .create_resource("Group", group_data, &context)
+            .await
+            .expect("Failed to create group");
+
+        assert_eq!(
+            created_group
+                .get_attribute("displayName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "Engineering Team"
+        );
+        assert!(created_group.get_attribute("members").unwrap().is_array());
+
+        let group_id = created_group
+            .get_attribute("id")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        // Get group
+        let retrieved_group = server
+            .get_resource("Group", &group_id, &context)
+            .await
+            .expect("Failed to get group");
+
+        let retrieved_group = retrieved_group.expect("Failed to retrieve group");
+        assert_eq!(
+            retrieved_group
+                .get_attribute("displayName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "Engineering Team"
+        );
+        assert_eq!(
+            retrieved_group
+                .get_attribute("id")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            group_id
+        );
+
+        // Update group
+        let updated_data = json!({
+            "displayName": "Updated Engineering Team"
+        });
+
+        let updated_group = server
+            .update_resource("Group", &group_id, updated_data, &context)
+            .await
+            .expect("Failed to update group");
+
+        assert_eq!(
+            updated_group
+                .get_attribute("displayName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "Updated Engineering Team"
+        );
+
+        // List groups
+        let groups_list = server
+            .list_resources("Group", &context)
+            .await
+            .expect("Failed to list groups");
+
+        assert!(!groups_list.is_empty());
+
+        // Delete group
+        server
+            .delete_resource("Group", &group_id, &context)
+            .await
+            .expect("Failed to delete group");
+
+        // Verify deletion - resource should return None
+        let deleted_resource = server
+            .get_resource("Group", &group_id, &context)
+            .await
+            .expect("Get operation should succeed even after deletion");
+
+        assert!(
+            deleted_resource.is_none(),
+            "Resource should be None after deletion"
+        );
+    }
+
+    /// Test Group schema validation in server context
+    #[tokio::test]
+    async fn test_group_validation_in_server() {
+        let provider = TestProvider::new();
+        let mut server = ScimServer::new(provider).expect("Failed to create server");
+
+        let registry = SchemaRegistry::new().expect("Failed to create registry");
+        let group_schema = registry.get_group_schema().clone();
+        let group_handler = crate::resource_handlers::create_group_resource_handler(group_schema);
+
+        server
+            .register_resource_type("Group", group_handler, vec![ScimOperation::Create])
+            .expect("Failed to register Group resource type");
+
+        let context = RequestContext::new("test-req".to_string());
+
+        // Test valid group creation
+        let valid_group = json!({
+            "displayName": "Valid Group",
+            "members": []
+        });
+
+        let result = server.create_resource("Group", valid_group, &context).await;
+        assert!(result.is_ok(), "Valid group should be created successfully");
+
+        // Test invalid group creation (missing schemas will be added automatically)
+        let minimal_group = json!({
+            "displayName": "Minimal Group"
+        });
+
+        let result = server
+            .create_resource("Group", minimal_group, &context)
+            .await;
+        assert!(
+            result.is_ok(),
+            "Minimal group should be created successfully"
+        );
+    }
 }

@@ -108,7 +108,7 @@ All 14 schema structure tests now pass:
 
 **Step 1 Complete: Validation Logic Implementation**
 - ✅ `src/schema.rs` - All validation functions implemented and working
-- ✅ `User.json` - Added missing `externalId` attribute to schema
+- ✅ `schemas/User.json` - Added missing `externalId` attribute to schema
 - ✅ Unit tests added and passing (3 new tests covering all scenarios)
 - ✅ Integration tests verify Phase 2 validation is active
 
@@ -235,7 +235,7 @@ impl SchemaRegistry {
 ```
 
 **Implementation Features:**
-- ✅ **Schema-driven validation**: Uses actual SCIM schema definitions from User.json
+- ✅ **Schema-driven validation**: Uses actual SCIM schema definitions from schemas/User.json
 - ✅ Validates complex attributes like `name`, `addresses`, etc.
 - ✅ Checks sub-attribute data types against schema definitions
 - ✅ Detects unknown/invalid sub-attributes
@@ -343,7 +343,7 @@ RequiredCharacteristicViolation, // Error #52
 
 ### 1. **Extended Schema Support**
 
-**Current:** Only User schema loaded from `User.json`
+**Current:** Only User schema loaded from `schemas/User.json`
 
 **Needed:**
 - Group schema support
@@ -508,7 +508,7 @@ cargo test --test lib
   - `validate_no_nested_complex()` - Prevents nested complex attributes
   - `validate_required_sub_attributes_complex()` - Required sub-attribute checking
 - ✅ **21 tests passing** in `tests/validation/complex_attributes.rs`
-- ✅ **Schema-driven implementation** using actual SCIM schema definitions from User.json
+- ✅ **Schema-driven implementation** using actual SCIM schema definitions from schemas/User.json
 - ✅ **Integration complete** with main validation flow in `validate_scim_resource()`
 
 **Key Features Implemented:**
@@ -574,7 +574,7 @@ BrokenReference { attribute, reference },            // Error #32 ✅
 
 **Added External ID Validation (Error 13):**
 - ✅ Invalid external ID type/format detection with `InvalidExternalId` error
-- ✅ Added missing `externalId` attribute to User.json schema
+- ✅ Added missing `externalId` attribute to schemas/User.json schema
 
 **Enhanced Meta Validation (Errors 14-21):**
 - ✅ Enhanced resource type validation to check against known types ("User", "Group")

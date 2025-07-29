@@ -105,6 +105,11 @@ let result = registry.validate_scim_resource(&user)?;
 ## Project Structure
 
 ```
+schemas/                # SCIM schema definitions
+├── User.json          # Core User schema (RFC 7643)
+├── Group.json         # Core Group schema (RFC 7643)
+└── ServiceProviderConfig.json # Service provider capabilities
+
 src/
 ├── lib.rs              # Public API
 ├── error.rs            # Error types and handling
@@ -263,7 +268,7 @@ match registry.validate_scim_resource(&invalid_resource) {
 
 ## Current Limitations
 
-- Only User schema is currently loaded (Group schema planned)
+- Only User schema is currently loaded from `schemas/User.json` (Group schema available but not integrated)
 - Extension schemas not yet supported
 - Enhanced format validation planned (full RFC3339 dates, strict base64, complete URI validation)
 - Test suite is in active development (40/52 error types implemented)

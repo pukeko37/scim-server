@@ -126,7 +126,7 @@ impl SchemaRegistry {
 - **Edge case coverage**: Null values, schema compliance, enterprise extensions
 
 ### ✅ Key Implementation Features
-- **Schema-driven validation**: Uses actual SCIM schema definitions from User.json
+- **Schema-driven validation**: Uses actual SCIM schema definitions from schemas/User.json
 - **Complex attribute validation**: Validates `name`, `addresses`, and other complex types
 - **Sub-attribute compliance**: Checks data types, required fields, unknown attributes
 - **SCIM compliance**: Prevents nested complex attributes as per SCIM specification
