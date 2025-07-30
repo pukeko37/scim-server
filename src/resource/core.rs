@@ -6,6 +6,110 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Tenant isolation level configuration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum IsolationLevel {
+    /// Strict isolation - complete separation of tenant data
+    Strict,
+    /// Standard isolation - shared infrastructure with data separation
+    Standard,
+    /// Shared resources - some resources may be shared between tenants
+    Shared,
+}
+
+impl Default for IsolationLevel {
+    fn default() -> Self {
+        IsolationLevel::Standard
+    }
+}
+
+/// Tenant permissions for resource operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TenantPermissions {
+    pub can_create: bool,
+    pub can_read: bool,
+    pub can_update: bool,
+    pub can_delete: bool,
+    pub can_list: bool,
+    pub max_users: Option<usize>,
+    pub max_groups: Option<usize>,
+}
+
+impl Default for TenantPermissions {
+    fn default() -> Self {
+        Self {
+            can_create: true,
+            can_read: true,
+            can_update: true,
+            can_delete: true,
+            can_list: true,
+            max_users: None,
+            max_groups: None,
+        }
+    }
+}
+
+/// Tenant context for multi-tenant operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TenantContext {
+    pub tenant_id: String,
+    pub client_id: String,
+    pub isolation_level: IsolationLevel,
+    pub permissions: TenantPermissions,
+}
+
+impl TenantContext {
+    /// Create a new tenant context with default permissions
+    pub fn new(tenant_id: String, client_id: String) -> Self {
+        Self {
+            tenant_id,
+            client_id,
+            isolation_level: IsolationLevel::default(),
+            permissions: TenantPermissions::default(),
+        }
+    }
+
+    /// Create a tenant context with custom isolation level
+    pub fn with_isolation_level(mut self, level: IsolationLevel) -> Self {
+        self.isolation_level = level;
+        self
+    }
+
+    /// Create a tenant context with custom permissions
+    pub fn with_permissions(mut self, permissions: TenantPermissions) -> Self {
+        self.permissions = permissions;
+        self
+    }
+
+    /// Check if the tenant has permission for a specific operation
+    pub fn can_perform_operation(&self, operation: &str) -> bool {
+        match operation {
+            "create" => self.permissions.can_create,
+            "read" => self.permissions.can_read,
+            "update" => self.permissions.can_update,
+            "delete" => self.permissions.can_delete,
+            "list" => self.permissions.can_list,
+            _ => false,
+        }
+    }
+
+    /// Check if tenant has reached user limit
+    pub fn check_user_limit(&self, current_count: usize) -> bool {
+        match self.permissions.max_users {
+            Some(limit) => current_count < limit,
+            None => true,
+        }
+    }
+
+    /// Check if tenant has reached group limit
+    pub fn check_group_limit(&self, current_count: usize) -> bool {
+        match self.permissions.max_groups {
+            Some(limit) => current_count < limit,
+            None => true,
+        }
+    }
+}
+
 /// Generic SCIM resource representation.
 ///
 /// A resource is a structured data object with a type identifier and JSON data.
@@ -155,22 +259,85 @@ impl Resource {
 /// Request context for SCIM operations.
 ///
 /// Provides request tracking for logging and auditing purposes.
+/// Optionally includes tenant context for multi-tenant operations.
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     /// Unique identifier for this request
     pub request_id: String,
+    /// Optional tenant context for multi-tenant operations
+    pub tenant_context: Option<TenantContext>,
 }
 
 impl RequestContext {
     /// Create a new request context with a specific request ID.
     pub fn new(request_id: String) -> Self {
-        Self { request_id }
+        Self {
+            request_id,
+            tenant_context: None,
+        }
     }
 
     /// Create a new request context with a generated request ID.
     pub fn with_generated_id() -> Self {
         Self {
             request_id: uuid::Uuid::new_v4().to_string(),
+            tenant_context: None,
+        }
+    }
+
+    /// Create a new request context with tenant information.
+    pub fn with_tenant(request_id: String, tenant_context: TenantContext) -> Self {
+        Self {
+            request_id,
+            tenant_context: Some(tenant_context),
+        }
+    }
+
+    /// Create a new request context with generated ID and tenant information.
+    pub fn with_tenant_generated_id(tenant_context: TenantContext) -> Self {
+        Self {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            tenant_context: Some(tenant_context),
+        }
+    }
+
+    /// Get the tenant ID if this is a multi-tenant request.
+    pub fn tenant_id(&self) -> Option<&str> {
+        self.tenant_context.as_ref().map(|t| t.tenant_id.as_str())
+    }
+
+    /// Get the client ID if this is a multi-tenant request.
+    pub fn client_id(&self) -> Option<&str> {
+        self.tenant_context.as_ref().map(|t| t.client_id.as_str())
+    }
+
+    /// Check if this is a multi-tenant request.
+    pub fn is_multi_tenant(&self) -> bool {
+        self.tenant_context.is_some()
+    }
+
+    /// Get the isolation level for this request.
+    pub fn isolation_level(&self) -> Option<&IsolationLevel> {
+        self.tenant_context.as_ref().map(|t| &t.isolation_level)
+    }
+
+    /// Check if the tenant has permission for a specific operation.
+    pub fn can_perform_operation(&self, operation: &str) -> bool {
+        match &self.tenant_context {
+            Some(tenant) => tenant.can_perform_operation(operation),
+            None => true, // Single-tenant operations are always allowed
+        }
+    }
+
+    /// Validate that this context can perform the requested operation.
+    pub fn validate_operation(&self, operation: &str) -> Result<(), String> {
+        if self.can_perform_operation(operation) {
+            Ok(())
+        } else {
+            Err(format!(
+                "Operation '{}' not permitted for tenant",
+                operation
+            ))
         }
     }
 }
@@ -178,6 +345,88 @@ impl RequestContext {
 impl Default for RequestContext {
     fn default() -> Self {
         Self::with_generated_id()
+    }
+}
+
+/// Enhanced request context for multi-tenant operations.
+///
+/// This is a convenience type that guarantees the presence of tenant context.
+#[derive(Debug, Clone)]
+pub struct EnhancedRequestContext {
+    pub request_id: String,
+    pub tenant_context: TenantContext,
+}
+
+impl EnhancedRequestContext {
+    /// Create a new enhanced request context.
+    pub fn new(request_id: String, tenant_context: TenantContext) -> Self {
+        Self {
+            request_id,
+            tenant_context,
+        }
+    }
+
+    /// Create a new enhanced request context with generated request ID.
+    pub fn with_generated_id(tenant_context: TenantContext) -> Self {
+        Self {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            tenant_context,
+        }
+    }
+
+    /// Convert to a regular RequestContext.
+    pub fn to_request_context(self) -> RequestContext {
+        RequestContext {
+            request_id: self.request_id,
+            tenant_context: Some(self.tenant_context),
+        }
+    }
+
+    /// Get the tenant ID.
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_context.tenant_id
+    }
+
+    /// Get the client ID.
+    pub fn client_id(&self) -> &str {
+        &self.tenant_context.client_id
+    }
+
+    /// Get the isolation level.
+    pub fn isolation_level(&self) -> &IsolationLevel {
+        &self.tenant_context.isolation_level
+    }
+
+    /// Check if the tenant has permission for a specific operation.
+    pub fn can_perform_operation(&self, operation: &str) -> bool {
+        self.tenant_context.can_perform_operation(operation)
+    }
+
+    /// Validate that this context can perform the requested operation.
+    pub fn validate_operation(&self, operation: &str) -> Result<(), String> {
+        if self.can_perform_operation(operation) {
+            Ok(())
+        } else {
+            Err(format!(
+                "Operation '{}' not permitted for tenant {}",
+                operation,
+                self.tenant_id()
+            ))
+        }
+    }
+}
+
+impl TryFrom<RequestContext> for EnhancedRequestContext {
+    type Error = String;
+
+    fn try_from(context: RequestContext) -> Result<Self, Self::Error> {
+        match context.tenant_context {
+            Some(tenant_context) => Ok(EnhancedRequestContext {
+                request_id: context.request_id,
+                tenant_context,
+            }),
+            None => Err("RequestContext does not contain tenant information".to_string()),
+        }
     }
 }
 

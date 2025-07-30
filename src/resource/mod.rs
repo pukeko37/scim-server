@@ -19,7 +19,10 @@ pub mod provider;
 pub mod types;
 
 // Re-export all public types to maintain API compatibility
-pub use core::{ListQuery, RequestContext, Resource, ScimOperation};
+pub use core::{
+    EnhancedRequestContext, IsolationLevel, ListQuery, RequestContext, Resource, ScimOperation,
+    TenantContext, TenantPermissions,
+};
 pub use handlers::{AttributeHandler, DynamicResource, ResourceHandler, SchemaResourceBuilder};
 pub use mapper::{DatabaseMapper, SchemaMapper};
 pub use provider::ResourceProvider;

@@ -121,6 +121,7 @@
 /// }
 /// ```
 pub mod error;
+pub mod multi_tenant;
 pub mod resource;
 pub mod resource_handlers;
 pub mod schema;
@@ -129,9 +130,14 @@ pub mod scim_server;
 
 // Core re-exports for library users
 pub use error::{BuildError, ScimError, ValidationError};
+pub use multi_tenant::{
+    DatabaseResourceProvider, InMemoryDatabase, MultiTenantResourceProvider, SingleTenantAdapter,
+    StaticTenantResolver, TenantResolver, ToSingleTenant,
+};
 pub use resource::{
-    DatabaseMapper, DynamicResource, EmailAddress, ListQuery, RequestContext, Resource,
-    ResourceProvider, SchemaResourceBuilder, ScimOperation,
+    DatabaseMapper, DynamicResource, EmailAddress, EnhancedRequestContext, IsolationLevel,
+    ListQuery, RequestContext, Resource, ResourceProvider, SchemaResourceBuilder, ScimOperation,
+    TenantContext, TenantPermissions,
 };
 pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
 pub use schema::{
