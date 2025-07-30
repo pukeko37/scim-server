@@ -58,10 +58,8 @@ extern crate scim_server;
 pub mod common;
 pub mod validation;
 
-// Integration test modules (will be added in later phases)
-// pub mod resources;
-// pub mod provider;
-// pub mod integration;
+// Integration test modules
+pub mod integration;
 
 #[cfg(test)]
 mod test_suite_meta {
@@ -170,4 +168,17 @@ pub use common::{
     TestCoverage, ValidationErrorCode,
     builders::{GroupBuilder, SchemaBuilder, UserBuilder},
     fixtures::{rfc_examples, test_fixtures},
+};
+
+// Re-export integration test utilities
+pub use integration::{
+    multi_tenant::{
+        advanced::{AdvancedMultiTenantProvider, AdvancedTestHarness},
+        core::{AuthInfo, EnhancedRequestContext, TenantContext, TenantContextBuilder},
+        provider_trait::{MultiTenantResourceProvider, ProviderTestHarness},
+    },
+    providers::{
+        common::{MultiTenantScenarioBuilder, ProviderTestingSuite},
+        in_memory::{InMemoryProvider, InMemoryProviderConfig},
+    },
 };

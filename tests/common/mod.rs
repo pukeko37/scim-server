@@ -7,6 +7,9 @@ use serde_json::{Value, json};
 
 pub mod builders;
 pub mod fixtures;
+pub mod multi_tenant;
+pub mod providers;
+pub mod test_utils;
 
 /// Validation error codes for tracking test coverage
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -326,6 +329,11 @@ pub fn modify_json(mut base: Value, path: &str, new_value: Option<Value>) -> Val
 
     base
 }
+
+// Re-export multi-tenant test utilities for convenience
+pub use multi_tenant::*;
+pub use providers::*;
+pub use test_utils::*;
 
 #[cfg(test)]
 mod tests {
