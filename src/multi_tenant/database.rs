@@ -40,6 +40,8 @@ pub trait DatabaseConnection: Send + Sync {
 pub trait DatabaseParameter: Send + Sync {
     fn as_string(&self) -> String;
     fn parameter_type(&self) -> &str;
+    fn to_value(&self) -> Value;
+    fn to_boxed(&self) -> Box<dyn DatabaseParameter>;
 }
 
 impl DatabaseParameter for String {
@@ -48,6 +50,12 @@ impl DatabaseParameter for String {
     }
     fn parameter_type(&self) -> &str {
         "string"
+    }
+    fn to_value(&self) -> Value {
+        Value::String(self.clone())
+    }
+    fn to_boxed(&self) -> Box<dyn DatabaseParameter> {
+        Box::new(self.clone())
     }
 }
 
@@ -58,6 +66,12 @@ impl DatabaseParameter for &str {
     fn parameter_type(&self) -> &str {
         "string"
     }
+    fn to_value(&self) -> Value {
+        Value::String(self.to_string())
+    }
+    fn to_boxed(&self) -> Box<dyn DatabaseParameter> {
+        Box::new(self.to_string())
+    }
 }
 
 impl DatabaseParameter for i64 {
@@ -66,6 +80,12 @@ impl DatabaseParameter for i64 {
     }
     fn parameter_type(&self) -> &str {
         "integer"
+    }
+    fn to_value(&self) -> Value {
+        Value::Number(serde_json::Number::from(*self))
+    }
+    fn to_boxed(&self) -> Box<dyn DatabaseParameter> {
+        Box::new(*self)
     }
 }
 
@@ -97,6 +117,11 @@ impl DatabaseResult {
 
     pub fn first_row(&self) -> Option<&HashMap<String, Value>> {
         self.rows.first()
+    }
+
+    pub fn with_affected_rows(mut self, affected_rows: usize) -> Self {
+        self.affected_rows = affected_rows;
+        self
     }
 }
 
@@ -184,6 +209,8 @@ pub struct InMemoryDatabase {
     >,
     // Track resource counts per tenant and type for limits
     counts: Arc<RwLock<HashMap<String, HashMap<String, usize>>>>,
+    // Configuration storage: tenant_id -> configuration_data
+    configurations: Arc<RwLock<HashMap<String, HashMap<String, Value>>>>,
 }
 
 /// Metadata for tracking resource lifecycle.
@@ -216,6 +243,7 @@ impl InMemoryDatabase {
         Self {
             data: Arc::new(RwLock::new(HashMap::new())),
             counts: Arc::new(RwLock::new(HashMap::new())),
+            configurations: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -296,48 +324,208 @@ impl DatabaseConnection for InMemoryDatabase {
     fn execute_query(
         &self,
         query: &str,
-        _params: &[&dyn DatabaseParameter],
+        params: &[&dyn DatabaseParameter],
         tenant_id: &str,
     ) -> impl Future<Output = Result<DatabaseResult, Self::Error>> + Send {
         let tenant_id = tenant_id.to_string();
         let data = Arc::clone(&self.data);
+        let configurations = Arc::clone(&self.configurations);
+        let query = query.to_string();
+        let params: Vec<Box<dyn DatabaseParameter>> = params.iter().map(|p| p.to_boxed()).collect();
 
         async move {
-            // Simple query parsing for demonstration
-            // In a real implementation, this would use actual SQL parsing and execution
+            // Handle tenant_configurations table operations
+            if query.contains("tenant_configurations") {
+                if query.trim().starts_with("SELECT") {
+                    let configs = configurations.read().await;
 
-            if query.starts_with("SELECT") {
-                let data = data.read().await;
-                if let Some(tenant_data) = data.get(&tenant_id) {
-                    let mut rows = Vec::new();
-                    for (resource_type, resources) in tenant_data.iter() {
-                        for (resource_id, (resource, metadata)) in resources.iter() {
-                            let mut row = HashMap::new();
-                            row.insert("id".to_string(), Value::String(resource_id.clone()));
-                            row.insert("tenant_id".to_string(), Value::String(tenant_id.clone()));
-                            row.insert(
-                                "resource_type".to_string(),
-                                Value::String(resource_type.clone()),
-                            );
-                            row.insert("data".to_string(), resource.data.clone());
-                            row.insert(
-                                "created_at".to_string(),
-                                Value::String(metadata.created_at.to_rfc3339()),
-                            );
-                            row.insert(
-                                "updated_at".to_string(),
-                                Value::String(metadata.updated_at.to_rfc3339()),
-                            );
-                            rows.push(row);
-                        }
+                    // Check if this is a COUNT query
+                    if query.contains("COUNT(*)") {
+                        let mut count_row = HashMap::new();
+                        count_row.insert(
+                            "count".to_string(),
+                            Value::Number(serde_json::Number::from(configs.len())),
+                        );
+                        Ok(DatabaseResult::with_rows(vec![count_row]))
                     }
-                    Ok(DatabaseResult::with_rows(rows))
+                    // Check if this is a query for all configurations (no tenant WHERE clause)
+                    else if query.contains("ORDER BY") && !query.contains("WHERE tenant_id = ?") {
+                        let mut all_configs: Vec<HashMap<String, Value>> =
+                            configs.values().cloned().collect();
+
+                        // Handle pagination by extracting LIMIT and OFFSET from query
+                        if query.contains("LIMIT") {
+                            let mut limit = all_configs.len();
+                            let mut offset = 0;
+
+                            // Extract LIMIT value from params (first param is limit, second is offset)
+                            if params.len() >= 1 {
+                                if let Value::Number(n) = params[0].to_value() {
+                                    if let Some(l) = n.as_u64() {
+                                        limit = l as usize;
+                                    }
+                                }
+                            }
+                            if params.len() >= 2 {
+                                if let Value::Number(n) = params[1].to_value() {
+                                    if let Some(o) = n.as_u64() {
+                                        offset = o as usize;
+                                    }
+                                }
+                            }
+
+                            // Sort by tenant_id if ORDER BY tenant_id
+                            if query.contains("ORDER BY tenant_id") {
+                                all_configs.sort_by(|a, b| {
+                                    let a_id =
+                                        a.get("tenant_id").and_then(|v| v.as_str()).unwrap_or("");
+                                    let b_id =
+                                        b.get("tenant_id").and_then(|v| v.as_str()).unwrap_or("");
+                                    a_id.cmp(b_id)
+                                });
+                            }
+
+                            // Apply pagination
+                            let end = std::cmp::min(offset + limit, all_configs.len());
+                            if offset < all_configs.len() {
+                                all_configs = all_configs[offset..end].to_vec();
+                            } else {
+                                all_configs = vec![];
+                            }
+                        }
+
+                        Ok(DatabaseResult::with_rows(all_configs))
+                    } else if let Some(config_data) = configs.get(&tenant_id) {
+                        Ok(DatabaseResult::with_rows(vec![config_data.clone()]))
+                    } else {
+                        Ok(DatabaseResult::new())
+                    }
+                } else if query
+                    .trim()
+                    .starts_with("INSERT INTO tenant_configurations")
+                {
+                    let mut configs = configurations.write().await;
+
+                    // Parse parameters for configuration insert
+                    if params.len() >= 9 {
+                        let mut config_row = HashMap::new();
+                        config_row.insert("tenant_id".to_string(), params[0].to_value());
+                        config_row.insert("display_name".to_string(), params[1].to_value());
+                        config_row.insert("created_at".to_string(), params[2].to_value());
+                        config_row.insert("last_modified".to_string(), params[3].to_value());
+                        config_row.insert("version".to_string(), params[4].to_value());
+                        config_row.insert("schema_config".to_string(), params[5].to_value());
+                        config_row.insert("operational_config".to_string(), params[6].to_value());
+                        config_row.insert("compliance_config".to_string(), params[7].to_value());
+                        config_row.insert("branding_config".to_string(), params[8].to_value());
+
+                        configs.insert(tenant_id.clone(), config_row);
+                        Ok(DatabaseResult::new().with_affected_rows(1))
+                    } else {
+                        Ok(DatabaseResult::new())
+                    }
+                } else if query.trim().starts_with("UPDATE tenant_configurations") {
+                    let mut configs = configurations.write().await;
+
+                    if let Some(config_data) = configs.get_mut(&tenant_id) {
+                        // Check version condition (last parameter is the WHERE version)
+                        if let Some(where_version) = params.last() {
+                            if let Some(current_version) = config_data.get("version") {
+                                if current_version == &where_version.to_value() {
+                                    // Update the configuration
+                                    config_data
+                                        .insert("display_name".to_string(), params[0].to_value());
+                                    config_data
+                                        .insert("last_modified".to_string(), params[1].to_value());
+                                    config_data.insert("version".to_string(), params[2].to_value());
+                                    config_data
+                                        .insert("schema_config".to_string(), params[3].to_value());
+                                    config_data.insert(
+                                        "operational_config".to_string(),
+                                        params[4].to_value(),
+                                    );
+                                    config_data.insert(
+                                        "compliance_config".to_string(),
+                                        params[5].to_value(),
+                                    );
+                                    config_data.insert(
+                                        "branding_config".to_string(),
+                                        params[6].to_value(),
+                                    );
+
+                                    Ok(DatabaseResult::new().with_affected_rows(1))
+                                } else {
+                                    // Version mismatch - no rows affected
+                                    Ok(DatabaseResult::new())
+                                }
+                            } else {
+                                Ok(DatabaseResult::new())
+                            }
+                        } else {
+                            Ok(DatabaseResult::new())
+                        }
+                    } else {
+                        Ok(DatabaseResult::new())
+                    }
+                } else if query
+                    .trim()
+                    .starts_with("DELETE FROM tenant_configurations")
+                {
+                    let mut configs = configurations.write().await;
+
+                    if configs.remove(&tenant_id).is_some() {
+                        Ok(DatabaseResult::new().with_affected_rows(1))
+                    } else {
+                        Ok(DatabaseResult::new())
+                    }
+                } else {
+                    Ok(DatabaseResult::new())
+                }
+            } else if query.contains("configuration_audit_log") {
+                // Handle audit log operations - just return success for INSERT
+                if query.starts_with("INSERT INTO configuration_audit_log") {
+                    Ok(DatabaseResult::new().with_affected_rows(1))
                 } else {
                     Ok(DatabaseResult::new())
                 }
             } else {
-                // For other operations (INSERT, UPDATE, DELETE), return empty result
-                Ok(DatabaseResult::new())
+                // Handle regular resource operations
+                if query.starts_with("SELECT") {
+                    let data = data.read().await;
+                    if let Some(tenant_data) = data.get(&tenant_id) {
+                        let mut rows = Vec::new();
+                        for (resource_type, resources) in tenant_data.iter() {
+                            for (resource_id, (resource, metadata)) in resources.iter() {
+                                let mut row = HashMap::new();
+                                row.insert("id".to_string(), Value::String(resource_id.clone()));
+                                row.insert(
+                                    "tenant_id".to_string(),
+                                    Value::String(tenant_id.clone()),
+                                );
+                                row.insert(
+                                    "resource_type".to_string(),
+                                    Value::String(resource_type.clone()),
+                                );
+                                row.insert("data".to_string(), resource.data.clone());
+                                row.insert(
+                                    "created_at".to_string(),
+                                    Value::String(metadata.created_at.to_rfc3339()),
+                                );
+                                row.insert(
+                                    "updated_at".to_string(),
+                                    Value::String(metadata.updated_at.to_rfc3339()),
+                                );
+                                rows.push(row);
+                            }
+                        }
+                        Ok(DatabaseResult::with_rows(rows))
+                    } else {
+                        Ok(DatabaseResult::new())
+                    }
+                } else {
+                    // For other operations (INSERT, UPDATE, DELETE), return empty result
+                    Ok(DatabaseResult::new())
+                }
             }
         }
     }

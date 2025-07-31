@@ -45,6 +45,7 @@
 //! ```
 
 pub mod adapter;
+pub mod config_database;
 pub mod config_inmemory;
 pub mod config_provider;
 pub mod configuration;
@@ -54,6 +55,7 @@ pub mod resolver;
 
 // Re-export key types for convenience
 pub use adapter::{SingleTenantAdapter, ToSingleTenant};
+pub use config_database::DatabaseConfigurationProvider;
 pub use config_inmemory::InMemoryConfigurationProvider;
 pub use config_provider::{
     BulkConfigurationOperation, BulkOperationResult, CachedConfigurationProvider,
