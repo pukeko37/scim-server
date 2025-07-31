@@ -45,12 +45,28 @@
 //! ```
 
 pub mod adapter;
+pub mod config_inmemory;
+pub mod config_provider;
+pub mod configuration;
 pub mod database;
 pub mod provider;
 pub mod resolver;
 
 // Re-export key types for convenience
 pub use adapter::{SingleTenantAdapter, ToSingleTenant};
+pub use config_inmemory::InMemoryConfigurationProvider;
+pub use config_provider::{
+    BulkConfigurationOperation, BulkOperationResult, CachedConfigurationProvider,
+    ConfigurationQuery, ConfigurationQueryResult, ConfigurationStats, TenantConfigurationProvider,
+    ValidationContext,
+};
+pub use configuration::{
+    AuditLevel, BrandingConfiguration, ComplianceConfiguration, ComplianceFramework,
+    ConfigurationError, EncryptionConfiguration, OperationalConfiguration,
+    PerformanceConfiguration, RateLimitConfiguration, RateLimitPeriod, ResourceLimits,
+    RetentionConfiguration, SchemaConfiguration, SchemaExtension, SessionConfiguration,
+    TenantConfiguration, ValidationRule, ValidationType,
+};
 pub use database::{DatabaseResourceProvider, InMemoryDatabase};
 pub use provider::MultiTenantResourceProvider;
 pub use resolver::{StaticTenantResolver, TenantResolver};

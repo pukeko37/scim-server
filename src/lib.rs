@@ -131,8 +131,15 @@ pub mod scim_server;
 // Core re-exports for library users
 pub use error::{BuildError, ScimError, ValidationError};
 pub use multi_tenant::{
-    DatabaseResourceProvider, InMemoryDatabase, MultiTenantResourceProvider, SingleTenantAdapter,
-    StaticTenantResolver, TenantResolver, ToSingleTenant,
+    AuditLevel, BrandingConfiguration, BulkConfigurationOperation, BulkOperationResult,
+    CachedConfigurationProvider, ComplianceConfiguration, ComplianceFramework, ConfigurationError,
+    ConfigurationQuery, ConfigurationQueryResult, ConfigurationStats, DatabaseResourceProvider,
+    EncryptionConfiguration, InMemoryConfigurationProvider, InMemoryDatabase,
+    MultiTenantResourceProvider, OperationalConfiguration, PerformanceConfiguration,
+    RateLimitConfiguration, RateLimitPeriod, ResourceLimits, RetentionConfiguration,
+    SchemaConfiguration, SchemaExtension, SessionConfiguration, SingleTenantAdapter,
+    StaticTenantResolver, TenantConfiguration, TenantConfigurationProvider, TenantResolver,
+    ToSingleTenant, ValidationContext, ValidationRule, ValidationType,
 };
 pub use resource::{
     DatabaseMapper, DynamicResource, EmailAddress, EnhancedRequestContext, IsolationLevel,
