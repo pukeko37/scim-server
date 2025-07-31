@@ -27,7 +27,7 @@
 
 use super::super::multi_tenant::core::{EnhancedRequestContext, TenantContextBuilder};
 use super::super::multi_tenant::provider_trait::{ListQuery, MultiTenantResourceProvider};
-use super::common::{MultiTenantScenarioBuilder, ProviderTestConfig, ProviderTestingSuite};
+use super::common::{MultiTenantScenarioBuilder, ProviderTestConfig};
 use crate::common::{create_test_context, create_test_user};
 use scim_server::Resource;
 use serde_json::{Value, json};

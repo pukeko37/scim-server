@@ -300,7 +300,7 @@ impl ProviderTestValidation {
     /// Validate tenant isolation in a list of resources
     pub fn validate_tenant_isolation(
         resources: &[Value],
-        expected_tenant_markers: &HashMap<String, String>,
+        _expected_tenant_markers: &HashMap<String, String>,
     ) -> Result<(), String> {
         for resource in resources {
             // Verify resource has proper structure
@@ -352,7 +352,7 @@ impl ProviderPerformanceTester {
             + 'static,
     {
         let start_time = std::time::Instant::now();
-        let mut handles: Vec<
+        let _handles: Vec<
             tokio::task::JoinHandle<Result<usize, Box<dyn std::error::Error + Send + Sync>>>,
         > = Vec::new();
         let mut latencies = Vec::new();

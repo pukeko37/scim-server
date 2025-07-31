@@ -21,8 +21,7 @@
 //! Every test in this module focuses on ensuring tenant isolation and preventing
 //! cross-tenant data access, which is critical for SaaS applications.
 
-use scim_server::{RequestContext, ScimError, ScimServer};
-use serde_json::{Value, json};
+use scim_server::RequestContext;
 use std::collections::HashMap;
 
 // ============================================================================

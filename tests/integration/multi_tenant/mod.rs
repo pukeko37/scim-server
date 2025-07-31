@@ -13,7 +13,6 @@ pub use super::super::common::multi_tenant::*;
 
 #[cfg(test)]
 mod multi_tenant_suite {
-    use super::*;
 
     /// Test suite overview for multi-tenant functionality
     #[test]

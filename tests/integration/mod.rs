@@ -63,7 +63,6 @@ pub use crate::common::{
 
 #[cfg(test)]
 mod integration_suite_meta {
-    use super::*;
 
     /// Meta-test to verify integration test setup
     #[test]
@@ -92,18 +91,16 @@ mod integration_suite_meta {
     #[test]
     fn test_fixtures_available() {
         // Verify test fixtures are available
-        use crate::common::{
-            MultiTenantTestHarness, TestScenarios, create_test_context, create_test_user,
-        };
+        use crate::common::{TestScenarios, create_test_context, create_test_user};
 
-        let context = create_test_context("test_tenant");
+        let _context = create_test_context("test_tenant");
         // TenantContext is now a direct field, not an Option
 
         let user = create_test_user("testuser");
         assert_eq!(user["userName"], "testuser");
 
-        let harness = TestScenarios::basic_two_tenant();
-        assert_eq!(harness.contexts.len(), 2);
+        let _harness = TestScenarios::basic_two_tenant();
+        assert_eq!(_harness.contexts.len(), 2);
 
         println!("✅ Test fixtures are working correctly");
     }

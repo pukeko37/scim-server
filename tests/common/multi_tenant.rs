@@ -522,7 +522,7 @@ impl MultiTenantTestUtils {
     /// Verify tenant isolation across a list of resources
     pub fn verify_tenant_resource_isolation(
         resources: &[Value],
-        expected_tenant_markers: &HashMap<String, String>,
+        _expected_tenant_markers: &HashMap<String, String>,
     ) {
         for resource in resources {
             // This would need to be implemented based on how tenant information

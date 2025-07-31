@@ -102,14 +102,14 @@ impl DatabaseResult {
 
 /// Database transaction for atomic operations.
 pub struct DatabaseTransaction {
-    tenant_id: String,
+    _tenant_id: String,
     is_committed: bool,
 }
 
 impl DatabaseTransaction {
     pub fn new(tenant_id: String) -> Self {
         Self {
-            tenant_id,
+            _tenant_id: tenant_id,
             is_committed: false,
         }
     }
@@ -401,7 +401,7 @@ impl DatabaseResourceProvider<InMemoryDatabase> {
     }
 
     /// Convert database row to Resource.
-    fn row_to_resource(&self, row: &HashMap<String, Value>) -> Result<Resource, DatabaseError> {
+    fn _row_to_resource(&self, row: &HashMap<String, Value>) -> Result<Resource, DatabaseError> {
         let resource_type = row
             .get("resource_type")
             .and_then(|v| v.as_str())

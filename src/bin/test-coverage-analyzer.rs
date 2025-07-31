@@ -13,7 +13,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 struct TestCategory {
     name: String,
-    description: String,
+    _description: String,
     production_ready: bool,
 }
 
@@ -111,7 +111,7 @@ fn analyze_directory(
 
 fn analyze_rust_file(
     path: &Path,
-    default_production: bool,
+    _default_production: bool,
 ) -> Result<Option<TestFile>, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let path_str = path.to_string_lossy().to_string();
@@ -135,19 +135,19 @@ fn analyze_rust_file(
     }))
 }
 
-fn categorize_file(path: &str, content: &str) -> TestCategory {
+fn categorize_file(path: &str, _content: &str) -> TestCategory {
     // Production code tests (in src/)
     if path.starts_with("src/") {
         if path.contains("multi_tenant") {
             TestCategory {
                 name: "Multi-Tenant Production".to_string(),
-                description: "Tests for production multi-tenant functionality".to_string(),
+                _description: "Tests for production multi-tenant functionality".to_string(),
                 production_ready: true,
             }
         } else {
             TestCategory {
                 name: "Core Production".to_string(),
-                description: "Tests for core SCIM functionality".to_string(),
+                _description: "Tests for core SCIM functionality".to_string(),
                 production_ready: true,
             }
         }
@@ -156,7 +156,7 @@ fn categorize_file(path: &str, content: &str) -> TestCategory {
     else if path.contains("phase1_integration") {
         TestCategory {
             name: "Phase 1 Integration".to_string(),
-            description: "End-to-end tests using production APIs".to_string(),
+            _description: "End-to-end tests using production APIs".to_string(),
             production_ready: true,
         }
     }
@@ -164,7 +164,7 @@ fn categorize_file(path: &str, content: &str) -> TestCategory {
     else if path.contains("tests/common") {
         TestCategory {
             name: "Test Infrastructure".to_string(),
-            description: "Test utilities, builders, and fixtures".to_string(),
+            _description: "Test utilities, builders, and fixtures".to_string(),
             production_ready: false,
         }
     }
@@ -172,7 +172,7 @@ fn categorize_file(path: &str, content: &str) -> TestCategory {
     else if path.contains("tests/integration") {
         TestCategory {
             name: "Mock Integration".to_string(),
-            description: "Integration tests using mocks and test-only code".to_string(),
+            _description: "Integration tests using mocks and test-only code".to_string(),
             production_ready: false,
         }
     }
@@ -180,15 +180,15 @@ fn categorize_file(path: &str, content: &str) -> TestCategory {
     else if path.contains("validation") {
         TestCategory {
             name: "SCIM Validation".to_string(),
-            description: "Schema validation tests (production schemas)".to_string(),
+            _description: "Production SCIM schema and validation tests".to_string(),
             production_ready: true,
         }
     }
-    // Default for other test files
+    // Default category
     else {
         TestCategory {
-            name: "Other Tests".to_string(),
-            description: "Miscellaneous test files".to_string(),
+            name: "Other".to_string(),
+            _description: "Miscellaneous tests".to_string(),
             production_ready: false,
         }
     }

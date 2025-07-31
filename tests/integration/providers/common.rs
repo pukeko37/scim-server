@@ -7,7 +7,7 @@
 use crate::integration::multi_tenant::core::{
     EnhancedRequestContext, TenantContext, TenantContextBuilder,
 };
-use crate::integration::multi_tenant::provider_trait::{ListQuery, MultiTenantResourceProvider};
+use crate::integration::multi_tenant::provider_trait::MultiTenantResourceProvider;
 use scim_server::Resource;
 use serde_json::{Value, json};
 use std::collections::HashMap;

@@ -54,8 +54,6 @@ pub use super::multi_tenant::provider_trait::{
 
 #[cfg(test)]
 mod provider_suite_meta {
-    use super::*;
-
     /// Meta-test to verify provider test suite setup
     #[test]
     fn provider_test_suite_setup() {

@@ -516,7 +516,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resource::{IsolationLevel, TenantContext, TenantPermissions};
+    use crate::resource::{TenantContext, TenantPermissions};
     use serde_json::json;
     use std::collections::HashMap;
     use tokio::sync::RwLock;

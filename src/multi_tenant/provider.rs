@@ -366,7 +366,6 @@ impl<T> TenantValidator for T {}
 mod tests {
     use super::*;
     use crate::resource::{TenantContext, TenantPermissions};
-    use serde_json::json;
 
     struct MockValidator;
 

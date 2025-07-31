@@ -26,15 +26,11 @@
 //! - Performance monitoring and optimization
 //! - Compliance and audit trail management
 
-use super::core::{EnhancedRequestContext, IsolationLevel, TenantContext, TenantContextBuilder};
+use super::core::{EnhancedRequestContext, TenantContextBuilder};
 use super::provider_trait::{ListQuery, MultiTenantResourceProvider};
-use crate::integration::providers::common::{
-    MultiTenantScenarioBuilder, ProviderTestingSuite, TestGroupData, TestUserData,
-};
-use scim_server::{Resource, Schema, SchemaRegistry};
+use scim_server::{Resource, Schema};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 // ============================================================================
 // Advanced Multi-Tenant Data Structures
@@ -1035,7 +1031,7 @@ mod advanced_multi_tenant_tests {
         let tenant_id = "time_filter_tenant";
         let context = create_test_context(tenant_id);
 
-        let start_time = chrono::Utc::now();
+        let _start_time = chrono::Utc::now();
 
         // Create some resources
         let _user1 = provider
@@ -1053,7 +1049,7 @@ mod advanced_multi_tenant_tests {
             .await
             .unwrap();
 
-        let end_time = chrono::Utc::now();
+        let _end_time = chrono::Utc::now();
 
         // Get all entries
         let all_entries = provider

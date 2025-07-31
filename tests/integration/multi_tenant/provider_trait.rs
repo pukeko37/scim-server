@@ -777,7 +777,7 @@ mod provider_trait_multi_tenant_tests {
     async fn test_tenant_context_mismatch_in_get() {
         let provider = TestMultiTenantProvider::new();
         let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let _context_b = create_test_context("tenant_b");
 
         // Create resource in tenant A
         let user = provider
