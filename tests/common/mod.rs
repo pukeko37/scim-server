@@ -331,8 +331,10 @@ pub fn modify_json(mut base: Value, path: &str, new_value: Option<Value>) -> Val
 }
 
 // Re-export multi-tenant test utilities for convenience
+#[allow(ambiguous_glob_reexports)]
 pub use multi_tenant::*;
 pub use providers::*;
+#[allow(ambiguous_glob_reexports)]
 pub use test_utils::*;
 
 #[cfg(test)]

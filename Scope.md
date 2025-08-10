@@ -204,9 +204,205 @@ The configuration management system developed for SCIM has broader applicability
 - **Developer Experience**: Reduces time-to-integration with working examples
 - **Ecosystem Catalyst**: Establishes patterns for community-contributed providers
 
-## 6. Competitive Positioning and Market Strategy
+## 6. Provider Interface Architecture and Capability-Driven Design
 
-### 6.1 Market Positioning
+### 6.1 Metadata-Driven Provider Architecture
+
+The framework implements a **capability-driven provider interface** that enables clean separation of duties while maximizing provider implementation flexibility. Providers declare their capabilities and schema mappings through metadata, allowing the server to automatically adapt its behavior to provider strengths and limitations.
+
+#### **Core Design Principle: Auto-Discovery Over Configuration**
+The framework automatically determines provider capabilities based on implemented traits and declared metadata, rather than requiring external configuration. This ensures the provider interface remains the single source of truth for capabilities and reduces configuration drift.
+
+### 6.2 Provider Capability Declaration
+
+#### **Capability Detection Pattern**
+```rust
+pub trait MetadataProvider {
+    // Required: Provider declares its schema mappings
+    fn get_schema_mapping(&self) -> SchemaMapping;
+    
+    // Optional: Advanced capabilities detected by trait implementation
+    fn get_filter_capabilities(&self) -> Option<FilterCapabilities> { None }
+    fn get_pagination_capabilities(&self) -> Option<PaginationCapabilities> { None }
+    fn get_sort_capabilities(&self) -> Option<SortCapabilities> { None }
+    fn get_bulk_capabilities(&self) -> Option<BulkCapabilities> { None }
+}
+```
+
+#### **Automatic Capability Discovery**
+The server automatically detects provider capabilities by:
+- **Trait Implementation Detection**: Checking which optional traits the provider implements
+- **Metadata Inspection**: Reading capability declarations from provider metadata
+- **Runtime Validation**: Testing provider responses to determine actual capabilities
+
+### 6.3 Server Responsibilities (Framework Scope)
+
+#### **SCIM Protocol Layer**
+- **Request Parsing**: Parse all SCIM requests including complex filters, pagination, sorting
+- **Schema Validation**: Validate requests against SCIM 2.0 specification and provider-declared schemas
+- **Response Formatting**: Generate compliant SCIM responses with proper error handling
+- **Capability Negotiation**: Automatically adapt behavior based on provider capabilities
+
+#### **Translation and Orchestration**
+- **Schema Translation**: Convert SCIM field paths to provider's native field names using declared mappings
+- **Filter Decomposition**: Analyze complex SCIM filters and determine what can be optimized by provider
+- **Operation Orchestration**: Coordinate between provider-optimized operations and server-side processing
+- **Multi-Tenant Routing**: Route tenant-specific requests with proper context injection
+
+#### **Compliance and Consistency**
+- **SCIM Specification Adherence**: Ensure all responses meet SCIM 2.0 requirements regardless of provider implementation
+- **Error Standardization**: Convert provider errors to standard SCIM error responses
+- **Audit Trail Generation**: Log SCIM operations for compliance and debugging
+- **Performance Monitoring**: Track operation metrics and performance across tenants
+
+### 6.4 Provider Responsibilities (Implementation Scope)
+
+#### **Data Operations in Native Terms**
+- **Data Retrieval**: Fetch data using provider's optimal access patterns and field names
+- **Data Persistence**: Store and update data in provider's native format and structure
+- **Performance Optimization**: Implement efficient queries, caching, and indexing strategies
+- **Error Handling**: Return meaningful errors in provider's error model
+
+#### **Capability and Schema Declaration**
+- **Schema Mapping**: Declare how SCIM fields map to provider's internal data structure
+- **Capability Metadata**: Specify which operations can be optimized (filtering, sorting, pagination)
+- **Performance Hints**: Indicate expensive fields, indexed fields, and operation costs
+- **Extension Support**: Declare supported SCIM schema extensions and custom attributes
+
+#### **Business Logic Integration**
+- **Multi-Tenant Data Isolation**: Implement tenant separation using provider's architecture (separate DBs, row-level security, etc.)
+- **External System Integration**: Connect to existing identity systems, databases, APIs
+- **Custom Validation**: Apply business-specific validation rules beyond SCIM schema validation
+- **Lifecycle Hooks**: Implement application-specific user/group lifecycle logic
+
+### 6.5 Capability-Driven Operation Flow
+
+#### **Filter Processing Example**
+```
+1. Client Request: GET /Users?filter=userName eq "john" and department eq "Engineering" and title co "Manager"
+
+2. Server Actions:
+   - Parse SCIM filter into filter tree
+   - Check provider.get_filter_capabilities() for supported operations
+   - Decompose filter based on provider's declared optimizable fields
+   - Determine: userName eq "john" → provider optimizable, rest → server processing
+
+3. Provider Call:
+   - Server calls provider.list_users_filtered([UserNameEquals("john")])
+   - Provider returns pre-filtered results (e.g., 1 user instead of 10,000)
+
+4. Server Processing:
+   - Server applies remaining filter: department eq "Engineering" and title co "Manager"
+   - Server formats final SCIM response
+
+5. Result: Optimal performance with guaranteed SCIM compliance
+```
+
+#### **Automatic ServiceProviderConfig Generation**
+```rust
+// Server automatically generates accurate capability advertisement
+pub fn generate_service_provider_config<P: MetadataProvider>(provider: &P) -> ServiceProviderConfig {
+    let filter_caps = provider.get_filter_capabilities();
+    let sort_caps = provider.get_sort_capabilities();
+    
+    ServiceProviderConfig {
+        filter: FilterConfig {
+            supported: filter_caps.is_some(),
+            max_results: filter_caps.map(|c| c.max_results).unwrap_or(200),
+        },
+        sort: FeatureConfig {
+            supported: sort_caps.is_some(),
+        },
+        // Configuration always matches actual provider capabilities
+    }
+}
+```
+
+### 6.6 Schema Mapping and Field Translation
+
+#### **Provider Schema Declaration**
+```rust
+pub struct SchemaMapping {
+    // Core field mappings: SCIM path → provider field
+    pub field_mappings: HashMap<String, String>,
+    
+    // Supported schema extensions
+    pub supported_extensions: Vec<String>,
+    
+    // Fields that can be optimized for specific operations
+    pub optimizable_fields: HashMap<String, Vec<FilterOperation>>,
+    
+    // Expensive or computed fields
+    pub performance_hints: FieldPerformanceHints,
+}
+
+// Example provider implementation
+impl MetadataProvider for DatabaseProvider {
+    fn get_schema_mapping(&self) -> SchemaMapping {
+        SchemaMapping {
+            field_mappings: [
+                ("userName", "user_name"),
+                ("emails.value", "email_address"),
+                ("name.givenName", "first_name"),
+                ("name.familyName", "last_name"),
+                ("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber", "emp_id"),
+            ].into(),
+            supported_extensions: vec![
+                "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+            ],
+            optimizable_fields: [
+                ("user_name", vec![FilterOperation::Eq, FilterOperation::StartsWith]),
+                ("email_address", vec![FilterOperation::Eq, FilterOperation::Contains]),
+                ("emp_id", vec![FilterOperation::Eq, FilterOperation::In]),
+            ].into(),
+            performance_hints: FieldPerformanceHints {
+                expensive_fields: vec!["profile_photo_url"], // Avoid unless requested
+                indexed_fields: vec!["user_name", "email_address", "emp_id"],
+            },
+        }
+    }
+}
+```
+
+### 6.7 Boundary Enforcement and Design Principles
+
+#### **Server Never Knows Provider Implementation Details**
+- ✅ Server works with SCIM concepts and provider-declared mappings
+- ❌ Server never contains provider-specific logic or hardcoded integrations
+- ✅ All provider communication goes through declared interfaces and metadata
+
+#### **Provider Never Handles SCIM Protocol Directly**
+- ✅ Provider works with native data structures and operations
+- ❌ Provider never parses SCIM requests or formats SCIM responses
+- ✅ Provider receives translated operations in familiar terms
+
+#### **Capabilities Drive Behavior**
+- ✅ Server behavior automatically adapts to provider capabilities
+- ❌ No external configuration of what provider "should" support
+- ✅ Provider interface is single source of truth for capabilities
+
+#### **Graceful Degradation**
+- ✅ Operations work regardless of provider capability level
+- ✅ Advanced providers get performance benefits, simple providers still work
+- ✅ Server fills gaps in provider capabilities transparently
+
+### 6.8 LLM Implementation Guidelines
+
+When implementing server-provider interactions:
+
+1. **Always Check Capabilities First**: Query provider metadata before attempting operations
+2. **Translate All Requests**: Convert SCIM concepts to provider's native terms using declared mappings
+3. **Decompose Complex Operations**: Split operations based on provider capabilities, handle remainder in server
+4. **Validate Against Metadata**: Ensure operations match provider's declared capabilities
+5. **Handle Missing Capabilities**: Provide server-side implementation when provider doesn't support an operation
+6. **Maintain SCIM Compliance**: Always return valid SCIM responses regardless of provider behavior
+7. **Use Provider Context**: Pass rich tenant context to providers without exposing tenant implementation details
+
+This architecture ensures clean separation while maximizing both provider flexibility and SCIM compliance.
+
+## 7. Competitive Positioning and Market Strategy
+
+### 7.1 Market Positioning
 
 #### **Direct Integration vs. Hosted Service Strategy**
 - **Framework Approach**: Direct integration into customer applications
@@ -218,7 +414,7 @@ The configuration management system developed for SCIM has broader applicability
 - **Secondary Audience**: Enterprise customers (through framework adopters)
 - **Go-to-Market**: Developer community adoption drives enterprise demand
 
-### 6.2 Ecosystem Strategy
+### 7.2 Ecosystem Strategy
 
 #### **Open Source Core + Commercial Extensions**
 - **Open Source**: Protocol engine, basic providers, documentation
@@ -230,9 +426,9 @@ The configuration management system developed for SCIM has broader applicability
 - **Enterprise Familiarity**: Consistent SCIM experience across framework-powered applications
 - **Knowledge Sharing**: Community best practices and integration patterns
 
-## 7. Multi-Tenant Use Cases and Business Model
+## 8. Multi-Tenant Use Cases and Business Model
 
-### 7.1 Primary Multi-Tenant Scenarios
+### 8.1 Primary Multi-Tenant Scenarios
 
 #### **SaaS Platform Enabling Customer SCIM**
 SaaS providers use the framework to offer SCIM endpoints for each of their enterprise customers:
@@ -246,7 +442,7 @@ Cloud platforms use the framework to provide identity services across hosted app
 - **Value**: Consistent identity management across diverse application portfolios
 - **Revenue Model**: Usage-based pricing for identity operations across platform tenants
 
-### 7.2 Multi-Tenant SCIM Support Architecture
+### 8.2 Multi-Tenant SCIM Support Architecture
 
 The framework provides **many-to-one multi-tenant orchestration** where multiple independent SCIM clients connect through isolated endpoints to a single customer provider implementation:
 
@@ -272,32 +468,32 @@ Enterprise B IdP              Tenant B Config                   Tenant Context  
 Enterprise C IdP              Tenant C Config                   Tenant Context
 ```
 
-## 8. Implementation Roadmap Alignment
+## 9. Implementation Roadmap Alignment
 
-### 8.1 Phase 3 Completion - Multi-Tenant Foundation
+### 9.1 Phase 3 Completion - Multi-Tenant Foundation
 - **Configuration Management**: Complete database-backed tenant configuration
 - **Provider Architecture**: Strengthen provider abstractions and reference implementations
 - **Testing Framework**: Comprehensive test suites for protocol compliance
 
-### 8.2 Phase 4 - Production Readiness
+### 9.2 Phase 4 - Production Readiness
 - **Performance Optimization**: Multi-tenant scalability and caching strategies
 - **Observability**: Monitoring, logging, and debugging capabilities
 - **Security Hardening**: Authentication, authorization, and audit trail enhancements
 
-### 8.3 Phase 5 - Ecosystem Expansion
+### 9.3 Phase 5 - Ecosystem Expansion
 - **Provider Marketplace**: Community-contributed providers for popular systems
 - **Configuration Platform**: Spin-off multi-tenant configuration management as standalone product
 - **Enterprise Tooling**: Administrative interfaces and operational dashboards
 
-## 9. Success Criteria and Decision Framework
+## 10. Success Criteria and Decision Framework
 
-### 9.1 Strategic Success Indicators
+### 10.1 Strategic Success Indicators
 - **Developer Adoption**: 100+ GitHub stars, 10+ production deployments within 12 months
 - **Enterprise Validation**: 5+ enterprise customers successfully using framework-powered SCIM
 - **Protocol Excellence**: 100% SCIM 2.0 specification compliance test passage
 - **Community Growth**: Active contributor community and provider ecosystem development
 
-### 9.2 Scope Decision Framework
+### 10.2 Scope Decision Framework
 
 **Include in Framework Scope if:**
 - Essential for SCIM 2.0 protocol compliance
@@ -315,7 +511,7 @@ Enterprise C IdP              Tenant C Config                   Tenant Context
 - Positions framework as replacement for existing identity systems
 - Relates to customer's internal multi-tenant application architecture beyond SCIM concerns
 
-## 10. Multi-Tenant Scope Boundaries Summary
+## 11. Multi-Tenant Scope Boundaries Summary
 
 ### **Framework's Multi-Tenant Responsibilities**
 The SCIM Server Framework provides **multi-tenant SCIM orchestration** that enables one framework instance to serve multiple independent enterprise customers while connecting to a single customer provider implementation:
@@ -341,7 +537,7 @@ Multiple Enterprise Customers → Framework Multi-Tenant Orchestration → Singl
 
 This boundary ensures the framework focuses on SCIM protocol excellence and multi-tenant orchestration while giving customers complete flexibility in implementing their application's multi-tenant architecture.
 
-## 11. Conclusion
+## 12. Conclusion
 
 This scope document establishes clear boundaries that maximize framework value while maintaining integration flexibility. The SCIM Server Framework is positioned as essential infrastructure for enterprise SaaS development - a protocol translation and orchestration layer that enables rather than replaces existing identity management systems.
 

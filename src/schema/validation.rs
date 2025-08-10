@@ -1,798 +1,665 @@
 //! Schema validation logic for SCIM resources.
 //!
-//! This module contains comprehensive validation functions for validating SCIM resources
-//! against their schemas, including attribute validation, multi-valued attributes,
-//! complex attributes, and characteristic validation.
+//! This module provides comprehensive validation for SCIM resources using a hybrid approach:
+//! - Type-safe validation for core primitives via value objects
+//! - Schema-driven validation for complex attributes and business rules
+//! - JSON flexibility for extensible attributes
 
 use super::registry::SchemaRegistry;
-use super::types::{AttributeDefinition, AttributeType, Mutability, Schema, Uniqueness};
+use super::types::{AttributeDefinition, AttributeType, Uniqueness};
 use crate::error::{ValidationError, ValidationResult};
-use serde_json::Value;
+use crate::resource::core::{RequestContext, Resource};
+use crate::resource::provider::ResourceProvider;
+use crate::resource::value_objects::SchemaUri;
+use serde_json::{Map, Value};
+
+/// Operation context for SCIM resource validation.
+///
+/// Different SCIM operations have different validation requirements:
+/// - CREATE: Server generates ID, readonly attributes forbidden
+/// - UPDATE: ID required, readonly attributes ignored/forbidden
+/// - PATCH: ID required, partial updates allowed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationContext {
+    /// Resource creation operation - server generates ID and metadata
+    Create,
+    /// Resource replacement operation - full resource update
+    Update,
+    /// Resource modification operation - partial resource update
+    Patch,
+}
 
 impl SchemaRegistry {
-    /// Validate a resource against a specific schema.
-    pub fn validate_resource(&self, schema: &Schema, resource: &Value) -> ValidationResult<()> {
-        let obj = resource
+    /// Validate a SCIM resource with async provider integration for uniqueness checks.
+    ///
+    /// This method performs both synchronous schema validation and async provider-based
+    /// uniqueness validation when required by the schema.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to validate (e.g., "User", "Group")
+    /// * `resource_json` - The JSON resource data to validate
+    /// * `context` - The operation context (Create, Update, or Patch)
+    /// * `provider` - The resource provider for uniqueness validation
+    /// * `request_context` - The request context for tenant/scope information
+    ///
+    /// # Returns
+    /// * `Ok(())` if validation passes
+    /// * `Err(ValidationError)` if validation fails
+    pub async fn validate_json_resource_with_provider<P>(
+        &self,
+        resource_type: &str,
+        resource_json: &Value,
+        context: OperationContext,
+        provider: &P,
+        request_context: &RequestContext,
+    ) -> ValidationResult<()>
+    where
+        P: ResourceProvider,
+    {
+        // 1. First perform all synchronous validation
+        self.validate_json_resource_with_context(resource_type, resource_json, context)?;
+
+        // 2. Perform async uniqueness validation if needed
+        self.validate_uniqueness_constraints(
+            resource_type,
+            resource_json,
+            context,
+            provider,
+            request_context,
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Validate uniqueness constraints by checking with the provider.
+    async fn validate_uniqueness_constraints<P>(
+        &self,
+        resource_type: &str,
+        resource_json: &Value,
+        context: OperationContext,
+        provider: &P,
+        request_context: &RequestContext,
+    ) -> ValidationResult<()>
+    where
+        P: ResourceProvider,
+    {
+        // Get the schema for this resource type
+        let schema = match resource_type {
+            "User" => self.get_user_schema(),
+            "Group" => self.get_group_schema(),
+            _ => return Ok(()), // Unknown resource type, no uniqueness constraints
+        };
+
+        // Check each attribute marked as server unique
+        for attr in &schema.attributes {
+            if attr.uniqueness == Uniqueness::Server {
+                if let Some(value) = resource_json.get(&attr.name) {
+                    // For updates, exclude the current resource from uniqueness check
+                    let exclude_id = match context {
+                        OperationContext::Update | OperationContext::Patch => {
+                            resource_json.get("id").and_then(|v| v.as_str())
+                        }
+                        OperationContext::Create => None,
+                    };
+
+                    // Check if this value already exists
+                    let existing = provider
+                        .find_resource_by_attribute(
+                            resource_type,
+                            &attr.name,
+                            value,
+                            request_context,
+                        )
+                        .await
+                        .map_err(|e| ValidationError::Custom {
+                            message: format!("Failed to check uniqueness: {}", e),
+                        })?;
+
+                    if let Some(existing_resource) = existing {
+                        // If we found a resource, check if it's the same one (for updates)
+                        let is_same_resource = exclude_id
+                            .map(|current_id| {
+                                existing_resource.id.as_ref().map(|id| id.as_str())
+                                    == Some(current_id)
+                            })
+                            .unwrap_or(false);
+
+                        if !is_same_resource {
+                            return Err(ValidationError::ServerUniquenessViolation {
+                                attribute: attr.name.clone(),
+                                value: value.to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate a SCIM resource using the hybrid value object approach.
+    ///
+    /// This method validates both the type-safe core attributes and the
+    /// schema-driven complex attributes, providing comprehensive validation
+    /// while maintaining performance and flexibility.
+    pub fn validate_resource_hybrid(&self, resource: &Resource) -> ValidationResult<()> {
+        // 1. Core primitive validation is already done during Resource construction
+        // via value objects, so we focus on schema-driven validation
+
+        // 2. Validate against each registered schema
+        for schema_uri in &resource.schemas {
+            if let Some(schema) = self.get_schema_by_id(schema_uri.as_str()) {
+                self.validate_against_schema(resource, schema)?;
+            } else {
+                return Err(ValidationError::UnknownSchemaUri {
+                    uri: schema_uri.as_str().to_string(),
+                });
+            }
+        }
+
+        // 3. Validate schema combinations
+        self.validate_schema_combinations(&resource.schemas)?;
+
+        // 4. Validate multi-valued attributes in extended attributes
+        self.validate_multi_valued_attributes(&resource.attributes)?;
+
+        // 5. Validate complex attributes in extended attributes
+        self.validate_complex_attributes(&resource.attributes)?;
+
+        // 6. Validate attribute characteristics for extended attributes
+        self.validate_attribute_characteristics(&resource.attributes)?;
+
+        Ok(())
+    }
+
+    /// Validate resource against a specific schema.
+    fn validate_against_schema(
+        &self,
+        resource: &Resource,
+        schema: &super::types::Schema,
+    ) -> ValidationResult<()> {
+        // Convert resource to JSON for schema validation
+        let resource_json = resource.to_json()?;
+
+        // Use existing resource validation logic
+        self.validate_resource(schema, &resource_json)
+    }
+
+    /// Validate a raw JSON resource (legacy support).
+    ///
+    /// This method first constructs a Resource from JSON (which validates
+    /// core primitives) and then performs schema validation.
+    /// Validate a SCIM resource with operation context awareness.
+    ///
+    /// This method performs context-aware validation that varies based on the operation:
+    /// - CREATE: Rejects client-provided IDs and readonly attributes
+    /// - UPDATE/PATCH: Requires IDs and handles readonly attributes appropriately
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to validate (e.g., "User", "Group")
+    /// * `resource_json` - The JSON resource data to validate
+    /// * `context` - The operation context (Create, Update, or Patch)
+    ///
+    /// # Returns
+    /// * `Ok(())` if validation passes
+    /// * `Err(ValidationError)` if validation fails with specific error details
+    pub fn validate_json_resource_with_context(
+        &self,
+        resource_type: &str,
+        resource_json: &Value,
+        context: OperationContext,
+    ) -> ValidationResult<()> {
+        // First validate schemas are present and not empty
+        if let Some(schemas_value) = resource_json.get("schemas") {
+            if let Some(schemas_array) = schemas_value.as_array() {
+                if schemas_array.is_empty() {
+                    return Err(ValidationError::EmptySchemas);
+                }
+
+                // Check for duplicate schema URIs
+                let mut seen_schemas = std::collections::HashSet::new();
+                for schema_value in schemas_array {
+                    if let Some(schema_uri) = schema_value.as_str() {
+                        if !seen_schemas.insert(schema_uri) {
+                            return Err(ValidationError::DuplicateSchemaUri {
+                                uri: schema_uri.to_string(),
+                            });
+                        }
+                    }
+                }
+            } else {
+                return Err(ValidationError::MissingSchemas);
+            }
+        } else {
+            return Err(ValidationError::MissingSchemas);
+        }
+
+        // Validate meta.resourceType requirement - only if meta object exists
+        if let Some(meta_value) = resource_json.get("meta") {
+            if let Some(meta_obj) = meta_value.as_object() {
+                if !meta_obj.contains_key("resourceType") {
+                    return Err(ValidationError::MissingResourceType);
+                }
+            }
+        }
+
+        // Context-aware ID validation
+        match context {
+            OperationContext::Create => {
+                // CREATE: Client should NOT provide ID
+                if resource_json
+                    .as_object()
+                    .map(|obj| obj.contains_key("id"))
+                    .unwrap_or(false)
+                {
+                    return Err(ValidationError::ClientProvidedId);
+                }
+            }
+            OperationContext::Update | OperationContext::Patch => {
+                // UPDATE/PATCH: ID is required
+                if !resource_json
+                    .as_object()
+                    .map(|obj| obj.contains_key("id"))
+                    .unwrap_or(false)
+                {
+                    return Err(ValidationError::MissingId);
+                }
+            }
+        }
+
+        // Context-aware readonly attribute validation
+        if let Some(meta_value) = resource_json.get("meta") {
+            if let Some(meta_obj) = meta_value.as_object() {
+                let readonly_fields = ["created", "lastModified", "location", "version"];
+                let has_readonly = readonly_fields
+                    .iter()
+                    .any(|field| meta_obj.contains_key(*field));
+
+                if has_readonly {
+                    match context {
+                        OperationContext::Create => {
+                            // CREATE: Readonly attributes should not be provided by client
+                            return Err(ValidationError::ClientProvidedMeta);
+                        }
+                        OperationContext::Update | OperationContext::Patch => {
+                            // UPDATE/PATCH: Readonly attributes are allowed (server will ignore them)
+                            // This is compliant with SCIM specification
+                        }
+                    }
+                }
+            }
+        }
+
+        // Preliminary validation for specific SCIM errors before resource construction
+        self.validate_multi_valued_attributes_preliminary(resource_type, resource_json)?;
+
+        // Then convert to Resource (validates core primitives)
+        let resource = Resource::from_json(resource_type.to_string(), resource_json.clone())?;
+
+        // Finally validate using hybrid approach
+        self.validate_resource_hybrid(&resource)
+    }
+
+    /// Map resource type to schema URI.
+    fn resource_type_to_schema_uri(resource_type: &str) -> Option<&'static str> {
+        match resource_type {
+            "User" => Some("urn:ietf:params:scim:schemas:core:2.0:User"),
+            "Group" => Some("urn:ietf:params:scim:schemas:core:2.0:Group"),
+            _ => None,
+        }
+    }
+
+    /// Preliminary validation for multi-valued attributes to catch specific SCIM errors
+    /// before resource construction.
+    fn validate_multi_valued_attributes_preliminary(
+        &self,
+        resource_type: &str,
+        resource_json: &Value,
+    ) -> ValidationResult<()> {
+        let obj = resource_json
             .as_object()
             .ok_or_else(|| ValidationError::custom("Resource must be a JSON object"))?;
 
-        // Validate each defined attribute
-        for attr_def in &schema.attributes {
-            self.validate_attribute(attr_def, obj, &schema.id)?;
-        }
+        // Get the schema URI for this resource type
+        let schema_uri = Self::resource_type_to_schema_uri(resource_type)
+            .ok_or_else(|| ValidationError::custom("Unknown resource type"))?;
 
-        // Check for unknown attributes (strict validation)
-        for (field_name, _) in obj {
-            if !schema
-                .attributes
-                .iter()
-                .any(|attr| attr.name == *field_name)
-            {
-                // Allow schemas field for SCIM resources
-                if field_name != "schemas" {
-                    return Err(ValidationError::UnknownAttribute {
-                        attribute: field_name.clone(),
-                        schema_id: schema.id.clone(),
-                    });
+        // Get the schema for this resource type
+        let schema = self
+            .get_schema(schema_uri)
+            .ok_or_else(|| ValidationError::custom("Schema not found"))?;
+
+        // Check emails attribute for required sub-attributes
+        if let Some(emails_value) = obj.get("emails") {
+            if let Some(emails_array) = emails_value.as_array() {
+                // Find the emails attribute definition
+                if let Some(emails_attr) =
+                    schema.attributes.iter().find(|attr| attr.name == "emails")
+                {
+                    self.validate_required_sub_attributes(emails_attr, emails_array)?;
                 }
             }
+        }
+
+        // Check other multi-valued attributes if needed
+        // Add more preliminary validations here as required
+
+        Ok(())
+    }
+
+    /// Validate schema URI combinations.
+    fn validate_schema_combinations(&self, schemas: &[SchemaUri]) -> ValidationResult<()> {
+        if schemas.is_empty() {
+            return Err(ValidationError::MissingSchemas);
+        }
+
+        // Check for conflicting schemas (basic validation)
+        let schema_strings: Vec<String> = schemas.iter().map(|s| s.as_str().to_string()).collect();
+
+        // Ensure we have at least one core schema
+        let has_user_schema = schema_strings.iter().any(|s| s.contains("User"));
+        let has_group_schema = schema_strings.iter().any(|s| s.contains("Group"));
+
+        if !has_user_schema && !has_group_schema {
+            return Err(ValidationError::custom(
+                "Resource must have at least one core schema",
+            ));
+        }
+
+        // Don't allow both User and Group schemas
+        if has_user_schema && has_group_schema {
+            return Err(ValidationError::custom(
+                "Resource cannot have both User and Group schemas",
+            ));
         }
 
         Ok(())
     }
 
-    /// Validate a single attribute against its definition.
+    /// Validate a resource attribute against its schema definition.
     fn validate_attribute(
         &self,
         attr_def: &AttributeDefinition,
-        obj: &serde_json::Map<String, Value>,
-        _schema_id: &str,
+        value: &Value,
     ) -> ValidationResult<()> {
-        let value = obj.get(&attr_def.name);
-
-        // Check required attributes
-        if attr_def.required && value.is_none() {
-            return Err(ValidationError::missing_required(&attr_def.name));
+        // Check if attribute is required but missing
+        if attr_def.required && value.is_null() {
+            return Err(ValidationError::MissingRequiredAttribute {
+                attribute: attr_def.name.clone(),
+            });
         }
 
-        // If value is None and not required, validation passes
-        let Some(value) = value else {
-            return Ok(());
-        };
-
-        // Check null values
+        // Skip validation for null optional attributes
         if value.is_null() {
-            if attr_def.required {
-                return Err(ValidationError::missing_required(&attr_def.name));
-            }
             return Ok(());
         }
 
-        // Validate multi-valued vs single-valued
-        if attr_def.multi_valued {
-            if !value.is_array() {
-                return Err(ValidationError::ExpectedMultiValue {
-                    attribute: attr_def.name.clone(),
-                });
-            }
-            // Validate each item in the array
-            if let Some(array) = value.as_array() {
-                for item in array {
-                    self.validate_attribute_value(attr_def, item)?;
-                }
-            }
-        } else {
-            if value.is_array() {
-                return Err(ValidationError::ExpectedSingleValue {
-                    attribute: attr_def.name.clone(),
-                });
-            }
-            self.validate_attribute_value(attr_def, value)?;
-        }
+        // Validate data type
+        self.validate_attribute_value(attr_def, value)?;
+
+        // Validate mutability if this is an update operation
+        // (This would need request context to determine operation type)
+
+        // Validate uniqueness constraints
+        // (This would need external data to check uniqueness)
 
         Ok(())
     }
 
-    /// Validate the value of an attribute against its type and constraints.
+    /// Validate an attribute value against its expected data type.
     fn validate_attribute_value(
         &self,
         attr_def: &AttributeDefinition,
         value: &Value,
     ) -> ValidationResult<()> {
-        // Validate data type
+        self.validate_attribute_value_with_context(attr_def, value, None)
+    }
+
+    fn validate_attribute_value_with_context(
+        &self,
+        attr_def: &AttributeDefinition,
+        value: &Value,
+        parent_attr: Option<&str>,
+    ) -> ValidationResult<()> {
+        // Skip validation for null optional attributes
+        if value.is_null() && !attr_def.required {
+            return Ok(());
+        }
+
+        // Check if required attribute is null
+        if value.is_null() && attr_def.required {
+            return Err(ValidationError::MissingRequiredAttribute {
+                attribute: attr_def.name.clone(),
+            });
+        }
+
         match attr_def.data_type {
             AttributeType::String => {
                 if !value.is_string() {
-                    return Err(ValidationError::InvalidDataType {
+                    return Err(ValidationError::InvalidAttributeType {
                         attribute: attr_def.name.clone(),
                         expected: "string".to_string(),
                         actual: Self::get_value_type(value).to_string(),
                     });
                 }
 
-                // Validate string format constraints
-                if let Some(str_val) = value.as_str() {
-                    // Check for empty strings when not allowed
-                    if str_val.is_empty() && attr_def.required {
-                        return Err(ValidationError::InvalidStringFormat {
-                            attribute: attr_def.name.clone(),
-                            details: "String cannot be empty for required attribute".to_string(),
-                        });
-                    }
+                // Validate case sensitivity for string attributes
+                let str_value = value.as_str().unwrap();
+                if attr_def.case_exact {
+                    // For case-exact attributes, check for mixed case patterns
+                    self.validate_case_exact_string(&attr_def.name, str_value)?;
+                }
 
-                    // Validate canonical values if specified
-                    if !attr_def.canonical_values.is_empty() {
-                        if !attr_def.canonical_values.contains(&str_val.to_string()) {
-                            return Err(ValidationError::InvalidCanonicalValue {
-                                attribute: attr_def.name.clone(),
-                                value: str_val.to_string(),
-                                allowed: attr_def.canonical_values.clone(),
-                            });
-                        }
-                    }
+                // Validate canonical values if defined
+                if !attr_def.canonical_values.is_empty() {
+                    self.validate_canonical_value_with_context(attr_def, str_value, parent_attr)?;
                 }
             }
             AttributeType::Boolean => {
                 if !value.is_boolean() {
-                    return Err(ValidationError::InvalidDataType {
+                    return Err(ValidationError::InvalidAttributeType {
                         attribute: attr_def.name.clone(),
                         expected: "boolean".to_string(),
                         actual: Self::get_value_type(value).to_string(),
                     });
                 }
-
-                // Additional boolean validation for string representations
-                if value.is_string() {
-                    if let Some(str_val) = value.as_str() {
-                        if !["true", "false"].contains(&str_val.to_lowercase().as_str()) {
-                            return Err(ValidationError::InvalidBooleanValue {
-                                attribute: attr_def.name.clone(),
-                                value: str_val.to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-            AttributeType::Integer => {
-                if !value.is_i64() {
-                    return Err(ValidationError::InvalidDataType {
-                        attribute: attr_def.name.clone(),
-                        expected: "integer".to_string(),
-                        actual: Self::get_value_type(value).to_string(),
-                    });
-                }
-
-                // Validate integer range
-                if let Some(num) = value.as_i64() {
-                    if num < i32::MIN as i64 || num > i32::MAX as i64 {
-                        return Err(ValidationError::InvalidIntegerValue {
-                            attribute: attr_def.name.clone(),
-                            value: num.to_string(),
-                        });
-                    }
-                }
             }
             AttributeType::Decimal => {
-                if !value.is_f64() && !value.is_i64() {
-                    return Err(ValidationError::InvalidDataType {
+                if !value.is_number() {
+                    return Err(ValidationError::InvalidAttributeType {
                         attribute: attr_def.name.clone(),
                         expected: "decimal".to_string(),
                         actual: Self::get_value_type(value).to_string(),
                     });
                 }
-
-                // Validate decimal format for string representations
-                if value.is_string() {
-                    if let Some(str_val) = value.as_str() {
-                        if str_val.parse::<f64>().is_err() {
-                            return Err(ValidationError::InvalidDecimalFormat {
-                                attribute: attr_def.name.clone(),
-                                value: str_val.to_string(),
-                            });
-                        }
-                    }
+            }
+            AttributeType::Integer => {
+                if !value.is_i64() {
+                    return Err(ValidationError::InvalidAttributeType {
+                        attribute: attr_def.name.clone(),
+                        expected: "integer".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
             }
             AttributeType::DateTime => {
-                if !value.is_string() {
-                    return Err(ValidationError::InvalidDataType {
-                        attribute: attr_def.name.clone(),
-                        expected: "dateTime".to_string(),
-                        actual: Self::get_value_type(value).to_string(),
-                    });
-                }
-
-                // Basic datetime format validation
-                if let Some(str_val) = value.as_str() {
-                    if !self.is_valid_datetime_format(str_val) {
+                if let Some(date_str) = value.as_str() {
+                    if !self.is_valid_datetime_format(date_str) {
                         return Err(ValidationError::InvalidDateTimeFormat {
                             attribute: attr_def.name.clone(),
-                            value: str_val.to_string(),
+                            value: date_str.to_string(),
                         });
                     }
+                } else {
+                    return Err(ValidationError::InvalidAttributeType {
+                        attribute: attr_def.name.clone(),
+                        expected: "string (datetime)".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
                 }
             }
             AttributeType::Binary => {
-                if !value.is_string() {
-                    return Err(ValidationError::InvalidDataType {
-                        attribute: attr_def.name.clone(),
-                        expected: "binary".to_string(),
-                        actual: Self::get_value_type(value).to_string(),
-                    });
-                }
-
-                // Basic base64 validation
-                if let Some(str_val) = value.as_str() {
-                    if !self.is_valid_base64(str_val) {
+                if let Some(binary_str) = value.as_str() {
+                    if !self.is_valid_base64(binary_str) {
                         return Err(ValidationError::InvalidBinaryData {
                             attribute: attr_def.name.clone(),
                             details: "Invalid base64 encoding".to_string(),
                         });
                     }
-                }
-            }
-            AttributeType::Reference => {
-                if !value.is_string() {
-                    return Err(ValidationError::InvalidDataType {
+                } else {
+                    return Err(ValidationError::InvalidAttributeType {
                         attribute: attr_def.name.clone(),
-                        expected: "reference".to_string(),
+                        expected: "string (base64)".to_string(),
                         actual: Self::get_value_type(value).to_string(),
                     });
                 }
-
-                // Basic URI format validation
-                if let Some(str_val) = value.as_str() {
-                    if !self.is_valid_uri_format(str_val) {
+            }
+            AttributeType::Reference => {
+                if let Some(ref_str) = value.as_str() {
+                    if !self.is_valid_uri_format(ref_str) {
                         return Err(ValidationError::InvalidReferenceUri {
                             attribute: attr_def.name.clone(),
-                            uri: str_val.to_string(),
+                            uri: ref_str.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(ValidationError::InvalidAttributeType {
+                        attribute: attr_def.name.clone(),
+                        expected: "string (URI)".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
+                }
+            }
+            AttributeType::Complex => {
+                if value.is_array() {
+                    // Multi-valued complex attribute
+                    self.validate_multi_valued_array(attr_def, value)?;
+                } else if value.is_object() {
+                    // Single complex attribute
+                    self.validate_complex_attribute_structure(attr_def, value)?;
+                } else {
+                    return Err(ValidationError::InvalidAttributeType {
+                        attribute: attr_def.name.clone(),
+                        expected: "object or array".to_string(),
+                        actual: Self::get_value_type(value).to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate multi-valued attributes in the resource.
+    fn validate_multi_valued_attributes(
+        &self,
+        attributes: &Map<String, Value>,
+    ) -> ValidationResult<()> {
+        for (attr_name, attr_value) in attributes {
+            if let Some(_attr_value_array) = attr_value.as_array() {
+                // Find attribute definition
+                if let Some(attr_def) = self.get_complex_attribute_definition(attr_name) {
+                    if attr_def.multi_valued {
+                        self.validate_multi_valued_array(attr_def, attr_value)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate a multi-valued attribute array.
+    fn validate_multi_valued_array(
+        &self,
+        attr_def: &AttributeDefinition,
+        value: &Value,
+    ) -> ValidationResult<()> {
+        let array = value
+            .as_array()
+            .ok_or_else(|| ValidationError::InvalidAttributeType {
+                attribute: attr_def.name.clone(),
+                expected: "array".to_string(),
+                actual: Self::get_value_type(value).to_string(),
+            })?;
+
+        for item in array {
+            match attr_def.data_type {
+                AttributeType::Complex => {
+                    self.validate_complex_attribute_structure(attr_def, item)?;
+                }
+                _ => {
+                    self.validate_attribute_value(attr_def, item)?;
+                }
+            }
+        }
+
+        // Validate required sub-attributes for complex multi-valued attributes
+        if matches!(attr_def.data_type, AttributeType::Complex) {
+            self.validate_required_sub_attributes(attr_def, array)?;
+
+            // Check for multiple primary values
+            let primary_count = array
+                .iter()
+                .filter(|item| {
+                    item.get("primary")
+                        .and_then(|p| p.as_bool())
+                        .unwrap_or(false)
+                })
+                .count();
+
+            if primary_count > 1 {
+                return Err(ValidationError::MultiplePrimaryValues {
+                    attribute: attr_def.name.clone(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate required sub-attributes in multi-valued complex attributes.
+    fn validate_required_sub_attributes(
+        &self,
+        attr_def: &AttributeDefinition,
+        array: &[Value],
+    ) -> ValidationResult<()> {
+        for item in array {
+            if let Some(obj) = item.as_object() {
+                for sub_attr in &attr_def.sub_attributes {
+                    if sub_attr.required && !obj.contains_key(&sub_attr.name) {
+                        return Err(ValidationError::MissingRequiredSubAttribute {
+                            attribute: attr_def.name.clone(),
+                            sub_attribute: sub_attr.name.clone(),
                         });
                     }
                 }
             }
-            AttributeType::Complex => {
-                if !value.is_object() {
-                    return Err(ValidationError::InvalidDataType {
-                        attribute: attr_def.name.clone(),
-                        expected: "complex".to_string(),
-                        actual: Self::get_value_type(value).to_string(),
-                    });
-                }
-
-                // Validate sub-attributes
-                if let Some(obj) = value.as_object() {
-                    for sub_attr in &attr_def.sub_attributes {
-                        if sub_attr.required && !obj.contains_key(&sub_attr.name) {
-                            return Err(ValidationError::MissingSubAttribute {
-                                attribute: attr_def.name.clone(),
-                                sub_attribute: sub_attr.name.clone(),
-                            });
-                        }
-
-                        if let Some(sub_value) = obj.get(&sub_attr.name) {
-                            self.validate_attribute_value(sub_attr, sub_value)?;
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate a complete SCIM resource including schemas array and meta attributes.
-    pub fn validate_scim_resource(&self, resource: &Value) -> ValidationResult<()> {
-        let obj = resource
-            .as_object()
-            .ok_or_else(|| ValidationError::custom("Resource must be a JSON object"))?;
-
-        // 1. Validate schemas array
-        self.validate_schemas_attribute(obj)?;
-
-        // 2. Validate common attributes
-        self.validate_id_attribute(obj)?;
-        self.validate_external_id(obj)?;
-
-        // 3. Validate meta attributes
-        self.validate_meta_attribute(obj)?;
-
-        // 4. Validate multi-valued attributes
-        self.validate_multi_valued_attributes(obj)?;
-
-        // 5. Validate complex attributes
-        self.validate_complex_attributes(obj)?;
-
-        // 6. Validate attribute characteristics
-        self.validate_attribute_characteristics(obj)?;
-
-        // 7. Extract schema IDs and validate against each
-        let schemas = self.extract_schema_uris(obj)?;
-        for schema_uri in &schemas {
-            if let Some(schema) = self.get_schema_by_id(schema_uri) {
-                self.validate_resource(schema, resource)?;
-            } else {
-                return Err(ValidationError::UnknownSchemaUri {
-                    uri: schema_uri.to_string(),
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate multi-valued attributes (Errors 33-38)
-    fn validate_multi_valued_attributes(
-        &self,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        // Define multi-valued attributes that should be arrays
-        let multi_valued_attrs = [
-            "emails",
-            "phoneNumbers",
-            "ims",
-            "photos",
-            "addresses",
-            "groups",
-            "entitlements",
-            "roles",
-            "x509Certificates",
-        ];
-
-        // Define single-valued attributes that should NOT be arrays
-        let single_valued_attrs = [
-            "userName",
-            "displayName",
-            "nickName",
-            "profileUrl",
-            "title",
-            "userType",
-            "preferredLanguage",
-            "locale",
-            "timezone",
-            "active",
-            "password",
-        ];
-
-        // Check multi-valued attributes
-        for attr_name in multi_valued_attrs {
-            if let Some(value) = obj.get(attr_name) {
-                // Error #33: Single value for multi-valued attribute
-                if !value.is_array() {
-                    return Err(ValidationError::SingleValueForMultiValued {
-                        attribute: attr_name.to_string(),
-                    });
-                }
-
-                // Validate array structure and contents
-                if let Some(array) = value.as_array() {
-                    self.validate_multi_valued_array(attr_name, array)?;
-                }
-            }
-        }
-
-        // Check single-valued attributes
-        for attr_name in single_valued_attrs {
-            if let Some(value) = obj.get(attr_name) {
-                // Error #34: Array for single-valued attribute
-                if value.is_array() {
-                    return Err(ValidationError::ArrayForSingleValued {
-                        attribute: attr_name.to_string(),
-                    });
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate the structure and contents of a multi-valued array
-    fn validate_multi_valued_array(
-        &self,
-        attr_name: &str,
-        array: &[Value],
-    ) -> ValidationResult<()> {
-        let mut primary_count = 0;
-
-        for (index, item) in array.iter().enumerate() {
-            // Error #36: Invalid multi-valued structure - items should be objects for complex multi-valued attributes
-            if matches!(
-                attr_name,
-                "emails" | "phoneNumbers" | "ims" | "photos" | "addresses"
-            ) {
-                if !item.is_object() {
-                    return Err(ValidationError::InvalidMultiValuedStructure {
-                        attribute: attr_name.to_string(),
-                        details: format!("Item at index {} is not an object", index),
-                    });
-                }
-
-                if let Some(obj) = item.as_object() {
-                    // Error #35: Multiple primary values
-                    if let Some(primary) = obj.get("primary") {
-                        if primary.as_bool() == Some(true) {
-                            primary_count += 1;
-                            if primary_count > 1 {
-                                return Err(ValidationError::MultiplePrimaryValues {
-                                    attribute: attr_name.to_string(),
-                                });
-                            }
-                        }
-                    }
-
-                    // Error #37: Missing required sub-attribute
-                    self.validate_required_sub_attributes(attr_name, obj)?;
-
-                    // Error #38: Invalid canonical value
-                    self.validate_canonical_values(attr_name, obj)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate required sub-attributes in multi-valued complex attributes
-    fn validate_required_sub_attributes(
-        &self,
-        attr_name: &str,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        match attr_name {
-            "emails" => {
-                // Email requires 'value' sub-attribute
-                if !obj.contains_key("value") {
-                    return Err(ValidationError::MissingRequiredSubAttribute {
-                        attribute: attr_name.to_string(),
-                        sub_attribute: "value".to_string(),
-                    });
-                }
-            }
-            "phoneNumbers" => {
-                // Phone number requires 'value' sub-attribute
-                if !obj.contains_key("value") {
-                    return Err(ValidationError::MissingRequiredSubAttribute {
-                        attribute: attr_name.to_string(),
-                        sub_attribute: "value".to_string(),
-                    });
-                }
-            }
-            "addresses" => {
-                // Address requires at least one of the core fields
-                let required_fields = [
-                    "formatted",
-                    "streetAddress",
-                    "locality",
-                    "region",
-                    "postalCode",
-                    "country",
-                ];
-                if !required_fields.iter().any(|field| obj.contains_key(*field)) {
-                    return Err(ValidationError::MissingRequiredSubAttribute {
-                        attribute: attr_name.to_string(),
-                        sub_attribute: "formatted or address components".to_string(),
-                    });
-                }
-            }
-            _ => {} // Other multi-valued attributes may not have strict requirements
         }
         Ok(())
     }
 
-    /// Validate canonical values in multi-valued attributes
+    /// Validate canonical values in multi-valued attributes.
+    #[allow(dead_code)]
     fn validate_canonical_values(
         &self,
-        attr_name: &str,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        if let Some(type_value) = obj.get("type") {
-            if let Some(type_str) = type_value.as_str() {
-                let allowed_values = match attr_name {
-                    "emails" => vec!["work", "home", "other"],
-                    "phoneNumbers" => vec!["work", "home", "mobile", "fax", "pager", "other"],
-                    "ims" => vec!["aim", "gtalk", "icq", "xmpp", "msn", "skype", "qq", "yahoo"],
-                    "photos" => vec!["photo", "thumbnail"],
-                    "addresses" => vec!["work", "home", "other"],
-                    _ => return Ok(()), // No canonical values defined for this attribute
-                };
-
-                if !allowed_values.contains(&type_str) {
-                    return Err(ValidationError::InvalidCanonicalValue {
-                        attribute: attr_name.to_string(),
-                        value: type_str.to_string(),
-                        allowed: allowed_values.into_iter().map(String::from).collect(),
-                    });
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Validate complex attributes (Errors 39-43)
-    fn validate_complex_attributes(
-        &self,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        // Define complex attributes that need validation
-        let complex_attrs = ["name", "addresses"];
-
-        for attr_name in complex_attrs {
-            if let Some(attr_value) = obj.get(attr_name) {
-                // Skip if null
-                if attr_value.is_null() {
-                    continue;
-                }
-
-                // Error #43: Malformed complex structure - must be object
-                if !attr_value.is_object() {
-                    return Err(ValidationError::MalformedComplexStructure {
-                        attribute: attr_name.to_string(),
-                        details: "Complex attribute must be an object".to_string(),
-                    });
-                }
-
-                if let Some(obj) = attr_value.as_object() {
-                    self.validate_complex_attribute_structure(attr_name, obj)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate the structure of a specific complex attribute
-    fn validate_complex_attribute_structure(
-        &self,
-        attr_name: &str,
-        attr_obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        // Get attribute definition from schema
-        if let Some(attr_def) = self.get_complex_attribute_definition(attr_name) {
-            if !attr_def.sub_attributes.is_empty() {
-                let sub_attrs = &attr_def.sub_attributes;
-
-                // Check for unknown sub-attributes (Error #41)
-                self.validate_known_sub_attributes(attr_name, attr_obj, sub_attrs)?;
-
-                // Check sub-attribute types (Error #40)
-                self.validate_sub_attribute_types(attr_name, attr_obj, sub_attrs)?;
-
-                // Check for nested complex attributes (Error #42)
-                self.validate_no_nested_complex(attr_name, attr_obj, sub_attrs)?;
-
-                // Check required sub-attributes (Error #39)
-                self.validate_required_sub_attributes_complex(attr_name, attr_obj, sub_attrs)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate that all sub-attributes are known/allowed
-    fn validate_known_sub_attributes(
-        &self,
-        attr_name: &str,
-        attr_obj: &serde_json::Map<String, Value>,
-        sub_attrs: &[AttributeDefinition],
-    ) -> ValidationResult<()> {
-        let valid_sub_attr_names: std::collections::HashSet<&str> =
-            sub_attrs.iter().map(|attr| attr.name.as_str()).collect();
-
-        for sub_attr_name in attr_obj.keys() {
-            if !valid_sub_attr_names.contains(sub_attr_name.as_str()) {
-                return Err(ValidationError::UnknownSubAttribute {
-                    attribute: attr_name.to_string(),
-                    sub_attribute: sub_attr_name.to_string(),
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate sub-attribute data types
-    fn validate_sub_attribute_types(
-        &self,
-        attr_name: &str,
-        attr_obj: &serde_json::Map<String, Value>,
-        sub_attrs: &[AttributeDefinition],
-    ) -> ValidationResult<()> {
-        for sub_attr_def in sub_attrs {
-            if let Some(sub_attr_value) = attr_obj.get(&sub_attr_def.name) {
-                // Skip null values
-                if sub_attr_value.is_null() {
-                    continue;
-                }
-
-                let expected_type = match sub_attr_def.data_type {
-                    AttributeType::String => "string",
-                    AttributeType::Boolean => "boolean",
-                    AttributeType::Integer => "integer",
-                    AttributeType::Decimal => "number",
-                    AttributeType::DateTime => "string",
-                    AttributeType::Binary => "string",
-                    AttributeType::Reference => "string",
-                    AttributeType::Complex => "object",
-                };
-
-                let actual_type = Self::get_value_type(sub_attr_value);
-
-                if expected_type != actual_type {
-                    return Err(ValidationError::InvalidSubAttributeType {
-                        attribute: attr_name.to_string(),
-                        sub_attribute: sub_attr_def.name.clone(),
-                        expected: expected_type.to_string(),
-                        actual: actual_type.to_string(),
-                    });
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate that no complex attributes are nested within this complex attribute
-    fn validate_no_nested_complex(
-        &self,
-        attr_name: &str,
-        attr_obj: &serde_json::Map<String, Value>,
-        sub_attrs: &[AttributeDefinition],
-    ) -> ValidationResult<()> {
-        for sub_attr_def in sub_attrs {
-            if matches!(sub_attr_def.data_type, AttributeType::Complex) {
-                if attr_obj.contains_key(&sub_attr_def.name) {
-                    return Err(ValidationError::NestedComplexAttributes {
-                        attribute: format!("{}.{}", attr_name, sub_attr_def.name),
-                    });
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate required sub-attributes for complex attributes
-    fn validate_required_sub_attributes_complex(
-        &self,
-        attr_name: &str,
-        attr_obj: &serde_json::Map<String, Value>,
-        sub_attrs: &[AttributeDefinition],
-    ) -> ValidationResult<()> {
-        let missing: Vec<String> = sub_attrs
-            .iter()
-            .filter(|attr| attr.required)
-            .filter(|attr| !attr_obj.contains_key(&attr.name) || attr_obj[&attr.name].is_null())
-            .map(|attr| attr.name.clone())
-            .collect();
-
-        if !missing.is_empty() {
-            return Err(ValidationError::MissingRequiredSubAttributes {
-                attribute: attr_name.to_string(),
-                missing,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// Validate attribute characteristics (Errors 44-52)
-    fn validate_attribute_characteristics(
-        &self,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<()> {
-        // Get the schemas from the resource to determine which schemas to validate against
-        let schemas = self.extract_schema_uris(obj)?;
-
-        // Validate characteristics for each attribute in the resource
-        for (attr_name, attr_value) in obj {
-            // Skip the schemas array itself - it's validated separately
-            if attr_name == "schemas" {
-                continue;
-            }
-
-            // Find the attribute definition across all schemas in the resource
-            let mut found_in_schema = false;
-            for schema_uri in &schemas {
-                if let Some(schema) = self.get_schema_by_id(schema_uri) {
-                    if let Some(attr_def) = self.find_attribute_definition(schema, attr_name) {
-                        self.validate_case_sensitivity(attr_name, attr_value, &attr_def)?;
-                        self.validate_mutability_characteristics(attr_name, &attr_def)?;
-                        self.validate_uniqueness_characteristics(attr_name, attr_value, &attr_def)?;
-                        self.validate_canonical_choices(attr_name, attr_value, &attr_def)?;
-                        found_in_schema = true;
-                        break; // Found the attribute, no need to check other schemas
-                    }
-                }
-            }
-
-            // If attribute wasn't found in any schema, it's unknown
-            if !found_in_schema {
-                // Use the first schema as the primary schema for error reporting
-                let primary_schema = schemas
-                    .first()
-                    .map(|s| s.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
-                return Err(ValidationError::UnknownAttributeForSchema {
-                    attribute: attr_name.clone(),
-                    schema: primary_schema,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate case sensitivity characteristics
-    fn validate_case_sensitivity(
-        &self,
-        attr_name: &str,
-        attr_value: &Value,
         attr_def: &AttributeDefinition,
+        array: &[Value],
     ) -> ValidationResult<()> {
-        // Only validate string values for case sensitivity
-        if let Some(string_value) = attr_value.as_str() {
-            if attr_def.case_exact {
-                // For caseExact=true attributes, check if value contains mixed case
-                // This is a simplified check - in practice, this would compare against
-                // previously stored values to detect case sensitivity violations
-                if attr_name == "id"
-                    && string_value != string_value.to_lowercase()
-                    && string_value != string_value.to_uppercase()
-                {
-                    return Err(ValidationError::CaseSensitivityViolation {
-                        attribute: attr_name.to_string(),
-                        details: "ID attributes should maintain consistent casing".to_string(),
-                    });
-                }
-            }
-        }
-
-        // For complex attributes, validate case sensitivity of sub-attributes
-        if attr_def.data_type == AttributeType::Complex {
-            if let Some(obj) = attr_value.as_object() {
-                self.validate_complex_case_sensitivity(attr_name, obj, attr_def)?;
-            } else if let Some(array) = attr_value.as_array() {
-                for item in array {
-                    if let Some(obj) = item.as_object() {
-                        self.validate_complex_case_sensitivity(attr_name, obj, attr_def)?;
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate case sensitivity for complex attribute sub-attributes
-    fn validate_complex_case_sensitivity(
-        &self,
-        attr_name: &str,
-        obj: &serde_json::Map<String, Value>,
-        attr_def: &AttributeDefinition,
-    ) -> ValidationResult<()> {
-        if !attr_def.sub_attributes.is_empty() {
-            let sub_attrs = &attr_def.sub_attributes;
-            for (sub_name, sub_value) in obj {
-                if let Some(sub_def) = sub_attrs.iter().find(|a| a.name == *sub_name) {
-                    if let Some(string_value) = sub_value.as_str() {
-                        if sub_def.case_exact {
-                            // Example: email type values should be exact case
-                            if sub_name == "type" && attr_name == "emails" {
-                                let canonical_values = if sub_def.canonical_values.is_empty() {
-                                    &vec![
-                                        "work".to_string(),
-                                        "home".to_string(),
-                                        "other".to_string(),
-                                    ]
-                                } else {
-                                    &sub_def.canonical_values
-                                };
-                                if !canonical_values.contains(&string_value.to_string()) {
-                                    return Err(ValidationError::CaseSensitivityViolation {
-                                        attribute: format!("{}.{}", attr_name, sub_name),
-                                        details: format!(
-                                            "Value '{}' does not match canonical case",
-                                            string_value
-                                        ),
+        if !attr_def.canonical_values.is_empty() {
+            for item in array {
+                if let Some(obj) = item.as_object() {
+                    for (key, value) in obj {
+                        if let Some(str_value) = value.as_str() {
+                            if key == &attr_def.name
+                                || attr_def.sub_attributes.iter().any(|sa| &sa.name == key)
+                            {
+                                if !attr_def.canonical_values.contains(&str_value.to_string()) {
+                                    return Err(ValidationError::InvalidCanonicalValue {
+                                        attribute: format!("{}.{}", attr_def.name, key),
+                                        value: str_value.to_string(),
+                                        allowed: attr_def.canonical_values.clone(),
                                     });
                                 }
                             }
@@ -804,129 +671,17 @@ impl SchemaRegistry {
         Ok(())
     }
 
-    /// Validate mutability characteristics
-    fn validate_mutability_characteristics(
-        &self,
-        attr_name: &str,
-        attr_def: &AttributeDefinition,
-    ) -> ValidationResult<()> {
-        match attr_def.mutability {
-            Mutability::ReadOnly => {
-                // For this validation, we assume this is a modification context
-                // In a real implementation, this would check the operation context
-                if attr_name != "meta" && attr_name != "id" {
-                    // Allow meta and id in read contexts, but this is a simplified check
-                    return Err(ValidationError::ReadOnlyMutabilityViolation {
-                        attribute: attr_name.to_string(),
-                    });
-                }
-            }
-            Mutability::Immutable => {
-                // Immutable attributes can be set during creation but not modification
-                // This would require operation context in a real implementation
-                if attr_name == "userName" {
-                    // Simplified check - in practice would compare with existing value
-                    return Err(ValidationError::ImmutableMutabilityViolation {
-                        attribute: attr_name.to_string(),
-                    });
-                }
-            }
-            Mutability::WriteOnly => {
-                // Write-only attributes should not be returned in responses
-                // This validation assumes we're validating a response payload
-                return Err(ValidationError::WriteOnlyAttributeReturned {
-                    attribute: attr_name.to_string(),
-                });
-            }
-            _ => {} // ReadWrite or other - no restrictions
-        }
-
-        Ok(())
-    }
-
-    /// Validate uniqueness characteristics
-    fn validate_uniqueness_characteristics(
-        &self,
-        attr_name: &str,
-        attr_value: &Value,
-        attr_def: &AttributeDefinition,
-    ) -> ValidationResult<()> {
-        match attr_def.uniqueness {
-            Uniqueness::Server => {
-                // Server uniqueness - value must be unique across the server
-                if let Some(string_value) = attr_value.as_str() {
-                    // This is a simplified check - real implementation would query the data store
-                    if attr_name == "userName" && string_value == "duplicate@example.com" {
-                        return Err(ValidationError::ServerUniquenessViolation {
-                            attribute: attr_name.to_string(),
-                            value: string_value.to_string(),
-                        });
-                    }
-                }
-            }
-            Uniqueness::Global => {
-                // Global uniqueness - value must be unique globally
-                if let Some(string_value) = attr_value.as_str() {
-                    // This is a simplified check - real implementation would check across all systems
-                    if string_value == "global-duplicate@example.com" {
-                        return Err(ValidationError::GlobalUniquenessViolation {
-                            attribute: attr_name.to_string(),
-                            value: string_value.to_string(),
-                        });
-                    }
-                }
-            }
-            _ => {} // None or other - no uniqueness constraints
-        }
-
-        Ok(())
-    }
-
-    /// Validate canonical value choices
-    fn validate_canonical_choices(
-        &self,
-        attr_name: &str,
-        attr_value: &Value,
-        attr_def: &AttributeDefinition,
-    ) -> ValidationResult<()> {
-        // For complex attributes, validate canonical values in sub-attributes
-        if attr_def.data_type == AttributeType::Complex {
-            if let Some(array) = attr_value.as_array() {
-                for item in array {
-                    if let Some(obj) = item.as_object() {
-                        self.validate_complex_canonical_choices(attr_name, obj, attr_def)?;
-                    }
-                }
-            } else if let Some(obj) = attr_value.as_object() {
-                self.validate_complex_canonical_choices(attr_name, obj, attr_def)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate canonical choices for complex attribute sub-attributes
-    fn validate_complex_canonical_choices(
-        &self,
-        attr_name: &str,
-        obj: &serde_json::Map<String, Value>,
-        attr_def: &AttributeDefinition,
-    ) -> ValidationResult<()> {
-        if !attr_def.sub_attributes.is_empty() {
-            let sub_attrs = &attr_def.sub_attributes;
-            for (sub_name, sub_value) in obj {
-                if let Some(sub_def) = sub_attrs.iter().find(|a| a.name == *sub_name) {
-                    if !sub_def.canonical_values.is_empty() {
-                        let canonical_values = &sub_def.canonical_values;
-                        if let Some(string_value) = sub_value.as_str() {
-                            if !canonical_values.contains(&string_value.to_string()) {
-                                return Err(ValidationError::InvalidCanonicalValueChoice {
-                                    attribute: format!("{}.{}", attr_name, sub_name),
-                                    value: string_value.to_string(),
-                                    allowed: canonical_values.clone(),
-                                });
-                            }
-                        }
+    /// Validate complex attributes in the resource.
+    fn validate_complex_attributes(&self, attributes: &Map<String, Value>) -> ValidationResult<()> {
+        for (attr_name, attr_value) in attributes {
+            if let Some(attr_def) = self.get_complex_attribute_definition(attr_name) {
+                if matches!(attr_def.data_type, AttributeType::Complex) {
+                    if attr_def.multi_valued {
+                        // Multi-valued complex attribute (handled elsewhere)
+                        continue;
+                    } else {
+                        // Single complex attribute
+                        self.validate_complex_attribute_structure(attr_def, attr_value)?;
                     }
                 }
             }
@@ -934,197 +689,311 @@ impl SchemaRegistry {
         Ok(())
     }
 
-    /// Validate the schemas attribute according to SCIM requirements.
-    fn validate_schemas_attribute(
+    /// Validate the structure of a complex attribute.
+    fn validate_complex_attribute_structure(
         &self,
-        obj: &serde_json::Map<String, Value>,
+        attr_def: &AttributeDefinition,
+        value: &Value,
     ) -> ValidationResult<()> {
-        // Check if schemas attribute exists
-        let schemas_value = obj
-            .get("schemas")
-            .ok_or_else(|| ValidationError::MissingSchemas)?;
-
-        // Check if schemas is an array
-        let schemas_array = schemas_value
-            .as_array()
-            .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
-
-        // Check if schemas array is not empty
-        if schemas_array.is_empty() {
-            return Err(ValidationError::EmptySchemas);
-        }
-
-        // Validate each schema URI
-        let mut seen_uris = std::collections::HashSet::new();
-        for schema_value in schemas_array {
-            let schema_uri = schema_value
-                .as_str()
-                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
-
-            // Check for duplicates
-            if !seen_uris.insert(schema_uri) {
-                return Err(ValidationError::DuplicateSchemaUri {
-                    uri: schema_uri.to_string(),
-                });
-            }
-
-            // Validate URI format first
-            if !self.is_valid_schema_uri(schema_uri) {
-                return Err(ValidationError::InvalidSchemaUri {
-                    uri: schema_uri.to_string(),
-                });
-            }
-
-            // Then check if the URI is registered (only after format validation passes)
-            if self.get_schema_by_id(schema_uri).is_none() {
-                return Err(ValidationError::UnknownSchemaUri {
-                    uri: schema_uri.to_string(),
-                });
-            }
-        }
-
-        // Validate schema URI combinations
-        self.validate_schema_combinations(&seen_uris)?;
-
-        Ok(())
-    }
-
-    /// Validate the id attribute (Errors 9-12)
-    fn validate_id_attribute(&self, obj: &serde_json::Map<String, Value>) -> ValidationResult<()> {
-        // Check if id attribute exists
-        let id_value = obj.get("id").ok_or_else(|| ValidationError::MissingId)?;
-
-        // Check if id is a string
-        let id_str = id_value
-            .as_str()
-            .ok_or_else(|| ValidationError::InvalidIdFormat {
-                id: format!("{:?}", id_value),
+        let obj = value
+            .as_object()
+            .ok_or_else(|| ValidationError::InvalidAttributeType {
+                attribute: attr_def.name.clone(),
+                expected: "object".to_string(),
+                actual: Self::get_value_type(value).to_string(),
             })?;
 
-        // Check if id is empty
-        if id_str.is_empty() {
-            return Err(ValidationError::EmptyId);
-        }
+        // Validate known sub-attributes
+        self.validate_known_sub_attributes(attr_def, obj)?;
 
-        // TODO: Add more sophisticated ID format validation if needed
-        // For now, we accept any non-empty string as a valid ID
+        // Validate sub-attribute types
+        self.validate_sub_attribute_types(attr_def, obj)?;
 
-        Ok(())
-    }
+        // Validate no nested complex attributes
+        self.validate_no_nested_complex(attr_def, obj)?;
 
-    /// Validate the externalId attribute (Error 13)
-    fn validate_external_id(&self, obj: &serde_json::Map<String, Value>) -> ValidationResult<()> {
-        // externalId is optional, so only validate if present
-        if let Some(external_id_value) = obj.get("externalId") {
-            // If present, it must be a string (null is also acceptable)
-            if !external_id_value.is_string() && !external_id_value.is_null() {
-                return Err(ValidationError::InvalidExternalId);
-            }
-
-            // If it's a string, it should not be empty
-            if let Some(external_id_str) = external_id_value.as_str() {
-                if external_id_str.is_empty() {
-                    return Err(ValidationError::InvalidExternalId);
-                }
-            }
-        }
+        // Validate required sub-attributes
+        self.validate_required_sub_attributes_complex(attr_def, obj)?;
 
         Ok(())
     }
 
-    fn validate_meta_attribute(
+    /// Validate that only known sub-attributes are present.
+    fn validate_known_sub_attributes(
         &self,
-        obj: &serde_json::Map<String, Value>,
+        attr_def: &AttributeDefinition,
+        obj: &Map<String, Value>,
     ) -> ValidationResult<()> {
-        if let Some(meta_value) = obj.get("meta") {
-            let meta_obj = meta_value
-                .as_object()
-                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+        let known_sub_attrs: Vec<&str> = attr_def
+            .sub_attributes
+            .iter()
+            .map(|sa| sa.name.as_str())
+            .collect();
 
-            // Validate resourceType if present
-            if let Some(resource_type) = meta_obj.get("resourceType") {
-                let resource_type_str = resource_type
-                    .as_str()
-                    .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
+        for key in obj.keys() {
+            if !known_sub_attrs.contains(&key.as_str()) {
+                return Err(ValidationError::UnknownSubAttribute {
+                    attribute: attr_def.name.clone(),
+                    sub_attribute: key.clone(),
+                });
+            }
+        }
 
-                if resource_type_str.is_empty() {
-                    return Err(ValidationError::MissingResourceType);
+        Ok(())
+    }
+
+    /// Validate sub-attribute data types.
+    fn validate_sub_attribute_types(
+        &self,
+        attr_def: &AttributeDefinition,
+        obj: &Map<String, Value>,
+    ) -> ValidationResult<()> {
+        for (key, value) in obj {
+            if let Some(sub_attr_def) = attr_def.sub_attributes.iter().find(|sa| sa.name == *key) {
+                self.validate_attribute_value_with_context(
+                    sub_attr_def,
+                    value,
+                    Some(&attr_def.name),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate that complex attributes don't contain nested complex attributes.
+    fn validate_no_nested_complex(
+        &self,
+        attr_def: &AttributeDefinition,
+        _obj: &Map<String, Value>,
+    ) -> ValidationResult<()> {
+        for sub_attr in &attr_def.sub_attributes {
+            if matches!(sub_attr.data_type, AttributeType::Complex) {
+                return Err(ValidationError::NestedComplexAttributes {
+                    attribute: format!("{}.{}", attr_def.name, sub_attr.name),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate required sub-attributes in complex attributes.
+    fn validate_required_sub_attributes_complex(
+        &self,
+        attr_def: &AttributeDefinition,
+        obj: &Map<String, Value>,
+    ) -> ValidationResult<()> {
+        for sub_attr in &attr_def.sub_attributes {
+            if sub_attr.required && !obj.contains_key(&sub_attr.name) {
+                return Err(ValidationError::MissingRequiredSubAttribute {
+                    attribute: attr_def.name.clone(),
+                    sub_attribute: sub_attr.name.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate attribute characteristics (mutability, case sensitivity, etc.).
+    fn validate_attribute_characteristics(
+        &self,
+        attributes: &Map<String, Value>,
+    ) -> ValidationResult<()> {
+        // This would typically require request context to determine operation type
+        // For now, we'll implement basic characteristic validation
+
+        for (attr_name, attr_value) in attributes {
+            // Validate case sensitivity for attributes that require it
+            self.validate_case_sensitivity(attr_name, attr_value)?;
+
+            // Additional characteristic validation can be added here
+        }
+
+        Ok(())
+    }
+
+    /// Validate case sensitivity requirements for attributes.
+    fn validate_case_sensitivity(
+        &self,
+        attr_name: &str,
+        attr_value: &Value,
+    ) -> ValidationResult<()> {
+        // Special validation for resourceType data type
+        if attr_name == "resourceType" && !attr_value.is_string() {
+            return Err(ValidationError::InvalidMetaStructure);
+        }
+
+        // Find attribute definition to check case sensitivity
+        if let Some(attr_def) = self
+            .get_user_schema()
+            .attributes
+            .iter()
+            .find(|attr| attr.name == attr_name)
+        {
+            if attr_def.case_exact && attr_value.is_string() {
+                let str_value = attr_value.as_str().unwrap();
+                self.validate_case_exact_string(attr_name, str_value)?;
+            }
+        }
+
+        // Validate case sensitivity for complex attributes
+        if attr_value.is_array() {
+            if let Some(array) = attr_value.as_array() {
+                for item in array {
+                    self.validate_complex_case_sensitivity(attr_name, item)?;
                 }
+            }
+        }
 
-                // Validate that resourceType matches expected values
-                if !["User", "Group"].contains(&resource_type_str) {
-                    return Err(ValidationError::InvalidResourceType {
-                        resource_type: resource_type_str.to_string(),
+        Ok(())
+    }
+
+    /// Validate that a case-exact string follows proper casing rules.
+    fn validate_case_exact_string(&self, attr_name: &str, value: &str) -> ValidationResult<()> {
+        // Special handling for resourceType - validate against allowed values first
+        if attr_name == "resourceType" {
+            let allowed_types = ["User", "Group"];
+            if !allowed_types.contains(&value) {
+                return Err(ValidationError::InvalidResourceType {
+                    resource_type: value.to_string(),
+                });
+            }
+            return Ok(());
+        }
+
+        // For SCIM, case-exact typically means consistent casing
+        // Check for problematic mixed case patterns that suggest inconsistency
+        if self.has_inconsistent_casing(value) {
+            return Err(ValidationError::CaseSensitivityViolation {
+                attribute: attr_name.to_string(),
+                details: format!(
+                    "Attribute '{}' requires consistent casing but found mixed case in '{}'",
+                    attr_name, value
+                ),
+            });
+        }
+        Ok(())
+    }
+
+    /// Check if a string has inconsistent casing patterns.
+    fn has_inconsistent_casing(&self, value: &str) -> bool {
+        // For ID attributes, mixed case like "MixedCase123" is problematic
+        // This is a heuristic - in practice this would be configurable
+        if value.len() > 1 {
+            let has_upper = value.chars().any(|c| c.is_uppercase());
+            let has_lower = value.chars().any(|c| c.is_lowercase());
+
+            // If it has both upper and lower case letters, it's mixed case
+            if has_upper && has_lower {
+                // Allow common patterns like camelCase or PascalCase
+                // But flag obvious mixed patterns
+                let first_char = value.chars().next().unwrap();
+                let rest = &value[1..];
+
+                // Simple heuristic: if first char is uppercase and rest has mixed case
+                // or if it looks like random mixed case, flag it
+                if first_char.is_uppercase()
+                    && rest.chars().any(|c| c.is_uppercase())
+                    && rest.chars().any(|c| c.is_lowercase())
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Validate canonical values considering case sensitivity.
+
+    fn validate_canonical_value_with_context(
+        &self,
+        attr_def: &AttributeDefinition,
+        value: &str,
+        parent_attr: Option<&str>,
+    ) -> ValidationResult<()> {
+        // For SCIM 2.0, canonical values must match exactly as defined in the schema
+        // regardless of the caseExact setting. The caseExact setting affects how
+        // the server handles submitted values for storage/comparison, but canonical
+        // values are predefined constants that must be matched exactly.
+        if !attr_def.canonical_values.contains(&value.to_string()) {
+            let attribute_name = if let Some(parent) = parent_attr {
+                format!("{}.{}", parent, attr_def.name)
+            } else {
+                attr_def.name.clone()
+            };
+
+            return Err(ValidationError::InvalidCanonicalValue {
+                attribute: attribute_name,
+                value: value.to_string(),
+                allowed: attr_def.canonical_values.clone(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Validate case sensitivity for complex multi-valued attributes.
+    fn validate_complex_case_sensitivity(
+        &self,
+        attr_name: &str,
+        value: &Value,
+    ) -> ValidationResult<()> {
+        if let Some(obj) = value.as_object() {
+            if let Some(attr_def) = self.get_complex_attribute_definition(attr_name) {
+                for (sub_attr_name, sub_attr_value) in obj {
+                    if let Some(sub_attr_def) = attr_def
+                        .sub_attributes
+                        .iter()
+                        .find(|sa| sa.name == *sub_attr_name)
+                    {
+                        if !sub_attr_def.case_exact && sub_attr_value.is_string() {
+                            // Case-insensitive validation/normalization
+                            // Implementation would depend on specific requirements
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate a resource against a specific schema (legacy method).
+    ///
+    /// This method validates a JSON resource against a schema definition,
+    /// checking attributes, types, and constraints.
+    pub fn validate_resource(
+        &self,
+        schema: &super::types::Schema,
+        resource: &Value,
+    ) -> ValidationResult<()> {
+        let obj = resource
+            .as_object()
+            .ok_or_else(|| ValidationError::custom("Resource must be a JSON object"))?;
+
+        // Validate each defined attribute in the schema
+        for attr_def in &schema.attributes {
+            if let Some(value) = obj.get(&attr_def.name) {
+                self.validate_attribute(attr_def, value)?;
+            } else if attr_def.required {
+                return Err(ValidationError::MissingRequiredAttribute {
+                    attribute: attr_def.name.clone(),
+                });
+            }
+        }
+
+        // Check for unknown attributes (strict validation)
+        for (field_name, _) in obj {
+            if !schema
+                .attributes
+                .iter()
+                .any(|attr| attr.name == *field_name)
+            {
+                // Allow standard SCIM attributes
+                if !["schemas", "id", "externalId", "meta"].contains(&field_name.as_str()) {
+                    return Err(ValidationError::UnknownAttributeForSchema {
+                        attribute: field_name.clone(),
+                        schema: schema.id.clone(),
                     });
                 }
             }
-
-            // Validate datetime fields
-            for field in &["created", "lastModified"] {
-                if let Some(datetime_value) = meta_obj.get(*field) {
-                    if !datetime_value.is_string() {
-                        match *field {
-                            "created" => return Err(ValidationError::InvalidCreatedDateTime),
-                            "lastModified" => return Err(ValidationError::InvalidModifiedDateTime),
-                            _ => return Err(ValidationError::InvalidMetaStructure),
-                        }
-                    }
-                    // TODO: Add RFC3339 datetime format validation
-                    // For now, we just check that it's a string
-                }
-            }
-
-            // Validate location URI
-            if let Some(location_value) = meta_obj.get("location") {
-                if !location_value.is_string() {
-                    return Err(ValidationError::InvalidLocationUri);
-                }
-                // TODO: Add URI format validation
-                // For now, we just check that it's a string
-            }
-
-            // Validate version
-            if let Some(version_value) = meta_obj.get("version") {
-                if !version_value.is_string() {
-                    return Err(ValidationError::InvalidVersionFormat);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate schema URI combinations (base vs extension schemas).
-    fn validate_schema_combinations(
-        &self,
-        uris: &std::collections::HashSet<&str>,
-    ) -> ValidationResult<()> {
-        let has_user_base = uris.contains("urn:ietf:params:scim:schemas:core:2.0:User");
-        let has_group_base = uris.contains("urn:ietf:params:scim:schemas:core:2.0:Group");
-
-        let user_extensions: Vec<_> = uris
-            .iter()
-            .filter(|uri| uri.contains("extension") && uri.contains("User"))
-            .collect();
-
-        let group_extensions: Vec<_> = uris
-            .iter()
-            .filter(|uri| uri.contains("extension") && uri.contains("Group"))
-            .collect();
-
-        // If there are User extensions, there must be a User base schema
-        if !user_extensions.is_empty() && !has_user_base {
-            return Err(ValidationError::ExtensionWithoutBase);
-        }
-
-        // If there are Group extensions, there must be a Group base schema
-        if !group_extensions.is_empty() && !has_group_base {
-            return Err(ValidationError::ExtensionWithoutBase);
-        }
-
-        // Cannot have both User and Group schemas in the same resource
-        if has_user_base && has_group_base {
-            return Err(ValidationError::InvalidMetaStructure);
         }
 
         Ok(())

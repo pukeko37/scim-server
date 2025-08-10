@@ -3,16 +3,42 @@
 //! This module defines the core trait that users must implement to provide
 //! data storage and retrieval for SCIM resources. The design is async-first
 //! and provides comprehensive error handling.
+//!
+//! The unified ResourceProvider supports both single-tenant and multi-tenant
+//! operations through the RequestContext. Single-tenant operations use
+//! context.tenant_context = None, while multi-tenant operations provide
+//! tenant information in context.tenant_context = Some(tenant_context).
 
 use super::core::{ListQuery, RequestContext, Resource};
 use serde_json::Value;
 use std::future::Future;
 
-/// Resource provider trait for generic SCIM operations
+/// Unified resource provider trait supporting both single and multi-tenant operations.
+///
+/// This trait provides a unified interface for SCIM resource operations that works
+/// for both single-tenant and multi-tenant scenarios:
+///
+/// - **Single-tenant**: Operations use RequestContext with tenant_context = None
+/// - **Multi-tenant**: Operations use RequestContext with tenant_context = Some(...)
+///
+/// The provider implementation can check `context.tenant_id()` to determine
+/// the effective tenant for the operation.
 pub trait ResourceProvider {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Generic create operation for any resource type
+    /// Create a resource for the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to create (e.g., "User", "Group")
+    /// * `data` - The resource data as JSON
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// The created resource with any server-generated fields (id, metadata, etc.)
+    ///
+    /// # Tenant Handling
+    /// - Single-tenant: `context.tenant_id()` returns `None`
+    /// - Multi-tenant: `context.tenant_id()` returns `Some(tenant_id)`
     fn create_resource(
         &self,
         resource_type: &str,
@@ -20,7 +46,15 @@ pub trait ResourceProvider {
         context: &RequestContext,
     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
 
-    /// Generic read operation for any resource type
+    /// Get a resource by ID from the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to retrieve
+    /// * `id` - The unique identifier of the resource
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// The resource if found, None if not found within the tenant scope
     fn get_resource(
         &self,
         resource_type: &str,
@@ -28,7 +62,16 @@ pub trait ResourceProvider {
         context: &RequestContext,
     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
 
-    /// Generic update operation for any resource type
+    /// Update a resource in the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to update
+    /// * `id` - The unique identifier of the resource
+    /// * `data` - The updated resource data as JSON
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// The updated resource
     fn update_resource(
         &self,
         resource_type: &str,
@@ -37,7 +80,12 @@ pub trait ResourceProvider {
         context: &RequestContext,
     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
 
-    /// Generic delete operation for any resource type
+    /// Delete a resource from the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to delete
+    /// * `id` - The unique identifier of the resource
+    /// * `context` - Request context containing tenant information (if multi-tenant)
     fn delete_resource(
         &self,
         resource_type: &str,
@@ -45,15 +93,32 @@ pub trait ResourceProvider {
         context: &RequestContext,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
-    /// Generic list operation for any resource type
+    /// List resources from the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resources to list
+    /// * `query` - Optional query parameters for filtering, sorting, pagination
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// A vector of resources from the specified tenant
     fn list_resources(
         &self,
         resource_type: &str,
-        query: Option<&ListQuery>,
+        _query: Option<&ListQuery>,
         context: &RequestContext,
     ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send;
 
-    /// Find a resource by attribute value
+    /// Find a resource by attribute value within the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to search
+    /// * `attribute` - The attribute name to search by
+    /// * `value` - The attribute value to search for
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// The first matching resource, if found within the tenant scope
     fn find_resource_by_attribute(
         &self,
         resource_type: &str,
@@ -62,7 +127,15 @@ pub trait ResourceProvider {
         context: &RequestContext,
     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
 
-    /// Check if resource exists
+    /// Check if a resource exists within the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to check
+    /// * `id` - The unique identifier of the resource
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// True if the resource exists within the tenant scope, false otherwise
     fn resource_exists(
         &self,
         resource_type: &str,
@@ -71,151 +144,113 @@ pub trait ResourceProvider {
     ) -> impl Future<Output = Result<bool, Self::Error>> + Send;
 }
 
-/// Trait for implementing SCIM resource data access.
+/// Extension trait providing convenience methods for common provider operations.
 ///
-/// This trait defines the interface that users must implement to provide
-/// data storage and retrieval for SCIM resources. The design is async-first
-/// and provides comprehensive error handling.
-///
-/// # Example Implementation
-///
-/// ```rust,no_run
-/// use scim_server::{ResourceProvider, Resource, RequestContext, ListQuery};
-/// use serde_json::Value;
-/// use std::collections::HashMap;
-/// use std::sync::Arc;
-/// use tokio::sync::RwLock;
-/// use std::future::Future;
-///
-/// struct InMemoryProvider {
-///     resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>,
-/// }
-///
-/// impl InMemoryProvider {
-///     fn new() -> Self {
-///         Self {
-///             resources: Arc::new(RwLock::new(HashMap::new())),
-///         }
-///     }
-/// }
-///
-/// #[derive(Debug, thiserror::Error)]
-/// #[error("Provider error")]
-/// struct ProviderError;
-///
-/// impl ResourceProvider for InMemoryProvider {
-///     type Error = ProviderError;
-///
-///     fn create_resource(
-///         &self,
-///         resource_type: &str,
-///         data: Value,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
-///         async move {
-///             let resource = Resource::new(resource_type.to_string(), data);
-///             let id = resource.get_id().unwrap_or_default().to_string();
-///
-///             let mut resources = self.resources.write().await;
-///             resources.entry(resource_type.to_string())
-///                 .or_insert_with(HashMap::new)
-///                 .insert(id, resource.clone());
-///             Ok(resource)
-///         }
-///     }
-///
-///     fn get_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
-///         async move {
-///             let resources = self.resources.read().await;
-///             Ok(resources.get(resource_type)
-///                 .and_then(|type_resources| type_resources.get(id))
-///                 .cloned())
-///         }
-///     }
-///
-///     fn update_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         data: Value,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
-///         async move {
-///             let resource = Resource::new(resource_type.to_string(), data);
-///             let mut resources = self.resources.write().await;
-///             resources.entry(resource_type.to_string())
-///                 .or_insert_with(HashMap::new)
-///                 .insert(id.to_string(), resource.clone());
-///             Ok(resource)
-///         }
-///     }
-///
-///     fn delete_resource(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
-///         async move {
-///             let mut resources = self.resources.write().await;
-///             if let Some(type_resources) = resources.get_mut(resource_type) {
-///                 type_resources.remove(id);
-///             }
-///             Ok(())
-///         }
-///     }
-///
-///     fn list_resources(
-///         &self,
-///         resource_type: &str,
-///         _query: Option<&ListQuery>,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
-///         async move {
-///             let resources = self.resources.read().await;
-///             Ok(resources.get(resource_type)
-///                 .map(|type_resources| type_resources.values().cloned().collect())
-///                 .unwrap_or_default())
-///         }
-///     }
-///
-///     fn find_resource_by_attribute(
-///         &self,
-///         resource_type: &str,
-///         attribute: &str,
-///         value: &Value,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
-///         async move {
-///             let resources = self.resources.read().await;
-///             Ok(resources.get(resource_type)
-///                 .and_then(|type_resources| {
-///                     type_resources.values().find(|resource| {
-///                         resource.get_attribute(attribute) == Some(value)
-///                     })
-///                 })
-///                 .cloned())
-///         }
-///     }
-///
-///     fn resource_exists(
-///         &self,
-///         resource_type: &str,
-///         id: &str,
-///         _context: &RequestContext,
-///     ) -> impl Future<Output = Result<bool, Self::Error>> + Send {
-///         async move {
-///             let resources = self.resources.read().await;
-///             Ok(resources.get(resource_type)
-///                 .map(|type_resources| type_resources.contains_key(id))
-///                 .unwrap_or(false))
-///         }
-///     }
-/// }
-/// ```
-pub struct _ExampleDocumentation;
+/// This trait automatically implements ergonomic helper methods for both single-tenant
+/// and multi-tenant scenarios on any type that implements ResourceProvider.
+pub trait ResourceProviderExt: ResourceProvider {
+    /// Convenience method for single-tenant resource creation.
+    ///
+    /// Creates a RequestContext with no tenant information and calls create_resource.
+    fn create_single_tenant(
+        &self,
+        resource_type: &str,
+        data: Value,
+        request_id: Option<String>,
+    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send
+    where
+        Self: Sync,
+    {
+        async move {
+            let context = match request_id {
+                Some(id) => RequestContext::new(id),
+                None => RequestContext::with_generated_id(),
+            };
+            self.create_resource(resource_type, data, &context).await
+        }
+    }
+
+    /// Convenience method for multi-tenant resource creation.
+    ///
+    /// Creates a RequestContext with the specified tenant and calls create_resource.
+    fn create_multi_tenant(
+        &self,
+        tenant_id: &str,
+        resource_type: &str,
+        data: Value,
+        request_id: Option<String>,
+    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send
+    where
+        Self: Sync,
+    {
+        async move {
+            use super::core::TenantContext;
+
+            let tenant_context = TenantContext {
+                tenant_id: tenant_id.to_string(),
+                client_id: "default-client".to_string(),
+                permissions: Default::default(),
+                isolation_level: Default::default(),
+            };
+
+            let context = match request_id {
+                Some(id) => RequestContext::with_tenant(id, tenant_context),
+                None => RequestContext::with_tenant_generated_id(tenant_context),
+            };
+
+            self.create_resource(resource_type, data, &context).await
+        }
+    }
+
+    /// Convenience method for single-tenant resource retrieval.
+    fn get_single_tenant(
+        &self,
+        resource_type: &str,
+        id: &str,
+        request_id: Option<String>,
+    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send
+    where
+        Self: Sync,
+    {
+        async move {
+            let context = match request_id {
+                Some(req_id) => RequestContext::new(req_id),
+                None => RequestContext::with_generated_id(),
+            };
+            self.get_resource(resource_type, id, &context).await
+        }
+    }
+
+    /// Convenience method for multi-tenant resource retrieval.
+    fn get_multi_tenant(
+        &self,
+        tenant_id: &str,
+        resource_type: &str,
+        id: &str,
+        request_id: Option<String>,
+    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send
+    where
+        Self: Sync,
+    {
+        async move {
+            use super::core::TenantContext;
+
+            let tenant_context = TenantContext {
+                tenant_id: tenant_id.to_string(),
+                client_id: "default-client".to_string(),
+                permissions: Default::default(),
+                isolation_level: Default::default(),
+            };
+
+            let context = match request_id {
+                Some(req_id) => RequestContext::with_tenant(req_id, tenant_context),
+                None => RequestContext::with_tenant_generated_id(tenant_context),
+            };
+
+            self.get_resource(resource_type, id, &context).await
+        }
+    }
+}
+
+/// Blanket implementation of ResourceProviderExt for all types implementing ResourceProvider.
+impl<T: ResourceProvider> ResourceProviderExt for T {}

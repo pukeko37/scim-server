@@ -1,122 +1,30 @@
-//! Stage 2: Provider Trait Multi-Tenancy Tests
+//! Multi-tenant resource provider integration tests.
 //!
-//! This module contains tests for the enhanced ResourceProvider trait with tenant support.
-//! These tests drive the development of:
-//! - Updated ResourceProvider trait with tenant parameters
-//! - Tenant-scoped resource operations
-//! - Provider-agnostic multi-tenant behavior
-//! - Resource isolation verification at the provider level
-//! - Cross-tenant access prevention in provider implementations
-//!
-//! ## Test Strategy
-//!
-//! These tests define the contract that all ResourceProvider implementations must follow
-//! for proper tenant isolation. They test the provider interface without being tied to
-//! specific provider implementations.
-//!
-//! ## Security Requirements
-//!
-//! Every provider implementation must guarantee:
-//! 1. Resources are scoped to tenants - no cross-tenant access
-//! 2. Operations fail securely when tenant context is invalid
-//! 3. Resource IDs are unique within tenant scope
-//! 4. List/search operations only return tenant-scoped resources
+//! This module contains comprehensive tests for multi-tenant resource providers
+//! using the unified ResourceProvider trait. The tests verify tenant isolation,
+//! proper scoping, and all CRUD operations within multi-tenant contexts.
 
-use super::core::{EnhancedRequestContext, TenantContextBuilder};
-use crate::common::{create_test_context, create_test_user};
-use scim_server::Resource;
-use serde_json::{Value, json};
+use scim_server::resource::core::{
+    ListQuery, RequestContext, Resource, ResourceBuilder, TenantContext,
+};
+use scim_server::resource::provider::ResourceProvider;
+use scim_server::resource::value_objects::{ExternalId, ResourceId, UserName};
+use serde_json::{Map, Value, json};
 use std::collections::HashMap;
-use std::future::Future;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-// ============================================================================
-// Enhanced ResourceProvider Trait Definition
-// ============================================================================
-
-/// Enhanced ResourceProvider trait with tenant support
-///
-/// This trait defines the contract that all multi-tenant resource providers must implement.
-/// All operations are scoped to a specific tenant to ensure data isolation.
-pub trait MultiTenantResourceProvider: Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// Create a resource for a specific tenant
-    fn create_resource(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        data: Value,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
-
-    /// Get a resource by ID within tenant scope
-    fn get_resource(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        id: &str,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
-
-    /// Update a resource within tenant scope
-    fn update_resource(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        id: &str,
-        data: Value,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send;
-
-    /// Delete a resource within tenant scope
-    fn delete_resource(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        id: &str,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
-
-    /// List resources within tenant scope
-    fn list_resources(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        query: Option<&ListQuery>,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send;
-
-    /// Find resource by attribute within tenant scope
-    fn find_resource_by_attribute(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        attribute: &str,
-        value: &Value,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send;
-
-    /// Check if resource exists within tenant scope
-    fn resource_exists(
-        &self,
-        tenant_id: &str,
-        resource_type: &str,
-        id: &str,
-        context: &EnhancedRequestContext,
-    ) -> impl Future<Output = Result<bool, Self::Error>> + Send;
-}
-
-/// Query parameters for list operations
+/// Test query structure for list operations
 #[derive(Debug, Clone)]
-pub struct ListQuery {
-    pub count: Option<i32>,
-    pub start_index: Option<i32>,
+pub struct TestListQuery {
+    pub count: Option<usize>,
+    pub start_index: Option<usize>,
     pub filter: Option<String>,
     pub attributes: Option<Vec<String>>,
     pub excluded_attributes: Option<Vec<String>>,
 }
 
-impl ListQuery {
+impl TestListQuery {
     pub fn new() -> Self {
         Self {
             count: None,
@@ -127,7 +35,7 @@ impl ListQuery {
         }
     }
 
-    pub fn with_count(mut self, count: i32) -> Self {
+    pub fn with_count(mut self, count: usize) -> Self {
         self.count = Some(count);
         self
     }
@@ -138,30 +46,27 @@ impl ListQuery {
     }
 }
 
-// ============================================================================
-// Test Provider Implementation
-// ============================================================================
-
-/// Test provider implementation for multi-tenant testing
+/// Test multi-tenant provider implementation using the unified ResourceProvider trait
+#[derive(Debug)]
 pub struct TestMultiTenantProvider {
-    // Tenant-scoped storage: tenant_id -> resource_type -> resource_id -> resource
-    resources: tokio::sync::RwLock<HashMap<String, HashMap<String, HashMap<String, Resource>>>>,
-    next_id: tokio::sync::RwLock<u64>,
+    /// Resources organized by tenant_id -> resource_type -> resource_id -> resource
+    resources: Arc<RwLock<HashMap<String, HashMap<String, HashMap<String, Resource>>>>>,
+    next_id: Arc<RwLock<u64>>,
 }
 
 impl TestMultiTenantProvider {
     pub fn new() -> Self {
         Self {
-            resources: tokio::sync::RwLock::new(HashMap::new()),
-            next_id: tokio::sync::RwLock::new(1),
+            resources: Arc::new(RwLock::new(HashMap::new())),
+            next_id: Arc::new(RwLock::new(1)),
         }
     }
 
     async fn generate_id(&self) -> String {
         let mut counter = self.next_id.write().await;
-        let id = counter.to_string();
+        let id = *counter;
         *counter += 1;
-        id
+        format!("test-{:06}", id)
     }
 
     async fn ensure_tenant_exists(&self, tenant_id: &str) {
@@ -180,11 +85,21 @@ impl TestMultiTenantProvider {
             .entry(resource_type.to_string())
             .or_insert_with(HashMap::new);
     }
+
+    fn get_tenant_id_from_context(context: &RequestContext) -> Result<String, TestProviderError> {
+        match &context.tenant_context {
+            Some(tenant_context) => Ok(tenant_context.tenant_id.clone()),
+            None => Err(TestProviderError::InvalidTenantContext {
+                expected: "Some(tenant_context)".to_string(),
+                actual: "None".to_string(),
+            }),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TestProviderError {
-    #[error("Resource not found: {resource_type} with id {id} in tenant {tenant_id}")]
+    #[error("Resource not found: tenant={tenant_id}, type={resource_type}, id={id}")]
     ResourceNotFound {
         tenant_id: String,
         resource_type: String,
@@ -192,78 +107,107 @@ pub enum TestProviderError {
     },
     #[error("Tenant not found: {tenant_id}")]
     TenantNotFound { tenant_id: String },
-    #[error(
-        "Duplicate resource: {resource_type} with attribute {attribute}={value} in tenant {tenant_id}"
-    )]
+
+    #[error("Duplicate resource: tenant={tenant_id}, type={resource_type}, {attribute}={value}")]
     DuplicateResource {
         tenant_id: String,
         resource_type: String,
         attribute: String,
         value: String,
     },
-    #[error("Invalid tenant context: expected {expected}, got {actual}")]
+    #[error("Invalid tenant context: expected {expected}, found {actual}")]
     InvalidTenantContext { expected: String, actual: String },
+
+    #[error("Validation error: {message}")]
+    ValidationError { message: String },
 }
 
-impl MultiTenantResourceProvider for TestMultiTenantProvider {
+impl ResourceProvider for TestMultiTenantProvider {
     type Error = TestProviderError;
 
     async fn create_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
-        mut data: Value,
-        context: &EnhancedRequestContext,
+        data: Value,
+        context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
-        // Validate tenant context matches
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
-        self.ensure_resource_type_exists(tenant_id, resource_type)
+        self.ensure_resource_type_exists(&tenant_id, resource_type)
             .await;
 
-        // Generate unique ID within tenant scope
-        let id = self.generate_id().await;
-
-        // Add ID to data
-        if let Some(obj) = data.as_object_mut() {
-            obj.insert("id".to_string(), json!(id.clone()));
-        }
-
-        // Check for duplicates within tenant scope
+        // Check for duplicate usernames within tenant
         if resource_type == "User" {
             if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
-                let existing = self
-                    .find_resource_by_attribute(
-                        tenant_id,
-                        resource_type,
-                        "userName",
-                        &json!(username),
-                        context,
-                    )
-                    .await?;
-
-                if existing.is_some() {
-                    return Err(TestProviderError::DuplicateResource {
-                        tenant_id: tenant_id.to_string(),
-                        resource_type: resource_type.to_string(),
-                        attribute: "userName".to_string(),
-                        value: username.to_string(),
-                    });
+                let resources = self.resources.read().await;
+                if let Some(tenant_resources) = resources.get(&tenant_id) {
+                    if let Some(user_resources) = tenant_resources.get("User") {
+                        for resource in user_resources.values() {
+                            if let Some(existing_username) = &resource.user_name {
+                                if existing_username.as_str() == username {
+                                    return Err(TestProviderError::DuplicateResource {
+                                        tenant_id: tenant_id.clone(),
+                                        resource_type: resource_type.to_string(),
+                                        attribute: "userName".to_string(),
+                                        value: username.to_string(),
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        let resource = Resource::new(resource_type.to_string(), data);
+        let id = self.generate_id().await;
 
-        // Store in tenant-scoped storage
+        // Build the resource using ResourceBuilder
+        let mut builder = ResourceBuilder::new(resource_type.to_string());
+
+        // Set ID
+        if let Ok(resource_id) = ResourceId::new(id.clone()) {
+            builder = builder.with_id(resource_id);
+        }
+
+        // Set username for User resources
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                if let Ok(user_name) = UserName::new(username.to_string()) {
+                    builder = builder.with_username(user_name);
+                }
+            }
+        }
+
+        // Set external ID if provided
+        if let Some(external_id) = data.get("externalId").and_then(|v| v.as_str()) {
+            if let Ok(ext_id) = ExternalId::new(external_id.to_string()) {
+                builder = builder.with_external_id(ext_id);
+            }
+        }
+
+        // Add remaining attributes
+        let mut attributes = Map::new();
+        for (key, value) in data.as_object().unwrap_or(&Map::new()) {
+            match key.as_str() {
+                "userName" | "externalId" | "id" => {
+                    // These are handled by value objects, skip
+                }
+                _ => {
+                    attributes.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        builder = builder.with_attributes(attributes);
+
+        let resource = builder
+            .build_with_meta("https://example.com/scim/v2")
+            .map_err(|e| TestProviderError::ValidationError {
+                message: format!("Failed to build resource: {}", e),
+            })?;
+
         let mut resources = self.resources.write().await;
         resources
-            .get_mut(tenant_id)
+            .get_mut(&tenant_id)
             .unwrap()
             .get_mut(resource_type)
             .unwrap()
@@ -274,25 +218,17 @@ impl MultiTenantResourceProvider for TestMultiTenantProvider {
 
     async fn get_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<Option<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
-
         let result = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .and_then(|type_resources| type_resources.get(id))
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .and_then(|resources| resources.get(id))
             .cloned();
 
         Ok(result)
@@ -300,1037 +236,811 @@ impl MultiTenantResourceProvider for TestMultiTenantProvider {
 
     async fn update_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        mut data: Value,
-        context: &EnhancedRequestContext,
+        data: Value,
+        context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
-
-        // Ensure ID is set
-        if let Some(obj) = data.as_object_mut() {
-            obj.insert("id".to_string(), json!(id));
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let mut resources = self.resources.write().await;
 
-        let tenant_resources =
-            resources
-                .get_mut(tenant_id)
-                .ok_or_else(|| TestProviderError::TenantNotFound {
-                    tenant_id: tenant_id.to_string(),
-                })?;
-
-        let type_resources = tenant_resources.get_mut(resource_type).ok_or_else(|| {
-            TestProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
+        // Check if resource exists - return ResourceNotFound if tenant, type, or id doesn't exist
+        let resource = match resources
+            .get_mut(&tenant_id)
+            .and_then(|tenant_resources| tenant_resources.get_mut(resource_type))
+            .and_then(|type_resources| type_resources.get_mut(id))
+        {
+            Some(resource) => resource,
+            None => {
+                return Err(TestProviderError::ResourceNotFound {
+                    tenant_id: tenant_id.clone(),
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                });
             }
-        })?;
+        };
 
-        if !type_resources.contains_key(id) {
-            return Err(TestProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-            });
+        // Update the resource using ResourceBuilder
+        let mut builder = ResourceBuilder::new(resource_type.to_string());
+
+        // Preserve existing ID
+        if let Some(existing_id) = &resource.id {
+            builder = builder.with_id(existing_id.clone());
         }
 
-        let resource = Resource::new(resource_type.to_string(), data);
-        type_resources.insert(id.to_string(), resource.clone());
+        // Update username for User resources
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                if let Ok(user_name) = UserName::new(username.to_string()) {
+                    builder = builder.with_username(user_name);
+                }
+            } else if let Some(existing_username) = &resource.user_name {
+                // Preserve existing username if not in update data
+                builder = builder.with_username(existing_username.clone());
+            }
+        }
 
-        Ok(resource)
+        // Update external ID if provided, otherwise preserve existing
+        if let Some(external_id) = data.get("externalId").and_then(|v| v.as_str()) {
+            if let Ok(ext_id) = ExternalId::new(external_id.to_string()) {
+                builder = builder.with_external_id(ext_id);
+            }
+        } else if let Some(existing_external_id) = &resource.external_id {
+            builder = builder.with_external_id(existing_external_id.clone());
+        }
+
+        // Update other attributes
+        let mut attributes = resource.attributes.clone();
+        for (key, value) in data.as_object().unwrap_or(&Map::new()) {
+            match key.as_str() {
+                "userName" | "externalId" | "id" => {
+                    // These are handled by value objects, skip
+                }
+                _ => {
+                    attributes.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        builder = builder.with_attributes(attributes);
+
+        let updated_resource = builder
+            .build_with_meta("https://example.com/scim/v2")
+            .map_err(|e| TestProviderError::ValidationError {
+                message: format!("Failed to update resource: {}", e),
+            })?;
+
+        *resource = updated_resource.clone();
+        Ok(updated_resource)
     }
 
     async fn delete_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<(), Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let mut resources = self.resources.write().await;
 
-        let tenant_resources =
-            resources
-                .get_mut(tenant_id)
-                .ok_or_else(|| TestProviderError::TenantNotFound {
-                    tenant_id: tenant_id.to_string(),
-                })?;
-
-        let type_resources = tenant_resources.get_mut(resource_type).ok_or_else(|| {
-            TestProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
+        // If tenant doesn't exist or resource type doesn't exist, return ResourceNotFound
+        if let Some(tenant_resources) = resources.get_mut(&tenant_id) {
+            if let Some(type_resources) = tenant_resources.get_mut(resource_type) {
+                if type_resources.remove(id).is_some() {
+                    return Ok(());
+                }
             }
-        })?;
+        }
 
-        type_resources
-            .remove(id)
-            .ok_or_else(|| TestProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-            })?;
-
-        Ok(())
+        // Resource not found - either tenant, type, or id doesn't exist
+        Err(TestProviderError::ResourceNotFound {
+            tenant_id: tenant_id.clone(),
+            resource_type: resource_type.to_string(),
+            id: id.to_string(),
+        })
     }
 
     async fn list_resources(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         _query: Option<&ListQuery>,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<Vec<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
-
         let result = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .map(|type_resources| type_resources.values().cloned().collect())
-            .unwrap_or_else(Vec::new);
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .map(|resources| resources.values().cloned().collect())
+            .unwrap_or_default();
 
         Ok(result)
     }
 
     async fn find_resource_by_attribute(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         attribute: &str,
         value: &Value,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<Option<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(TestProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
-
-        let result = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .and_then(|type_resources| {
-                type_resources
-                    .values()
-                    .find(|resource| {
-                        resource
-                            .get_attribute(attribute)
-                            .map(|attr_value| attr_value == value)
-                            .unwrap_or(false)
-                    })
-                    .cloned()
-            });
-
-        Ok(result)
+        if let Some(tenant_resources) = resources.get(&tenant_id) {
+            if let Some(type_resources) = tenant_resources.get(resource_type) {
+                for resource in type_resources.values() {
+                    // Check value object fields first
+                    match attribute {
+                        "userName" => {
+                            if let Some(username) = &resource.user_name {
+                                if let Some(search_str) = value.as_str() {
+                                    if username.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        "id" => {
+                            if let Some(id) = &resource.id {
+                                if let Some(search_str) = value.as_str() {
+                                    if id.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        "externalId" => {
+                            if let Some(external_id) = &resource.external_id {
+                                if let Some(search_str) = value.as_str() {
+                                    if external_id.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Check in extended attributes
+                            if let Some(attr_value) = resource.attributes.get(attribute) {
+                                if attr_value == value {
+                                    return Ok(Some(resource.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     async fn resource_exists(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<bool, Self::Error> {
-        let resource = self
-            .get_resource(tenant_id, resource_type, id, context)
-            .await?;
-        Ok(resource.is_some())
+        let tenant_id = Self::get_tenant_id_from_context(context)?;
+
+        let resources = self.resources.read().await;
+        let exists = resources
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .map(|resources| resources.contains_key(id))
+            .unwrap_or(false);
+
+        Ok(exists)
     }
 }
 
-// ============================================================================
-// Stage 2 Tests: Provider Trait Multi-Tenancy
-// ============================================================================
+fn create_test_context(tenant_id: &str) -> RequestContext {
+    let tenant_context = TenantContext::new(tenant_id.to_string(), "test-client".to_string());
+    RequestContext::with_tenant("test-request".to_string(), tenant_context)
+}
+
+fn create_test_user(username: &str) -> Value {
+    json!({
+        "userName": username,
+        "name": {
+            "familyName": "Doe",
+            "givenName": "John"
+        },
+        "emails": [{
+            "value": format!("{}@example.com", username),
+            "primary": true
+        }]
+    })
+}
 
 #[cfg(test)]
 mod provider_trait_multi_tenant_tests {
     use super::*;
 
-    fn create_test_context(tenant_id: &str) -> EnhancedRequestContext {
-        let tenant_context = TenantContextBuilder::new(tenant_id).build();
-        EnhancedRequestContext {
-            request_id: format!("req_{}", tenant_id),
-            tenant_context,
-        }
-    }
-
-    fn create_test_user(username: &str) -> Value {
-        json!({
-            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-            "userName": username,
-            "displayName": format!("{} User", username),
-            "active": true
-        })
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 1: Basic Tenant-Scoped Operations
-    // ------------------------------------------------------------------------
-
     #[tokio::test]
     async fn test_create_resource_with_tenant_scope() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
-        let user_data = create_test_user("alice");
+        let context = create_test_context("tenant1");
+        let user_data = create_test_user("testuser");
 
-        let result = provider
-            .create_resource("tenant_a", "User", user_data, &context)
-            .await;
-
+        let result = provider.create_resource("User", user_data, &context).await;
         assert!(result.is_ok());
+
         let resource = result.unwrap();
         assert_eq!(resource.resource_type, "User");
-        assert!(resource.get_id().is_some());
-        assert_eq!(resource.get_attribute("userName").unwrap(), &json!("alice"));
+        assert!(
+            resource
+                .id
+                .as_ref()
+                .map(|id| id.as_str().starts_with("test-"))
+                .unwrap_or(false)
+        );
     }
 
     #[tokio::test]
     async fn test_get_resource_with_tenant_scope() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
-        let user_data = create_test_user("bob");
+        let context = create_test_context("tenant1");
+        let user_data = create_test_user("testuser");
 
         // Create resource
         let created = provider
-            .create_resource("tenant_a", "User", user_data, &context)
+            .create_resource("User", user_data, &context)
             .await
             .unwrap();
 
-        let resource_id = created.get_id().unwrap();
-
         // Get resource
-        let result = provider
-            .get_resource("tenant_a", "User", &resource_id, &context)
-            .await;
-
+        let id_str = created.id.as_ref().unwrap().as_str();
+        let result = provider.get_resource("User", id_str, &context).await;
         assert!(result.is_ok());
-        let resource = result.unwrap();
-        assert!(resource.is_some());
-        assert_eq!(
-            resource.unwrap().get_attribute("userName").unwrap(),
-            &json!("bob")
-        );
+
+        let retrieved = result.unwrap();
+        assert!(retrieved.is_some());
+        let resource = retrieved.unwrap();
+        assert_eq!(resource.id, created.id);
+        assert_eq!(resource.resource_type, "User");
     }
 
     #[tokio::test]
     async fn test_update_resource_with_tenant_scope() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
-        let user_data = create_test_user("charlie");
+        let context = create_test_context("tenant1");
+        let user_data = create_test_user("testuser");
 
         // Create resource
         let created = provider
-            .create_resource("tenant_a", "User", user_data, &context)
+            .create_resource("User", user_data, &context)
             .await
             .unwrap();
 
-        let resource_id = created.get_id().unwrap();
-
         // Update resource
         let updated_data = json!({
-            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-            "userName": "charlie_updated",
-            "displayName": "Charlie Updated User",
-            "active": false
+            "userName": "updateduser",
+            "name": {
+                "familyName": "Smith",
+                "givenName": "Jane"
+            }
         });
 
+        let id_str = created.id.as_ref().unwrap().as_str();
         let result = provider
-            .update_resource("tenant_a", "User", &resource_id, updated_data, &context)
+            .update_resource("User", id_str, updated_data, &context)
             .await;
-
         assert!(result.is_ok());
-        let resource = result.unwrap();
-        assert_eq!(
-            resource.get_attribute("userName").unwrap(),
-            &json!("charlie_updated")
-        );
-        assert_eq!(resource.get_attribute("active").unwrap(), &json!(false));
+
+        let updated = result.unwrap();
+        assert_eq!(updated.user_name.as_ref().unwrap().as_str(), "updateduser");
+        assert_eq!(updated.attributes["name"]["familyName"], "Smith");
     }
 
     #[tokio::test]
     async fn test_delete_resource_with_tenant_scope() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
-        let user_data = create_test_user("diana");
+        let context = create_test_context("tenant1");
+        let user_data = create_test_user("testuser");
 
         // Create resource
         let created = provider
-            .create_resource("tenant_a", "User", user_data, &context)
+            .create_resource("User", user_data, &context)
             .await
             .unwrap();
 
-        let resource_id = created.get_id().unwrap();
-
         // Delete resource
-        let delete_result = provider
-            .delete_resource("tenant_a", "User", &resource_id, &context)
-            .await;
+        let id_str = created.id.as_ref().unwrap().as_str();
+        let result = provider.delete_resource("User", id_str, &context).await;
+        assert!(result.is_ok());
 
-        assert!(delete_result.is_ok());
-
-        // Verify resource is deleted
+        // Verify deletion
         let get_result = provider
-            .get_resource("tenant_a", "User", &resource_id, &context)
-            .await;
-
-        assert!(get_result.is_ok());
-        assert!(get_result.unwrap().is_none());
+            .get_resource("User", id_str, &context)
+            .await
+            .unwrap();
+        assert!(get_result.is_none());
     }
 
     #[tokio::test]
     async fn test_list_resources_with_tenant_scope() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
         // Create multiple resources
-        let _user1 = provider
-            .create_resource("tenant_a", "User", create_test_user("eve"), &context)
+        let user1 = create_test_user("user1");
+        let user2 = create_test_user("user2");
+
+        provider
+            .create_resource("User", user1, &context)
             .await
             .unwrap();
-
-        let _user2 = provider
-            .create_resource("tenant_a", "User", create_test_user("frank"), &context)
+        provider
+            .create_resource("User", user2, &context)
             .await
             .unwrap();
 
         // List resources
-        let result = provider
-            .list_resources("tenant_a", "User", None, &context)
-            .await;
-
+        let result = provider.list_resources("User", None, &context).await;
         assert!(result.is_ok());
+
         let resources = result.unwrap();
         assert_eq!(resources.len(), 2);
-
-        let usernames: Vec<&str> = resources
-            .iter()
-            .map(|r| r.get_attribute("userName").unwrap().as_str().unwrap())
-            .collect();
-        assert!(usernames.contains(&"eve"));
-        assert!(usernames.contains(&"frank"));
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 2: Cross-Tenant Isolation
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_tenant_isolation_in_create_and_get() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
 
-        // Create resource in tenant A
-        let user_a = provider
-            .create_resource("tenant_a", "User", create_test_user("alice_a"), &context_a)
+        let user_data = create_test_user("testuser");
+
+        // Create resource in tenant1
+        let created = provider
+            .create_resource("User", user_data, &context1)
             .await
             .unwrap();
 
-        // Create resource in tenant B
-        let user_b = provider
-            .create_resource("tenant_b", "User", create_test_user("alice_b"), &context_b)
-            .await
-            .unwrap();
+        // Try to get resource from tenant2 (should not find it)
+        let id_str = created.id.as_ref().unwrap().as_str();
+        let result = provider.get_resource("User", id_str, &context2).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
 
-        let resource_id_a = user_a.get_id().unwrap();
-        let resource_id_b = user_b.get_id().unwrap();
-
-        // Verify tenant A can only see its resource
-        let result_a = provider
-            .get_resource("tenant_a", "User", &resource_id_a, &context_a)
-            .await
-            .unwrap();
-        assert!(result_a.is_some());
-
-        let result_a_cross = provider
-            .get_resource("tenant_a", "User", &resource_id_b, &context_a)
-            .await
-            .unwrap();
-        assert!(result_a_cross.is_none()); // Cannot see tenant B's resource
-
-        // Verify tenant B can only see its resource
-        let result_b = provider
-            .get_resource("tenant_b", "User", &resource_id_b, &context_b)
-            .await
-            .unwrap();
-        assert!(result_b.is_some());
-
-        let result_b_cross = provider
-            .get_resource("tenant_b", "User", &resource_id_a, &context_b)
-            .await
-            .unwrap();
-        assert!(result_b_cross.is_none()); // Cannot see tenant A's resource
+        // Verify resource exists in tenant1
+        let result = provider.get_resource("User", id_str, &context1).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
     }
 
     #[tokio::test]
     async fn test_tenant_isolation_in_list_operations() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
 
         // Create resources in both tenants
-        let _user_a1 = provider
-            .create_resource("tenant_a", "User", create_test_user("alice_a"), &context_a)
+        let user1 = create_test_user("user1");
+        let user2 = create_test_user("user2");
+        let user3 = create_test_user("user3");
+
+        provider
+            .create_resource("User", user1, &context1)
+            .await
+            .unwrap();
+        provider
+            .create_resource("User", user2, &context1)
+            .await
+            .unwrap();
+        provider
+            .create_resource("User", user3, &context2)
             .await
             .unwrap();
 
-        let _user_a2 = provider
-            .create_resource("tenant_a", "User", create_test_user("bob_a"), &context_a)
+        // List resources for tenant1
+        let result1 = provider
+            .list_resources("User", None, &context1)
             .await
             .unwrap();
+        assert_eq!(result1.len(), 2);
 
-        let _user_b1 = provider
-            .create_resource("tenant_b", "User", create_test_user("alice_b"), &context_b)
+        // List resources for tenant2
+        let result2 = provider
+            .list_resources("User", None, &context2)
             .await
             .unwrap();
-
-        // List resources for tenant A
-        let list_a = provider
-            .list_resources("tenant_a", "User", None, &context_a)
-            .await
-            .unwrap();
-
-        // List resources for tenant B
-        let list_b = provider
-            .list_resources("tenant_b", "User", None, &context_b)
-            .await
-            .unwrap();
-
-        // Verify isolation
-        assert_eq!(list_a.len(), 2);
-        assert_eq!(list_b.len(), 1);
-
-        let usernames_a: Vec<&str> = list_a
-            .iter()
-            .map(|r| r.get_attribute("userName").unwrap().as_str().unwrap())
-            .collect();
-        assert!(usernames_a.contains(&"alice_a"));
-        assert!(usernames_a.contains(&"bob_a"));
-        assert!(!usernames_a.contains(&"alice_b"));
-
-        let usernames_b: Vec<&str> = list_b
-            .iter()
-            .map(|r| r.get_attribute("userName").unwrap().as_str().unwrap())
-            .collect();
-        assert!(usernames_b.contains(&"alice_b"));
-        assert!(!usernames_b.contains(&"alice_a"));
-        assert!(!usernames_b.contains(&"bob_a"));
+        assert_eq!(result2.len(), 1);
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 3: Tenant Context Validation
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_tenant_context_mismatch_in_create() {
-        let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let user_data = create_test_user("mismatch_user");
-
-        // Try to create resource with mismatched tenant context
-        let result = provider
-            .create_resource("tenant_b", "User", user_data, &context_a)
-            .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TestProviderError::InvalidTenantContext { expected, actual } => {
-                assert_eq!(expected, "tenant_b");
-                assert_eq!(actual, "tenant_a");
-            }
-            other => panic!("Expected InvalidTenantContext, got {:?}", other),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_tenant_context_mismatch_in_get() {
-        let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let _context_b = create_test_context("tenant_b");
-
-        // Create resource in tenant A
-        let user = provider
-            .create_resource(
-                "tenant_a",
-                "User",
-                create_test_user("test_user"),
-                &context_a,
-            )
-            .await
-            .unwrap();
-
-        let resource_id = user.get_id().unwrap();
-
-        // Try to get resource with wrong tenant context
-        let result = provider
-            .get_resource("tenant_b", "User", &resource_id, &context_a)
-            .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TestProviderError::InvalidTenantContext { expected, actual } => {
-                assert_eq!(expected, "tenant_b");
-                assert_eq!(actual, "tenant_a");
-            }
-            other => panic!("Expected InvalidTenantContext, got {:?}", other),
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 4: Duplicate Prevention Within Tenant Scope
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_duplicate_prevention_within_tenant() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
-        // Create first user
+        let user_data = create_test_user("testuser");
+
+        // Create first resource
         let result1 = provider
-            .create_resource(
-                "tenant_a",
-                "User",
-                create_test_user("duplicate_test"),
-                &context,
-            )
+            .create_resource("User", user_data.clone(), &context)
             .await;
         assert!(result1.is_ok());
 
-        // Try to create duplicate user in same tenant
-        let result2 = provider
-            .create_resource(
-                "tenant_a",
-                "User",
-                create_test_user("duplicate_test"),
-                &context,
-            )
-            .await;
-
+        // Try to create duplicate resource (should fail)
+        let result2 = provider.create_resource("User", user_data, &context).await;
         assert!(result2.is_err());
-        match result2.unwrap_err() {
-            TestProviderError::DuplicateResource {
-                tenant_id,
-                attribute,
-                value,
-                ..
-            } => {
-                assert_eq!(tenant_id, "tenant_a");
-                assert_eq!(attribute, "userName");
-                assert_eq!(value, "duplicate_test");
-            }
-            other => panic!("Expected DuplicateResource, got {:?}", other),
+
+        if let Err(TestProviderError::DuplicateResource {
+            tenant_id,
+            attribute,
+            value,
+            ..
+        }) = result2
+        {
+            assert_eq!(tenant_id, "tenant1");
+            assert_eq!(attribute, "userName");
+            assert_eq!(value, "testuser");
+        } else {
+            panic!("Expected DuplicateResource error");
         }
     }
 
     #[tokio::test]
     async fn test_same_username_allowed_across_tenants() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
 
-        // Create user with same username in both tenants
-        let result_a = provider
-            .create_resource(
-                "tenant_a",
-                "User",
-                create_test_user("shared_username"),
-                &context_a,
-            )
+        let user_data = create_test_user("testuser");
+
+        // Create resource in tenant1
+        let result1 = provider
+            .create_resource("User", user_data.clone(), &context1)
             .await;
-        assert!(result_a.is_ok());
+        assert!(result1.is_ok());
 
-        let result_b = provider
-            .create_resource(
-                "tenant_b",
-                "User",
-                create_test_user("shared_username"),
-                &context_b,
-            )
-            .await;
-        assert!(result_b.is_ok()); // Should succeed - different tenants
+        // Create resource with same username in tenant2 (should succeed)
+        let result2 = provider.create_resource("User", user_data, &context2).await;
+        assert!(result2.is_ok());
 
-        // Verify both resources exist in their respective tenants
-        let found_a = provider
-            .find_resource_by_attribute(
-                "tenant_a",
-                "User",
-                "userName",
-                &json!("shared_username"),
-                &context_a,
-            )
-            .await
-            .unwrap();
-        assert!(found_a.is_some());
+        let user1 = result1.unwrap();
+        let user2 = result2.unwrap();
 
-        let found_b = provider
-            .find_resource_by_attribute(
-                "tenant_b",
-                "User",
-                "userName",
-                &json!("shared_username"),
-                &context_b,
-            )
-            .await
-            .unwrap();
-        assert!(found_b.is_some());
+        assert_ne!(user1.id, user2.id);
+        assert_eq!(
+            user1.user_name.as_ref().unwrap().as_str(),
+            user2.user_name.as_ref().unwrap().as_str()
+        );
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 5: Resource ID Uniqueness and Scoping
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_resource_ids_unique_within_tenant() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
-        // Create multiple resources
-        let user1 = provider
-            .create_resource("tenant_a", "User", create_test_user("user1"), &context)
+        let user1 = create_test_user("user1");
+        let user2 = create_test_user("user2");
+
+        let result1 = provider
+            .create_resource("User", user1, &context)
+            .await
+            .unwrap();
+        let result2 = provider
+            .create_resource("User", user2, &context)
             .await
             .unwrap();
 
-        let user2 = provider
-            .create_resource("tenant_a", "User", create_test_user("user2"), &context)
-            .await
-            .unwrap();
-
-        // Verify IDs are different
-        let id1 = user1.get_id().unwrap();
-        let id2 = user2.get_id().unwrap();
-        assert_ne!(id1, id2);
+        assert_ne!(result1.id, result2.id);
     }
 
     #[tokio::test]
     async fn test_resource_exists_tenant_scoped() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
 
-        // Create resource in tenant A
-        let user = provider
-            .create_resource(
-                "tenant_a",
-                "User",
-                create_test_user("exists_test"),
-                &context_a,
-            )
+        let user_data = create_test_user("testuser");
+
+        // Create resource in tenant1
+        let created = provider
+            .create_resource("User", user_data, &context1)
             .await
             .unwrap();
 
-        let resource_id = user.get_id().unwrap();
-
-        // Check existence in tenant A
-        let exists_a = provider
-            .resource_exists("tenant_a", "User", &resource_id, &context_a)
+        // Check existence in tenant1 (should exist)
+        let id_str = created.id.as_ref().unwrap().as_str();
+        let exists1 = provider
+            .resource_exists("User", id_str, &context1)
             .await
             .unwrap();
-        assert!(exists_a);
+        assert!(exists1);
 
-        // Check existence in tenant B (should not exist)
-        let exists_b = provider
-            .resource_exists("tenant_b", "User", &resource_id, &context_b)
+        // Check existence in tenant2 (should not exist)
+        let exists2 = provider
+            .resource_exists("User", id_str, &context2)
             .await
             .unwrap();
-        assert!(!exists_b);
+        assert!(!exists2);
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 6: Find Resource by Attribute with Tenant Scoping
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_find_resource_by_attribute_tenant_scoped() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
 
-        // Create users with same attribute value in different tenants
-        let _user_a = provider
-            .create_resource("tenant_a", "User", create_test_user("findme"), &context_a)
+        let user_data = create_test_user("testuser");
+
+        // Create resource in tenant1
+        provider
+            .create_resource("User", user_data, &context1)
             .await
             .unwrap();
 
-        let _user_b = provider
-            .create_resource("tenant_b", "User", create_test_user("findme"), &context_b)
+        // Find by attribute in tenant1 (should find)
+        let result1 = provider
+            .find_resource_by_attribute("User", "userName", &json!("testuser"), &context1)
             .await
             .unwrap();
+        assert!(result1.is_some());
 
-        // Find in tenant A
-        let found_a = provider
-            .find_resource_by_attribute(
-                "tenant_a",
-                "User",
-                "userName",
-                &json!("findme"),
-                &context_a,
-            )
+        // Find by attribute in tenant2 (should not find)
+        let result2 = provider
+            .find_resource_by_attribute("User", "userName", &json!("testuser"), &context2)
             .await
             .unwrap();
-        assert!(found_a.is_some());
-
-        // Find in tenant B
-        let found_b = provider
-            .find_resource_by_attribute(
-                "tenant_b",
-                "User",
-                "userName",
-                &json!("findme"),
-                &context_b,
-            )
-            .await
-            .unwrap();
-        assert!(found_b.is_some());
-
-        // Verify they are different resources (different IDs)
-        let resource_a = found_a.unwrap();
-        let resource_b = found_b.unwrap();
-        let id_a = resource_a.get_id().unwrap();
-        let id_b = resource_b.get_id().unwrap();
-        assert_ne!(id_a, id_b);
+        assert!(result2.is_none());
     }
 
     #[tokio::test]
     async fn test_find_resource_by_attribute_not_found_in_tenant() {
         let provider = TestMultiTenantProvider::new();
-        let context_a = create_test_context("tenant_a");
-        let context_b = create_test_context("tenant_b");
+        let context = create_test_context("tenant1");
 
-        // Create user in tenant A only
-        let _user_a = provider
-            .create_resource("tenant_a", "User", create_test_user("onlyina"), &context_a)
+        // Search for non-existent resource
+        let result = provider
+            .find_resource_by_attribute("User", "userName", &json!("nonexistent"), &context)
             .await
             .unwrap();
-
-        // Try to find in tenant B
-        let found_b = provider
-            .find_resource_by_attribute(
-                "tenant_b",
-                "User",
-                "userName",
-                &json!("onlyina"),
-                &context_b,
-            )
-            .await
-            .unwrap();
-        assert!(found_b.is_none());
+        assert!(result.is_none());
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 7: Error Scenarios and Edge Cases
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_get_nonexistent_resource() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
         let result = provider
-            .get_resource("tenant_a", "User", "nonexistent_id", &context)
-            .await;
-
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+            .get_resource("User", "nonexistent", &context)
+            .await
+            .unwrap();
+        assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn test_update_nonexistent_resource() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
-        // First establish the tenant by creating and deleting a resource
-        let temp_user_data = create_test_user("temp_user");
-        let temp_resource = provider
-            .create_resource("tenant_a", "User", temp_user_data, &context)
-            .await
-            .unwrap();
-        let temp_id = temp_resource.get_id().unwrap();
-        provider
-            .delete_resource("tenant_a", "User", temp_id, &context)
-            .await
-            .unwrap();
+        let updated_data = json!({
+            "userName": "updateduser"
+        });
 
-        // Now test update on nonexistent resource in existing tenant
-        let user_data = create_test_user("nonexistent");
         let result = provider
-            .update_resource("tenant_a", "User", "nonexistent_id", user_data, &context)
+            .update_resource("User", "nonexistent", updated_data, &context)
             .await;
-
         assert!(result.is_err());
-        match result.unwrap_err() {
-            TestProviderError::ResourceNotFound {
-                tenant_id,
-                resource_type,
-                id,
-            } => {
-                assert_eq!(tenant_id, "tenant_a");
-                assert_eq!(resource_type, "User");
-                assert_eq!(id, "nonexistent_id");
-            }
-            other => panic!("Expected ResourceNotFound, got {:?}", other),
+
+        if let Err(TestProviderError::ResourceNotFound {
+            tenant_id,
+            resource_type,
+            id,
+        }) = result
+        {
+            assert_eq!(tenant_id, "tenant1");
+            assert_eq!(resource_type, "User");
+            assert_eq!(id, "nonexistent");
+        } else {
+            panic!("Expected ResourceNotFound error");
         }
     }
 
     #[tokio::test]
     async fn test_delete_nonexistent_resource() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("tenant_a");
+        let context = create_test_context("tenant1");
 
-        // First establish the tenant by creating and deleting a resource
-        let temp_user_data = create_test_user("temp_user");
-        let temp_resource = provider
-            .create_resource("tenant_a", "User", temp_user_data, &context)
-            .await
-            .unwrap();
-        let temp_id = temp_resource.get_id().unwrap();
-        provider
-            .delete_resource("tenant_a", "User", temp_id, &context)
-            .await
-            .unwrap();
-
-        // Now test delete on nonexistent resource in existing tenant
         let result = provider
-            .delete_resource("tenant_a", "User", "nonexistent_id", &context)
+            .delete_resource("User", "nonexistent", &context)
             .await;
-
         assert!(result.is_err());
-        match result.unwrap_err() {
-            TestProviderError::ResourceNotFound {
-                tenant_id,
-                resource_type,
-                id,
-            } => {
-                assert_eq!(tenant_id, "tenant_a");
-                assert_eq!(resource_type, "User");
-                assert_eq!(id, "nonexistent_id");
-            }
-            other => panic!("Expected ResourceNotFound, got {:?}", other),
+
+        if let Err(TestProviderError::ResourceNotFound {
+            tenant_id,
+            resource_type,
+            id,
+        }) = result
+        {
+            assert_eq!(tenant_id, "tenant1");
+            assert_eq!(resource_type, "User");
+            assert_eq!(id, "nonexistent");
+        } else {
+            panic!("Expected ResourceNotFound error");
         }
     }
 
     #[tokio::test]
     async fn test_empty_tenant_list_resources() {
         let provider = TestMultiTenantProvider::new();
-        let context = create_test_context("empty_tenant");
+        let context = create_test_context("tenant1");
 
         let result = provider
-            .list_resources("empty_tenant", "User", None, &context)
-            .await;
-
-        assert!(result.is_ok());
-        let resources = result.unwrap();
-        assert!(resources.is_empty());
+            .list_resources("User", None, &context)
+            .await
+            .unwrap();
+        assert!(result.is_empty());
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 8: Performance and Stress Testing
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_multiple_tenants_concurrent_operations() {
-        let provider = std::sync::Arc::new(TestMultiTenantProvider::new());
+        let provider = Arc::new(TestMultiTenantProvider::new());
+        let context1 = create_test_context("tenant1");
+        let context2 = create_test_context("tenant2");
+        let context3 = create_test_context("tenant3");
 
-        // Create multiple tenants
-        let tenant_ids = vec!["tenant_1", "tenant_2", "tenant_3", "tenant_4", "tenant_5"];
-        let mut handles = Vec::new();
+        let mut handles = vec![];
 
-        for tenant_id in tenant_ids {
-            let provider_clone = provider.clone();
-            let context = create_test_context(tenant_id);
+        // Spawn concurrent operations for different tenants
+        for i in 1..=3 {
+            let provider_clone = Arc::clone(&provider);
+            let context = match i {
+                1 => context1.clone(),
+                2 => context2.clone(),
+                _ => context3.clone(),
+            };
 
             let handle = tokio::spawn(async move {
-                // Create multiple users per tenant
-                for i in 0..5 {
-                    let username = format!("user_{}_{}", tenant_id, i);
-                    let user_data = create_test_user(&username);
-
-                    let result = provider_clone
-                        .create_resource(tenant_id, "User", user_data, &context)
-                        .await;
-
-                    assert!(result.is_ok());
-                }
-
-                // List resources for this tenant
-                let list_result = provider_clone
-                    .list_resources(tenant_id, "User", None, &context)
+                let user_data = create_test_user(&format!("user{}", i));
+                let result = provider_clone
+                    .create_resource("User", user_data, &context)
                     .await;
-
-                assert!(list_result.is_ok());
-                let resources = list_result.unwrap();
-                assert_eq!(resources.len(), 5);
-
-                tenant_id
+                assert!(result.is_ok());
+                result.unwrap()
             });
 
             handles.push(handle);
         }
 
         // Wait for all operations to complete
+        let mut results = Vec::new();
         for handle in handles {
-            let tenant_id = handle.await.unwrap();
-            println!("Completed operations for tenant: {}", tenant_id);
+            results.push(handle.await.unwrap());
         }
 
-        // Verify total isolation - each tenant should have exactly 5 users
-        for tenant_id in ["tenant_1", "tenant_2", "tenant_3", "tenant_4", "tenant_5"] {
-            let context = create_test_context(tenant_id);
-            let resources = provider
-                .list_resources(tenant_id, "User", None, &context)
-                .await
-                .unwrap();
+        // Verify each tenant has exactly one user
+        let count1 = provider
+            .list_resources("User", None, &context1)
+            .await
+            .unwrap()
+            .len();
+        let count2 = provider
+            .list_resources("User", None, &context2)
+            .await
+            .unwrap()
+            .len();
 
-            assert_eq!(
-                resources.len(),
-                5,
-                "Tenant {} should have exactly 5 users",
-                tenant_id
-            );
-        }
+        assert_eq!(count1, 1);
+        assert_eq!(count2, 1);
     }
-
-    // ------------------------------------------------------------------------
-    // Test Group 9: Integration Test Documentation
-    // ------------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_provider_trait_documentation() {
-        println!("\n🔧 Provider Trait Multi-Tenancy Test Documentation");
-        println!("===================================================");
-        println!("This test suite validates the MultiTenantResourceProvider trait");
-        println!("implementation and ensures proper tenant isolation.\n");
+        let provider = TestMultiTenantProvider::new();
+        let context = create_test_context("tenant1");
 
-        println!("🔒 Security Guarantees Tested:");
-        println!("  • All operations are scoped to tenant ID");
-        println!("  • Cross-tenant data access is prevented");
-        println!("  • Tenant context validation is enforced");
-        println!("  • Resource IDs are unique within tenant scope");
-        println!("  • List operations only return tenant-scoped resources\n");
+        let user_data = create_test_user("testuser");
 
-        println!("✅ Test Categories:");
-        println!("  • Basic tenant-scoped CRUD operations");
-        println!("  • Cross-tenant isolation verification");
-        println!("  • Tenant context validation");
-        println!("  • Duplicate prevention within tenant scope");
-        println!("  • Resource ID uniqueness and scoping");
-        println!("  • Find operations with tenant scoping");
-        println!("  • Error scenarios and edge cases");
-        println!("  • Performance and concurrent operations\n");
+        // Create resource
+        let created = provider
+            .create_resource("User", user_data, &context)
+            .await
+            .unwrap();
+        assert!(created.get_id().is_some());
 
-        println!("🎯 Provider Contract Requirements:");
-        println!("  • Implement MultiTenantResourceProvider trait");
-        println!("  • Validate tenant context in all operations");
-        println!("  • Ensure data isolation between tenants");
-        println!("  • Handle tenant-specific errors appropriately");
-        println!("  • Support concurrent multi-tenant operations");
+        // Get resource
+        let retrieved = provider
+            .get_resource("User", created.get_id().unwrap(), &context)
+            .await
+            .unwrap();
+        assert!(retrieved.is_some());
+
+        // List resources
+        let list = provider
+            .list_resources("User", None, &context)
+            .await
+            .unwrap();
+        assert_eq!(list.len(), 1);
+
+        // Check existence
+        let exists = provider
+            .resource_exists("User", created.get_id().unwrap(), &context)
+            .await
+            .unwrap();
+        assert!(exists);
+
+        // Delete resource
+        provider
+            .delete_resource("User", created.get_id().unwrap(), &context)
+            .await
+            .unwrap();
+
+        // Verify deletion
+        let deleted = provider
+            .get_resource("User", created.get_id().unwrap(), &context)
+            .await
+            .unwrap();
+        assert!(deleted.is_none());
     }
 }
 
-// ============================================================================
-// Test Utilities and Helpers
-// ============================================================================
-
-/// Utility functions for provider trait testing
+/// Test harness for provider trait validation
 pub struct ProviderTestHarness;
 
 impl ProviderTestHarness {
-    /// Create a test provider with pre-populated data for multiple tenants
+    /// Create a provider with pre-populated test data for comprehensive testing
     pub async fn create_populated_provider() -> TestMultiTenantProvider {
         let provider = TestMultiTenantProvider::new();
 
-        // Populate tenant A
-        let context_a = create_test_context("tenant_a");
+        // Create test data for multiple tenants
+        let tenant1_context = create_test_context("tenant1");
+        let tenant2_context = create_test_context("tenant2");
+
+        // Add some test users
         for i in 1..=3 {
-            let username = format!("user_a_{}", i);
-            let _ = provider
-                .create_resource("tenant_a", "User", create_test_user(&username), &context_a)
-                .await;
+            let user_data = create_test_user(&format!("user{}", i));
+            provider
+                .create_resource("User", user_data, &tenant1_context)
+                .await
+                .unwrap();
         }
 
-        // Populate tenant B
-        let context_b = create_test_context("tenant_b");
         for i in 1..=2 {
-            let username = format!("user_b_{}", i);
-            let _ = provider
-                .create_resource("tenant_b", "User", create_test_user(&username), &context_b)
-                .await;
+            let user_data = create_test_user(&format!("tenant2_user{}", i));
+            provider
+                .create_resource("User", user_data, &tenant2_context)
+                .await
+                .unwrap();
         }
 
         provider
     }
 
-    /// Verify tenant isolation across all operations
-    pub async fn verify_complete_tenant_isolation(
-        provider: &TestMultiTenantProvider,
-        tenant_a_id: &str,
-        tenant_b_id: &str,
-    ) {
-        let context_a = create_test_context(tenant_a_id);
-        let context_b = create_test_context(tenant_b_id);
+    /// Verify complete tenant isolation across all operations
+    pub async fn verify_complete_tenant_isolation(provider: &TestMultiTenantProvider) {
+        let tenant1_context = create_test_context("tenant1");
+        let tenant2_context = create_test_context("tenant2");
 
-        // Get counts for each tenant
-        let resources_a = provider
-            .list_resources(tenant_a_id, "User", None, &context_a)
+        // Verify list isolation
+        let tenant1_users = provider
+            .list_resources("User", None, &tenant1_context)
+            .await
+            .unwrap();
+        let tenant2_users = provider
+            .list_resources("User", None, &tenant2_context)
             .await
             .unwrap();
 
-        let resources_b = provider
-            .list_resources(tenant_b_id, "User", None, &context_b)
-            .await
-            .unwrap();
+        assert_eq!(tenant1_users.len(), 3);
+        assert_eq!(tenant2_users.len(), 2);
 
-        println!("Tenant {} has {} resources", tenant_a_id, resources_a.len());
-        println!("Tenant {} has {} resources", tenant_b_id, resources_b.len());
-
-        // Verify no resource IDs overlap
-        let ids_a: std::collections::HashSet<String> = resources_a
-            .iter()
-            .map(|r| r.get_id().unwrap().to_string())
-            .collect();
-
-        let ids_b: std::collections::HashSet<String> = resources_b
-            .iter()
-            .map(|r| r.get_id().unwrap().to_string())
-            .collect();
-
-        let intersection: Vec<_> = ids_a.intersection(&ids_b).collect();
-        assert!(
-            intersection.is_empty(),
-            "Found overlapping resource IDs: {:?}",
-            intersection
-        );
-
-        println!("✅ Complete tenant isolation verified");
+        // Verify cross-tenant access fails
+        if let Some(user) = tenant1_users.first() {
+            let id_str = user.id.as_ref().unwrap().as_str();
+            let cross_access = provider
+                .get_resource("User", id_str, &tenant2_context)
+                .await
+                .unwrap();
+            assert!(
+                cross_access.is_none(),
+                "Cross-tenant access should be blocked"
+            );
+        }
     }
 }

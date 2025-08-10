@@ -21,7 +21,7 @@
 //! Every test in this module focuses on ensuring tenant isolation and preventing
 //! cross-tenant data access, which is critical for SaaS applications.
 
-use scim_server::RequestContext;
+use scim_server::{IsolationLevel, RequestContext, TenantContext, TenantPermissions};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -41,7 +41,7 @@ impl TenantContextBuilder {
     pub fn new(tenant_id: &str) -> Self {
         Self {
             tenant_id: tenant_id.to_string(),
-            client_id: format!("client_{}", tenant_id),
+            client_id: format!("{}_client", tenant_id),
             isolation_level: IsolationLevel::Standard,
             permissions: vec!["read".to_string(), "write".to_string()],
         }
@@ -58,19 +58,25 @@ impl TenantContextBuilder {
     }
 
     pub fn with_permissions(mut self, permissions: Vec<&str>) -> Self {
-        self.permissions = permissions.into_iter().map(|s| s.to_string()).collect();
+        self.permissions = permissions.into_iter().map(String::from).collect();
         self
     }
 
     pub fn build(self) -> TenantContext {
-        TenantContext {
-            tenant_id: self.tenant_id,
-            client_id: self.client_id,
-            isolation_level: self.isolation_level,
-            permissions: TenantPermissions {
-                allowed_operations: self.permissions,
-            },
-        }
+        let mut permissions = TenantPermissions::default();
+        permissions.can_create = self.permissions.contains(&"create".to_string())
+            || self.permissions.contains(&"write".to_string());
+        permissions.can_read = self.permissions.contains(&"read".to_string());
+        permissions.can_update = self.permissions.contains(&"update".to_string())
+            || self.permissions.contains(&"write".to_string());
+        permissions.can_delete = self.permissions.contains(&"delete".to_string())
+            || self.permissions.contains(&"write".to_string());
+        permissions.can_list = self.permissions.contains(&"list".to_string())
+            || self.permissions.contains(&"read".to_string());
+
+        TenantContext::new(self.tenant_id, self.client_id)
+            .with_isolation_level(self.isolation_level)
+            .with_permissions(permissions)
     }
 }
 
@@ -114,31 +120,7 @@ impl AuthInfoBuilder {
 // Data Structures (These will be implemented in src/)
 // ============================================================================
 
-/// Tenant context information for multi-tenant operations
-#[derive(Debug, Clone, PartialEq)]
-pub struct TenantContext {
-    pub tenant_id: String,
-    pub client_id: String,
-    pub isolation_level: IsolationLevel,
-    pub permissions: TenantPermissions,
-}
-
-/// Level of tenant isolation required
-#[derive(Debug, Clone, PartialEq)]
-pub enum IsolationLevel {
-    /// Complete data isolation (separate schemas/databases)
-    Strict,
-    /// Row-level isolation with tenant_id filtering
-    Standard,
-    /// Shared data with access control
-    Shared,
-}
-
-/// Tenant-specific permissions
-#[derive(Debug, Clone, PartialEq)]
-pub struct TenantPermissions {
-    pub allowed_operations: Vec<String>,
-}
+// Use main crate types - no local definitions needed
 
 /// Authentication information from client requests
 #[derive(Debug, Clone)]
@@ -146,13 +128,6 @@ pub struct AuthInfo {
     pub api_key: Option<String>,
     pub bearer_token: Option<String>,
     pub client_certificate: Option<Vec<u8>>,
-}
-
-/// Enhanced RequestContext with tenant information
-#[derive(Debug, Clone)]
-pub struct EnhancedRequestContext {
-    pub request_id: String,
-    pub tenant_context: TenantContext,
 }
 
 /// Trait for resolving authentication to tenant context
@@ -240,23 +215,21 @@ mod core_multi_tenant_tests {
         assert_eq!(tenant_context.tenant_id, "tenant_123");
         assert_eq!(tenant_context.client_id, "client_abc");
         assert_eq!(tenant_context.isolation_level, IsolationLevel::Strict);
-        assert_eq!(
-            tenant_context.permissions.allowed_operations,
-            vec!["read", "write", "delete"]
-        );
+        assert!(tenant_context.permissions.can_read);
+        assert!(tenant_context.permissions.can_create);
+        assert!(tenant_context.permissions.can_update);
+        assert!(tenant_context.permissions.can_delete);
     }
 
     #[test]
-    fn test_enhanced_request_context_with_tenant() {
+    fn test_request_context_with_tenant() {
         let tenant_context = TenantContextBuilder::new("tenant_456").build();
 
-        let request_context = EnhancedRequestContext {
-            request_id: "req_123".to_string(),
-            tenant_context: tenant_context.clone(),
-        };
+        let request_context =
+            scim_server::RequestContext::with_tenant("req_123".to_string(), tenant_context.clone());
 
         assert_eq!(request_context.request_id, "req_123");
-        assert_eq!(request_context.tenant_context.tenant_id, "tenant_456");
+        assert_eq!(request_context.tenant_id(), Some("tenant_456"));
     }
 
     #[test]
@@ -376,7 +349,7 @@ mod core_multi_tenant_tests {
         assert_ne!(tenant_a.client_id, tenant_b.client_id);
 
         // Verify tenant contexts are not equal
-        assert_ne!(tenant_a, tenant_b);
+        assert_ne!(tenant_a.tenant_id, tenant_b.tenant_id);
     }
 
     #[test]
@@ -397,22 +370,23 @@ mod core_multi_tenant_tests {
 
     #[test]
     fn test_migration_from_current_request_context() {
-        // This test documents how we'll migrate from the current RequestContext
-        // to the enhanced version with tenant information
+        // This test documents how we use the unified RequestContext
+        // for both single-tenant and multi-tenant scenarios
 
-        // Current RequestContext (from existing code)
-        let current_context = RequestContext::new("req_123".to_string());
-        assert_eq!(current_context.request_id, "req_123");
+        // Single-tenant RequestContext
+        let single_tenant_context = RequestContext::new("req_123".to_string());
+        assert_eq!(single_tenant_context.request_id, "req_123");
+        assert!(!single_tenant_context.is_multi_tenant());
+        assert_eq!(single_tenant_context.tenant_id(), None);
 
-        // Enhanced RequestContext (to be implemented)
+        // Multi-tenant RequestContext
         let tenant_context = TenantContextBuilder::new("tenant_456").build();
-        let enhanced_context = EnhancedRequestContext {
-            request_id: current_context.request_id,
-            tenant_context,
-        };
+        let multi_tenant_context =
+            scim_server::RequestContext::with_tenant("req_456".to_string(), tenant_context);
 
-        assert_eq!(enhanced_context.request_id, "req_123");
-        assert_eq!(enhanced_context.tenant_context.tenant_id, "tenant_456");
+        assert_eq!(multi_tenant_context.request_id, "req_456");
+        assert!(multi_tenant_context.is_multi_tenant());
+        assert_eq!(multi_tenant_context.tenant_id(), Some("tenant_456"));
     }
 
     // ------------------------------------------------------------------------
@@ -429,14 +403,15 @@ mod core_multi_tenant_tests {
             .with_permissions(vec!["read", "write", "delete"])
             .build();
 
-        assert_eq!(
-            read_only_tenant.permissions.allowed_operations,
-            vec!["read"]
-        );
-        assert_eq!(
-            full_access_tenant.permissions.allowed_operations,
-            vec!["read", "write", "delete"]
-        );
+        assert!(read_only_tenant.permissions.can_read);
+        assert!(!read_only_tenant.permissions.can_create);
+        assert!(!read_only_tenant.permissions.can_update);
+        assert!(!read_only_tenant.permissions.can_delete);
+
+        assert!(full_access_tenant.permissions.can_read);
+        assert!(full_access_tenant.permissions.can_create);
+        assert!(full_access_tenant.permissions.can_update);
+        assert!(full_access_tenant.permissions.can_delete);
     }
 
     #[test]
@@ -491,14 +466,8 @@ mod core_multi_tenant_tests {
             .with_permissions(vec!["read"])
             .build();
 
-        println!(
-            "Admin tenant permissions: {:?}",
-            admin_tenant.permissions.allowed_operations
-        );
-        println!(
-            "Viewer tenant permissions: {:?}",
-            viewer_tenant.permissions.allowed_operations
-        );
+        println!("Admin tenant permissions: {:?}", admin_tenant.permissions);
+        println!("Viewer tenant permissions: {:?}", viewer_tenant.permissions);
 
         // Verify isolation
         assert_ne!(org_a.tenant_id, org_b.tenant_id);

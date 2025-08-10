@@ -8,7 +8,7 @@
 //!
 //! * [`user`] - User resource handler with comprehensive attribute and method support
 //! * [`group`] - Group resource handler for group management operations
-//! * [`tests`] - Test infrastructure and comprehensive test cases
+//! - `tests` - Test infrastructure and comprehensive test cases
 //!
 //! # Usage
 //!

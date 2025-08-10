@@ -1,36 +1,18 @@
-//! Stage 3a: In-Memory Provider Integration Tests
+//! In-Memory Resource Provider Implementation and Tests
 //!
-//! This module contains comprehensive tests for the production-ready in-memory provider
-//! implementation with full multi-tenant support. The in-memory provider serves as:
-//! - A reference implementation for other providers
-//! - A high-performance provider for testing and development
-//! - A fallback provider for simple deployments
-//!
-//! ## Test Coverage
-//!
-//! These tests verify:
-//! - Complete multi-tenant data isolation
-//! - Thread-safe concurrent operations
-//! - Memory usage and performance characteristics
-//! - Configurable capacity limits and persistence options
-//! - Provider-specific error handling and recovery
-//! - Resource lifecycle management
-//!
-//! ## Provider-Specific Features
-//!
-//! The in-memory provider includes:
-//! - Configurable memory limits per tenant
-//! - Optional persistence to disk
-//! - Efficient search and filtering
-//! - Bulk operation support
-//! - Memory usage monitoring and reporting
+//! This module provides a comprehensive in-memory implementation of the
+//! unified ResourceProvider interface for testing purposes. It includes:
+//! - Full CRUD operations with proper tenant isolation
+//! - Concurrent access support with proper locking
+//! - Comprehensive test suite demonstrating functionality
+//! - Performance testing utilities
+//! - Configuration and validation testing
 
-use super::super::multi_tenant::core::{EnhancedRequestContext, TenantContextBuilder};
-use super::super::multi_tenant::provider_trait::{ListQuery, MultiTenantResourceProvider};
-use super::common::{MultiTenantScenarioBuilder, ProviderTestConfig};
-use crate::common::{create_test_context, create_test_user};
-use scim_server::Resource;
-use serde_json::{Value, json};
+use crate::common::{create_multi_tenant_context, create_single_tenant_context};
+use scim_server::resource::core::{ListQuery, RequestContext, Resource, ResourceBuilder};
+use scim_server::resource::provider::ResourceProvider;
+use scim_server::resource::value_objects::{ResourceId, UserName};
+use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -39,43 +21,95 @@ use tokio::sync::RwLock;
 // Production In-Memory Provider Implementation
 // ============================================================================
 
+/// High-performance in-memory resource provider with tenant isolation
+#[derive(Debug)]
+pub struct InMemoryProvider {
+    /// Resources organized by tenant_id -> resource_type -> resource_id -> resource
+    /// Single-tenant uses "default" as tenant_id
+    resources: Arc<RwLock<HashMap<String, HashMap<String, HashMap<String, Resource>>>>>,
+    next_id: Arc<RwLock<u64>>,
+    config: InMemoryProviderConfig,
+}
+
 /// Configuration for the in-memory provider
 #[derive(Debug, Clone)]
 pub struct InMemoryProviderConfig {
-    /// Maximum number of resources per tenant (None = unlimited)
+    pub enable_metrics: bool,
     pub max_resources_per_tenant: Option<usize>,
-    /// Maximum total memory usage in bytes (None = unlimited)
-    pub max_memory_bytes: Option<usize>,
-    /// Whether to persist data to disk
-    pub persistence_enabled: bool,
-    /// Path for persistence file
-    pub persistence_path: Option<String>,
-    /// Whether to enable detailed metrics collection
-    pub metrics_enabled: bool,
+    pub max_tenants: Option<usize>,
+    pub enable_validation: bool,
 }
 
 impl Default for InMemoryProviderConfig {
     fn default() -> Self {
         Self {
+            enable_metrics: false,
             max_resources_per_tenant: Some(10000),
-            max_memory_bytes: Some(100 * 1024 * 1024), // 100MB
-            persistence_enabled: false,
-            persistence_path: None,
-            metrics_enabled: true,
+            max_tenants: Some(1000),
+            enable_validation: true,
         }
     }
 }
 
-/// Production-ready in-memory provider with multi-tenant support
-pub struct InMemoryProvider {
-    // Tenant-scoped storage: tenant_id -> resource_type -> resource_id -> resource
-    resources: Arc<RwLock<HashMap<String, HashMap<String, HashMap<String, Resource>>>>>,
-    // Provider configuration
-    config: InMemoryProviderConfig,
-    // ID generation
-    next_id: Arc<RwLock<u64>>,
-    // Metrics (if enabled)
-    metrics: Arc<RwLock<ProviderMetrics>>,
+impl InMemoryProviderConfig {
+    /// Create configuration for testing (no limits)
+    pub fn for_testing() -> Self {
+        Self {
+            enable_metrics: false,
+            max_resources_per_tenant: None,
+            max_tenants: None,
+            enable_validation: true,
+        }
+    }
+
+    /// Create configuration for performance testing
+    pub fn for_performance() -> Self {
+        Self {
+            enable_metrics: true,
+            max_resources_per_tenant: Some(100000),
+            max_tenants: Some(10000),
+            enable_validation: false,
+        }
+    }
+}
+
+/// Errors that can occur in the in-memory provider
+#[derive(Debug, thiserror::Error)]
+pub enum InMemoryProviderError {
+    #[error("Resource not found: tenant={tenant_id}, type={resource_type}, id={id}")]
+    ResourceNotFound {
+        tenant_id: String,
+        resource_type: String,
+        id: String,
+    },
+
+    #[error("Tenant not found: {tenant_id}")]
+    TenantNotFound { tenant_id: String },
+
+    #[error(
+        "Duplicate resource: tenant={tenant_id}, type={resource_type}, attribute={attribute}, value={value}"
+    )]
+    DuplicateResource {
+        tenant_id: String,
+        resource_type: String,
+        attribute: String,
+        value: String,
+    },
+
+    #[error("Tenant limit exceeded: max={max_tenants}")]
+    TenantLimitExceeded { max_tenants: usize },
+
+    #[error("Resource limit exceeded for tenant {tenant_id}: max={max_resources}")]
+    ResourceLimitExceeded {
+        tenant_id: String,
+        max_resources: usize,
+    },
+
+    #[error("Validation error: {message}")]
+    ValidationError { message: String },
+
+    #[error("Concurrent access error: {message}")]
+    ConcurrencyError { message: String },
 }
 
 impl InMemoryProvider {
@@ -88,44 +122,134 @@ impl InMemoryProvider {
     pub fn with_config(config: InMemoryProviderConfig) -> Self {
         Self {
             resources: Arc::new(RwLock::new(HashMap::new())),
-            config,
             next_id: Arc::new(RwLock::new(1)),
-            metrics: Arc::new(RwLock::new(ProviderMetrics::new())),
+            config,
         }
     }
 
-    /// Create an in-memory provider optimized for testing
+    /// Create a provider optimized for testing
     pub fn for_testing() -> Self {
-        Self::with_config(InMemoryProviderConfig {
-            max_resources_per_tenant: None, // Unlimited for tests
-            max_memory_bytes: None,         // Unlimited for tests
-            persistence_enabled: false,
-            persistence_path: None,
-            metrics_enabled: true,
-        })
+        Self::with_config(InMemoryProviderConfig::for_testing())
     }
 
-    /// Get current metrics (if enabled)
-    pub async fn get_metrics(&self) -> Option<ProviderMetrics> {
-        if self.config.metrics_enabled {
-            Some(self.metrics.read().await.clone())
-        } else {
-            None
+    /// Generate a unique resource ID
+    async fn generate_id(&self) -> String {
+        let mut counter = self.next_id.write().await;
+        let id = *counter;
+        *counter += 1;
+        format!("inmem-{:08}", id)
+    }
+
+    /// Extract tenant ID from context, defaulting to "default" for single-tenant
+    fn get_tenant_id_from_context(context: &RequestContext) -> String {
+        context.tenant_id().unwrap_or("default").to_string()
+    }
+
+    /// Ensure tenant exists in the data structure
+    async fn ensure_tenant_exists(&self, tenant_id: &str) -> Result<(), InMemoryProviderError> {
+        if let Some(max_tenants) = self.config.max_tenants {
+            let resources = self.resources.read().await;
+            if !resources.contains_key(tenant_id) && resources.len() >= max_tenants {
+                return Err(InMemoryProviderError::TenantLimitExceeded { max_tenants });
+            }
         }
+
+        let mut resources = self.resources.write().await;
+        resources
+            .entry(tenant_id.to_string())
+            .or_insert_with(HashMap::new);
+        Ok(())
     }
 
-    /// Get resource count for a specific tenant
-    pub async fn get_tenant_resource_count(&self, tenant_id: &str) -> usize {
-        let resources = self.resources.read().await;
+    /// Ensure resource type exists for a tenant
+    async fn ensure_resource_type_exists(
+        &self,
+        tenant_id: &str,
+        resource_type: &str,
+    ) -> Result<(), InMemoryProviderError> {
+        self.ensure_tenant_exists(tenant_id).await?;
+
+        let mut resources = self.resources.write().await;
         resources
-            .get(tenant_id)
-            .map(|tenant_resources| {
-                tenant_resources
-                    .values()
-                    .map(|type_resources| type_resources.len())
-                    .sum()
-            })
-            .unwrap_or(0)
+            .get_mut(tenant_id)
+            .unwrap()
+            .entry(resource_type.to_string())
+            .or_insert_with(HashMap::new);
+        Ok(())
+    }
+
+    /// Check resource limits for a tenant
+    async fn check_resource_limits(&self, tenant_id: &str) -> Result<(), InMemoryProviderError> {
+        if let Some(max_resources) = self.config.max_resources_per_tenant {
+            let resources = self.resources.read().await;
+            if let Some(tenant_resources) = resources.get(tenant_id) {
+                let total_resources: usize = tenant_resources.values().map(|r| r.len()).sum();
+                if total_resources >= max_resources {
+                    return Err(InMemoryProviderError::ResourceLimitExceeded {
+                        tenant_id: tenant_id.to_string(),
+                        max_resources,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Check for duplicate usernames within a tenant
+    async fn check_username_uniqueness(
+        &self,
+        tenant_id: &str,
+        username: &str,
+        exclude_id: Option<&str>,
+    ) -> Result<(), InMemoryProviderError> {
+        let resources = self.resources.read().await;
+        if let Some(tenant_resources) = resources.get(tenant_id) {
+            if let Some(user_resources) = tenant_resources.get("User") {
+                for (id, resource) in user_resources {
+                    if Some(id.as_str()) == exclude_id {
+                        continue;
+                    }
+                    if let Some(existing_username) = &resource.user_name {
+                        if existing_username.as_str() == username {
+                            return Err(InMemoryProviderError::DuplicateResource {
+                                tenant_id: tenant_id.to_string(),
+                                resource_type: "User".to_string(),
+                                attribute: "userName".to_string(),
+                                value: username.to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Get resource statistics for a tenant
+    pub async fn get_tenant_statistics(&self, tenant_id: &str) -> TenantStatistics {
+        let resources = self.resources.read().await;
+
+        if let Some(tenant_resources) = resources.get(tenant_id) {
+            let mut stats = TenantStatistics {
+                tenant_id: tenant_id.to_string(),
+                resource_counts: HashMap::new(),
+                total_resources: 0,
+            };
+
+            for (resource_type, type_resources) in tenant_resources {
+                let count = type_resources.len();
+                stats.resource_counts.insert(resource_type.clone(), count);
+                stats.total_resources += count;
+            }
+
+            stats
+        } else {
+            TenantStatistics {
+                tenant_id: tenant_id.to_string(),
+                resource_counts: HashMap::new(),
+                total_resources: 0,
+            }
+        }
     }
 
     /// Clear all data (useful for testing)
@@ -133,1137 +257,684 @@ impl InMemoryProvider {
         let mut resources = self.resources.write().await;
         resources.clear();
 
-        let mut metrics = self.metrics.write().await;
-        *metrics = ProviderMetrics::new();
-    }
-
-    // Private helper methods
-    async fn generate_id(&self) -> String {
         let mut counter = self.next_id.write().await;
-        let id = counter.to_string();
-        *counter += 1;
-        id
-    }
-
-    async fn ensure_tenant_exists(&self, tenant_id: &str) {
-        let mut resources = self.resources.write().await;
-        resources
-            .entry(tenant_id.to_string())
-            .or_insert_with(HashMap::new);
-    }
-
-    async fn ensure_resource_type_exists(&self, tenant_id: &str, resource_type: &str) {
-        self.ensure_tenant_exists(tenant_id).await;
-        let mut resources = self.resources.write().await;
-        resources
-            .get_mut(tenant_id)
-            .unwrap()
-            .entry(resource_type.to_string())
-            .or_insert_with(HashMap::new);
-    }
-
-    async fn check_capacity_limits(&self, tenant_id: &str) -> Result<(), InMemoryProviderError> {
-        if let Some(max_resources) = self.config.max_resources_per_tenant {
-            let count = self.get_tenant_resource_count(tenant_id).await;
-            if count >= max_resources {
-                return Err(InMemoryProviderError::CapacityLimitExceeded {
-                    tenant_id: tenant_id.to_string(),
-                    limit: max_resources,
-                    current: count,
-                });
-            }
-        }
-        Ok(())
-    }
-
-    async fn update_metrics(&self, operation: &str, tenant_id: &str) {
-        if self.config.metrics_enabled {
-            let mut metrics = self.metrics.write().await;
-            metrics.record_operation(operation, tenant_id);
-        }
+        *counter = 1;
     }
 }
 
-/// Provider-specific error types
-#[derive(Debug, thiserror::Error)]
-pub enum InMemoryProviderError {
-    #[error("Resource not found: {resource_type} with id {id} in tenant {tenant_id}")]
-    ResourceNotFound {
-        tenant_id: String,
-        resource_type: String,
-        id: String,
-    },
-    #[error("Tenant not found: {tenant_id}")]
-    TenantNotFound { tenant_id: String },
-    #[error(
-        "Duplicate resource: {resource_type} with attribute {attribute}={value} in tenant {tenant_id}"
-    )]
-    DuplicateResource {
-        tenant_id: String,
-        resource_type: String,
-        attribute: String,
-        value: String,
-    },
-    #[error("Invalid tenant context: expected {expected}, got {actual}")]
-    InvalidTenantContext { expected: String, actual: String },
-    #[error("Capacity limit exceeded for tenant {tenant_id}: {current}/{limit}")]
-    CapacityLimitExceeded {
-        tenant_id: String,
-        limit: usize,
-        current: usize,
-    },
-    #[error("Memory limit exceeded: {current_bytes} bytes")]
-    MemoryLimitExceeded { current_bytes: usize },
-    #[error("Persistence error: {message}")]
-    PersistenceError { message: String },
-}
-
-/// Metrics collection for the in-memory provider
-#[derive(Debug, Clone)]
-pub struct ProviderMetrics {
-    pub operations_count: HashMap<String, u64>,
-    pub tenant_operations: HashMap<String, u64>,
-    pub total_resources: u64,
-    pub memory_usage_bytes: u64,
-    pub start_time: std::time::Instant,
-}
-
-impl ProviderMetrics {
-    pub fn new() -> Self {
-        Self {
-            operations_count: HashMap::new(),
-            tenant_operations: HashMap::new(),
-            total_resources: 0,
-            memory_usage_bytes: 0,
-            start_time: std::time::Instant::now(),
-        }
-    }
-
-    pub fn record_operation(&mut self, operation: &str, tenant_id: &str) {
-        *self
-            .operations_count
-            .entry(operation.to_string())
-            .or_insert(0) += 1;
-        *self
-            .tenant_operations
-            .entry(tenant_id.to_string())
-            .or_insert(0) += 1;
-    }
-
-    pub fn get_operations_per_second(&self) -> f64 {
-        let total_ops: u64 = self.operations_count.values().sum();
-        total_ops as f64 / self.start_time.elapsed().as_secs_f64()
+impl Default for InMemoryProvider {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl MultiTenantResourceProvider for InMemoryProvider {
+impl ResourceProvider for InMemoryProvider {
     type Error = InMemoryProviderError;
 
     async fn create_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
-        mut data: Value,
-        context: &EnhancedRequestContext,
+        data: Value,
+        context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
-        // Check capacity limits
-        self.check_capacity_limits(tenant_id).await?;
+        // Check limits
+        self.check_resource_limits(&tenant_id).await?;
+        self.ensure_resource_type_exists(&tenant_id, resource_type)
+            .await?;
 
-        self.ensure_resource_type_exists(tenant_id, resource_type)
-            .await;
-
-        // Generate unique ID within tenant scope
-        let id = self.generate_id().await;
-
-        // Add ID to data
-        if let Some(obj) = data.as_object_mut() {
-            obj.insert("id".to_string(), json!(id.clone()));
-        }
-
-        // Check for duplicates within tenant scope
+        // Check for duplicate usernames if creating a User
         if resource_type == "User" {
             if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
-                let existing = self
-                    .find_resource_by_attribute(
-                        tenant_id,
-                        resource_type,
-                        "userName",
-                        &json!(username),
-                        context,
-                    )
+                self.check_username_uniqueness(&tenant_id, username, None)
                     .await?;
+            }
+        }
 
-                if existing.is_some() {
-                    return Err(InMemoryProviderError::DuplicateResource {
-                        tenant_id: tenant_id.to_string(),
-                        resource_type: resource_type.to_string(),
-                        attribute: "userName".to_string(),
-                        value: username.to_string(),
-                    });
+        // Generate ID and build resource
+        let id = self.generate_id().await;
+        let mut builder = ResourceBuilder::new(resource_type.to_string());
+
+        // Set ID
+        if let Ok(resource_id) = ResourceId::new(id.clone()) {
+            builder = builder.with_id(resource_id);
+        }
+
+        // Set username for User resources
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                if let Ok(user_name) = UserName::new(username.to_string()) {
+                    builder = builder.with_username(user_name);
                 }
             }
         }
 
-        let resource = Resource::new(resource_type.to_string(), data);
+        // Set external ID if provided
+        if let Some(external_id) = data.get("externalId").and_then(|v| v.as_str()) {
+            if let Ok(ext_id) =
+                scim_server::resource::value_objects::ExternalId::new(external_id.to_string())
+            {
+                builder = builder.with_external_id(ext_id);
+            }
+        }
 
-        // Store in tenant-scoped storage
+        // Add remaining attributes
+        let mut attributes = Map::new();
+        for (key, value) in data.as_object().unwrap_or(&Map::new()) {
+            match key.as_str() {
+                "userName" | "externalId" | "id" => {
+                    // These are handled by value objects, skip
+                }
+                _ => {
+                    attributes.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        builder = builder.with_attributes(attributes);
+
+        let resource = builder
+            .build_with_meta("https://example.com/scim/v2")
+            .map_err(|e| InMemoryProviderError::ValidationError {
+                message: format!("Failed to build resource: {}", e),
+            })?;
+
+        // Store the resource
         let mut resources = self.resources.write().await;
         resources
-            .get_mut(tenant_id)
+            .get_mut(&tenant_id)
             .unwrap()
             .get_mut(resource_type)
             .unwrap()
             .insert(id, resource.clone());
-
-        // Update metrics
-        self.update_metrics("create", tenant_id).await;
 
         Ok(resource)
     }
 
     async fn get_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<Option<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
         let resources = self.resources.read().await;
-
         let result = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .and_then(|type_resources| type_resources.get(id))
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .and_then(|resources| resources.get(id))
             .cloned();
-
-        // Update metrics
-        self.update_metrics("get", tenant_id).await;
 
         Ok(result)
     }
 
     async fn update_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        mut data: Value,
-        context: &EnhancedRequestContext,
+        data: Value,
+        context: &RequestContext,
     ) -> Result<Resource, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
-        // Ensure ID is set
-        if let Some(obj) = data.as_object_mut() {
-            obj.insert("id".to_string(), json!(id));
+        // Check for duplicate usernames if updating a User
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                self.check_username_uniqueness(&tenant_id, username, Some(id))
+                    .await?;
+            }
         }
 
         let mut resources = self.resources.write().await;
-
         let tenant_resources =
             resources
-                .get_mut(tenant_id)
+                .get_mut(&tenant_id)
                 .ok_or_else(|| InMemoryProviderError::TenantNotFound {
-                    tenant_id: tenant_id.to_string(),
+                    tenant_id: tenant_id.clone(),
                 })?;
 
         let type_resources = tenant_resources.get_mut(resource_type).ok_or_else(|| {
             InMemoryProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
+                tenant_id: tenant_id.clone(),
                 resource_type: resource_type.to_string(),
                 id: id.to_string(),
             }
         })?;
 
-        if !type_resources.contains_key(id) {
-            return Err(InMemoryProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-            });
+        let resource =
+            type_resources
+                .get_mut(id)
+                .ok_or_else(|| InMemoryProviderError::ResourceNotFound {
+                    tenant_id: tenant_id.clone(),
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                })?;
+
+        // Update the resource using ResourceBuilder
+        let mut builder = ResourceBuilder::new(resource_type.to_string());
+
+        // Preserve existing ID
+        if let Some(existing_id) = &resource.id {
+            builder = builder.with_id(existing_id.clone());
         }
 
-        let resource = Resource::new(resource_type.to_string(), data);
-        type_resources.insert(id.to_string(), resource.clone());
+        // Update username for User resources
+        if resource_type == "User" {
+            if let Some(username) = data.get("userName").and_then(|v| v.as_str()) {
+                if let Ok(user_name) = UserName::new(username.to_string()) {
+                    builder = builder.with_username(user_name);
+                }
+            } else if let Some(existing_username) = &resource.user_name {
+                builder = builder.with_username(existing_username.clone());
+            }
+        }
 
-        // Update metrics
-        self.update_metrics("update", tenant_id).await;
+        // Update external ID if provided, otherwise preserve existing
+        if let Some(external_id) = data.get("externalId").and_then(|v| v.as_str()) {
+            if let Ok(ext_id) =
+                scim_server::resource::value_objects::ExternalId::new(external_id.to_string())
+            {
+                builder = builder.with_external_id(ext_id);
+            }
+        } else if let Some(existing_external_id) = &resource.external_id {
+            builder = builder.with_external_id(existing_external_id.clone());
+        }
 
-        Ok(resource)
+        // Update other attributes
+        let mut attributes = resource.attributes.clone();
+        for (key, value) in data.as_object().unwrap_or(&Map::new()) {
+            match key.as_str() {
+                "userName" | "externalId" | "id" => {
+                    // These are handled by value objects, skip
+                }
+                _ => {
+                    attributes.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        builder = builder.with_attributes(attributes);
+
+        let updated_resource = builder
+            .build_with_meta("https://example.com/scim/v2")
+            .map_err(|e| InMemoryProviderError::ValidationError {
+                message: format!("Failed to update resource: {}", e),
+            })?;
+
+        *resource = updated_resource.clone();
+        Ok(updated_resource)
     }
 
     async fn delete_resource(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<(), Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
         let mut resources = self.resources.write().await;
-
         let tenant_resources =
             resources
-                .get_mut(tenant_id)
+                .get_mut(&tenant_id)
                 .ok_or_else(|| InMemoryProviderError::TenantNotFound {
-                    tenant_id: tenant_id.to_string(),
+                    tenant_id: tenant_id.clone(),
                 })?;
 
         let type_resources = tenant_resources.get_mut(resource_type).ok_or_else(|| {
             InMemoryProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
+                tenant_id: tenant_id.clone(),
                 resource_type: resource_type.to_string(),
                 id: id.to_string(),
             }
         })?;
 
-        type_resources
-            .remove(id)
-            .ok_or_else(|| InMemoryProviderError::ResourceNotFound {
-                tenant_id: tenant_id.to_string(),
+        if type_resources.remove(id).is_none() {
+            return Err(InMemoryProviderError::ResourceNotFound {
+                tenant_id: tenant_id.clone(),
                 resource_type: resource_type.to_string(),
                 id: id.to_string(),
-            })?;
-
-        // Update metrics
-        self.update_metrics("delete", tenant_id).await;
+            });
+        }
 
         Ok(())
     }
 
     async fn list_resources(
         &self,
-        tenant_id: &str,
         resource_type: &str,
-        query: Option<&ListQuery>,
-        context: &EnhancedRequestContext,
+        _query: Option<&ListQuery>,
+        context: &RequestContext,
     ) -> Result<Vec<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
         let resources = self.resources.read().await;
-
-        let mut result: Vec<Resource> = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .map(|type_resources| type_resources.values().cloned().collect())
-            .unwrap_or_else(Vec::new);
-
-        // Apply query parameters if provided
-        if let Some(query) = query {
-            // Apply count limit
-            if let Some(count) = query.count {
-                if count > 0 {
-                    result.truncate(count as usize);
-                }
-            }
-
-            // Apply start index
-            if let Some(start_index) = query.start_index {
-                if start_index > 0 {
-                    let skip = (start_index - 1) as usize;
-                    if skip < result.len() {
-                        result = result.into_iter().skip(skip).collect();
-                    } else {
-                        result.clear();
-                    }
-                }
-            }
-
-            // Note: Filter implementation would go here for more advanced queries
-        }
-
-        // Update metrics
-        self.update_metrics("list", tenant_id).await;
+        let result = resources
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .map(|resources| resources.values().cloned().collect())
+            .unwrap_or_default();
 
         Ok(result)
     }
 
     async fn find_resource_by_attribute(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         attribute: &str,
         value: &Value,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<Option<Resource>, Self::Error> {
-        // Validate tenant context
-        if context.tenant_context.tenant_id != tenant_id {
-            return Err(InMemoryProviderError::InvalidTenantContext {
-                expected: tenant_id.to_string(),
-                actual: context.tenant_context.tenant_id.clone(),
-            });
-        }
+        let tenant_id = Self::get_tenant_id_from_context(context);
 
         let resources = self.resources.read().await;
-
-        let result = resources
-            .get(tenant_id)
-            .and_then(|tenant_resources| tenant_resources.get(resource_type))
-            .and_then(|type_resources| {
-                type_resources
-                    .values()
-                    .find(|resource| {
-                        resource
-                            .get_attribute(attribute)
-                            .map(|attr_value| attr_value == value)
-                            .unwrap_or(false)
-                    })
-                    .cloned()
-            });
-
-        // Update metrics
-        self.update_metrics("find", tenant_id).await;
-
-        Ok(result)
+        if let Some(tenant_resources) = resources.get(&tenant_id) {
+            if let Some(type_resources) = tenant_resources.get(resource_type) {
+                for resource in type_resources.values() {
+                    // Check value object fields first
+                    match attribute {
+                        "userName" => {
+                            if let Some(username) = &resource.user_name {
+                                if let Some(search_str) = value.as_str() {
+                                    if username.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        "id" => {
+                            if let Some(id) = &resource.id {
+                                if let Some(search_str) = value.as_str() {
+                                    if id.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        "externalId" => {
+                            if let Some(external_id) = &resource.external_id {
+                                if let Some(search_str) = value.as_str() {
+                                    if external_id.as_str() == search_str {
+                                        return Ok(Some(resource.clone()));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Check in extended attributes
+                            if let Some(attr_value) = resource.attributes.get(attribute) {
+                                if attr_value == value {
+                                    return Ok(Some(resource.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     async fn resource_exists(
         &self,
-        tenant_id: &str,
         resource_type: &str,
         id: &str,
-        context: &EnhancedRequestContext,
+        context: &RequestContext,
     ) -> Result<bool, Self::Error> {
-        let resource = self
-            .get_resource(tenant_id, resource_type, id, context)
-            .await?;
-        Ok(resource.is_some())
+        let tenant_id = Self::get_tenant_id_from_context(context);
+
+        let resources = self.resources.read().await;
+        let exists = resources
+            .get(&tenant_id)
+            .and_then(|tenant| tenant.get(resource_type))
+            .map(|resources| resources.contains_key(id))
+            .unwrap_or(false);
+
+        Ok(exists)
     }
 }
 
 // ============================================================================
-// Stage 3a Tests: In-Memory Provider Specific Tests
+// Supporting Types and Utilities
+// ============================================================================
+
+/// Statistics for a tenant's resource usage
+#[derive(Debug, Clone)]
+pub struct TenantStatistics {
+    pub tenant_id: String,
+    pub resource_counts: HashMap<String, usize>,
+    pub total_resources: usize,
+}
+
+// ============================================================================
+// Comprehensive Test Suite
 // ============================================================================
 
 #[cfg(test)]
-mod in_memory_provider_tests {
+mod tests {
     use super::*;
 
-    fn create_test_context(tenant_id: &str) -> EnhancedRequestContext {
-        let tenant_context = TenantContextBuilder::new(tenant_id).build();
-        EnhancedRequestContext {
-            request_id: format!("req_{}", tenant_id),
-            tenant_context,
-        }
-    }
-
-    fn create_test_user(username: &str) -> Value {
+    fn create_test_user_data(username: &str) -> Value {
         json!({
-            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
             "userName": username,
             "displayName": format!("{} User", username),
-            "active": true
+            "active": true,
+            "emails": [{
+                "value": format!("{}@example.com", username),
+                "type": "work",
+                "primary": true
+            }]
         })
     }
 
-    // ------------------------------------------------------------------------
-    // Test Group 1: Basic In-Memory Provider Functionality
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_in_memory_provider_creation() {
-        let provider = InMemoryProvider::new();
-
-        // Test that provider is created with default config
-        assert!(provider.config.max_resources_per_tenant.is_some());
-        assert!(provider.config.metrics_enabled);
-
-        // Test empty state
-        let count = provider.get_tenant_resource_count("test_tenant").await;
-        assert_eq!(count, 0);
+    fn create_test_group_data(display_name: &str) -> Value {
+        json!({
+            "displayName": display_name,
+            "description": format!("{} group for testing", display_name),
+            "members": []
+        })
     }
 
     #[tokio::test]
-    async fn test_in_memory_provider_with_custom_config() {
-        let config = InMemoryProviderConfig {
-            max_resources_per_tenant: Some(5),
-            max_memory_bytes: Some(1024),
-            persistence_enabled: true,
-            persistence_path: Some("/tmp/scim_test.json".to_string()),
-            metrics_enabled: false,
-        };
-
-        let provider = InMemoryProvider::with_config(config.clone());
-        assert_eq!(provider.config.max_resources_per_tenant, Some(5));
-        assert_eq!(provider.config.max_memory_bytes, Some(1024));
-        assert!(provider.config.persistence_enabled);
-        assert!(!provider.config.metrics_enabled);
-    }
-
-    #[tokio::test]
-    async fn test_in_memory_provider_for_testing() {
+    async fn test_basic_single_tenant_operations() {
         let provider = InMemoryProvider::for_testing();
+        let context = create_single_tenant_context();
 
-        // Test provider should have unlimited capacity
-        assert!(provider.config.max_resources_per_tenant.is_none());
-        assert!(provider.config.max_memory_bytes.is_none());
-        assert!(!provider.config.persistence_enabled);
-        assert!(provider.config.metrics_enabled);
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 2: Capacity and Resource Management
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_capacity_limits_enforcement() {
-        let config = InMemoryProviderConfig {
-            max_resources_per_tenant: Some(2),
-            ..Default::default()
-        };
-        let provider = InMemoryProvider::with_config(config);
-        let tenant_id = "limited_tenant";
-        let context = create_test_context(tenant_id);
-
-        // Create resources up to the limit
-        let result1 = provider
-            .create_resource(tenant_id, "User", create_test_user("user1"), &context)
-            .await;
-        assert!(result1.is_ok());
-
-        let result2 = provider
-            .create_resource(tenant_id, "User", create_test_user("user2"), &context)
-            .await;
-        assert!(result2.is_ok());
-
-        // Third resource should fail due to capacity limit
-        let result3 = provider
-            .create_resource(tenant_id, "User", create_test_user("user3"), &context)
-            .await;
-        assert!(result3.is_err());
-
-        match result3.unwrap_err() {
-            InMemoryProviderError::CapacityLimitExceeded {
-                tenant_id: tid,
-                limit,
-                current,
-            } => {
-                assert_eq!(tid, tenant_id);
-                assert_eq!(limit, 2);
-                assert_eq!(current, 2);
-            }
-            other => panic!("Expected CapacityLimitExceeded, got {:?}", other),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_tenant_resource_counting() {
-        let provider = InMemoryProvider::for_testing();
-        let tenant_a = "tenant_a";
-        let tenant_b = "tenant_b";
-        let context_a = create_test_context(tenant_a);
-        let context_b = create_test_context(tenant_b);
-
-        // Create resources in tenant A
-        let _user1 = provider
-            .create_resource(tenant_a, "User", create_test_user("user1"), &context_a)
+        // Create user
+        let user_data = create_test_user_data("testuser");
+        let created = provider
+            .create_resource("User", user_data, &context)
             .await
             .unwrap();
 
-        let _user2 = provider
-            .create_resource(tenant_a, "User", create_test_user("user2"), &context_a)
+        assert_eq!(created.resource_type, "User");
+        assert!(created.id.is_some());
+        assert_eq!(created.user_name.as_ref().unwrap().as_str(), "testuser");
+
+        // Get user
+        let id = created.id.as_ref().unwrap().as_str();
+        let retrieved = provider
+            .get_resource("User", id, &context)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(retrieved.id, created.id);
+
+        // Update user
+        let update_data = json!({
+            "userName": "updateduser",
+            "active": false
+        });
+
+        let updated = provider
+            .update_resource("User", id, update_data, &context)
             .await
             .unwrap();
 
-        // Create resource in tenant B
-        let _user3 = provider
-            .create_resource(tenant_b, "User", create_test_user("user3"), &context_b)
+        assert_eq!(updated.user_name.as_ref().unwrap().as_str(), "updateduser");
+
+        // List users
+        let users = provider
+            .list_resources("User", None, &context)
             .await
             .unwrap();
 
-        // Verify counts are isolated
-        let count_a = provider.get_tenant_resource_count(tenant_a).await;
-        let count_b = provider.get_tenant_resource_count(tenant_b).await;
+        assert_eq!(users.len(), 1);
 
-        assert_eq!(count_a, 2);
-        assert_eq!(count_b, 1);
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 3: Metrics Collection
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_metrics_collection() {
-        let provider = InMemoryProvider::for_testing();
-        let tenant_id = "metrics_tenant";
-        let context = create_test_context(tenant_id);
-
-        // Perform various operations
-        let user = provider
-            .create_resource(
-                tenant_id,
-                "User",
-                create_test_user("metrics_user"),
-                &context,
-            )
-            .await
-            .unwrap();
-
-        let user_id = user.get_id().unwrap();
-
-        let _retrieved = provider
-            .get_resource(tenant_id, "User", &user_id, &context)
-            .await
-            .unwrap();
-
-        let _updated = provider
-            .update_resource(
-                tenant_id,
-                "User",
-                &user_id,
-                create_test_user("updated_user"),
-                &context,
-            )
-            .await
-            .unwrap();
-
-        let _listed = provider
-            .list_resources(tenant_id, "User", None, &context)
-            .await
-            .unwrap();
-
-        // Check metrics
-        let metrics = provider.get_metrics().await.unwrap();
-        assert!(metrics.operations_count.get("create").unwrap_or(&0) >= &1);
-        assert!(metrics.operations_count.get("get").unwrap_or(&0) >= &1);
-        assert!(metrics.operations_count.get("update").unwrap_or(&0) >= &1);
-        assert!(metrics.operations_count.get("list").unwrap_or(&0) >= &1);
-        assert!(metrics.tenant_operations.get(tenant_id).unwrap_or(&0) >= &4);
-        assert!(metrics.get_operations_per_second() > 0.0);
-    }
-
-    #[tokio::test]
-    async fn test_metrics_disabled() {
-        let config = InMemoryProviderConfig {
-            metrics_enabled: false,
-            ..Default::default()
-        };
-        let provider = InMemoryProvider::with_config(config);
-        let tenant_id = "no_metrics_tenant";
-        let context = create_test_context(tenant_id);
-
-        // Perform operation
-        let _user = provider
-            .create_resource(tenant_id, "User", create_test_user("test_user"), &context)
-            .await
-            .unwrap();
-
-        // Metrics should be None when disabled
-        let metrics = provider.get_metrics().await;
-        assert!(metrics.is_none());
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 4: Advanced Query Support
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_list_resources_with_query() {
-        let provider = InMemoryProvider::for_testing();
-        let tenant_id = "query_tenant";
-        let context = create_test_context(tenant_id);
-
-        // Create multiple users
-        for i in 1..=10 {
-            let username = format!("user_{}", i);
-            let _user = provider
-                .create_resource(tenant_id, "User", create_test_user(&username), &context)
-                .await
-                .unwrap();
-        }
-
-        // Test count limit
-        let query = ListQuery::new().with_count(5);
-        let results = provider
-            .list_resources(tenant_id, "User", Some(&query), &context)
-            .await
-            .unwrap();
-        assert_eq!(results.len(), 5);
-
-        // Test start index
-        let query = ListQuery::new().with_count(3);
-        let page1 = provider
-            .list_resources(tenant_id, "User", Some(&query), &context)
-            .await
-            .unwrap();
-        assert_eq!(page1.len(), 3);
-
-        // Note: More advanced filtering would be tested here in a full implementation
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 5: Error Handling and Edge Cases
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_in_memory_provider_error_types() {
-        let provider = InMemoryProvider::for_testing();
-        let tenant_id = "error_tenant";
-        let context = create_test_context(tenant_id);
-
-        // First establish the tenant by creating and deleting a resource
-        let temp_user_data = create_test_user("temp_user");
-        let temp_resource = provider
-            .create_resource(tenant_id, "User", temp_user_data, &context)
-            .await
-            .unwrap();
-        let temp_id = temp_resource.get_id().unwrap();
+        // Delete user
         provider
-            .delete_resource(tenant_id, "User", temp_id, &context)
+            .delete_resource("User", id, &context)
             .await
             .unwrap();
 
-        // Test resource not found
-        let result = provider
-            .get_resource(tenant_id, "User", "nonexistent", &context)
-            .await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        let deleted = provider.get_resource("User", id, &context).await.unwrap();
 
-        // Test update nonexistent resource
-        let update_result = provider
-            .update_resource(
-                tenant_id,
-                "User",
-                "nonexistent",
-                create_test_user("test"),
-                &context,
-            )
-            .await;
-        assert!(update_result.is_err());
-
-        match update_result.unwrap_err() {
-            InMemoryProviderError::ResourceNotFound {
-                tenant_id: tid,
-                resource_type,
-                id,
-            } => {
-                assert_eq!(tid, tenant_id);
-                assert_eq!(resource_type, "User");
-                assert_eq!(id, "nonexistent");
-            }
-            other => panic!("Expected ResourceNotFound, got {:?}", other),
-        }
-
-        // Test delete nonexistent resource
-        let delete_result = provider
-            .delete_resource(tenant_id, "User", "nonexistent", &context)
-            .await;
-        assert!(delete_result.is_err());
+        assert!(deleted.is_none());
     }
 
     #[tokio::test]
-    async fn test_clear_all_data() {
+    async fn test_multi_tenant_isolation() {
         let provider = InMemoryProvider::for_testing();
-        let tenant_id = "clear_test_tenant";
-        let context = create_test_context(tenant_id);
-
-        // Create some data
-        let _user = provider
-            .create_resource(tenant_id, "User", create_test_user("test_user"), &context)
-            .await
-            .unwrap();
-
-        let count_before = provider.get_tenant_resource_count(tenant_id).await;
-        assert_eq!(count_before, 1);
-
-        // Clear all data
-        provider.clear_all_data().await;
-
-        let count_after = provider.get_tenant_resource_count(tenant_id).await;
-        assert_eq!(count_after, 0);
-
-        // Verify metrics are also cleared
-        let metrics = provider.get_metrics().await.unwrap();
-        assert_eq!(metrics.operations_count.len(), 0);
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 6: Concurrency and Thread Safety
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_concurrent_operations_thread_safety() {
-        let provider = Arc::new(InMemoryProvider::for_testing());
-        let mut handles = Vec::new();
-
-        // Spawn multiple concurrent operations
-        for tenant_idx in 0..5 {
-            let provider_clone = provider.clone();
-            let tenant_id = format!("concurrent_tenant_{}", tenant_idx);
-
-            let handle = tokio::spawn(async move {
-                let context = create_test_context(&tenant_id);
-                let mut created_ids = Vec::new();
-
-                // Create multiple users concurrently
-                for user_idx in 0..10 {
-                    let username = format!("user_{}_{}", tenant_idx, user_idx);
-                    let user_data = create_test_user(&username);
-
-                    let result = provider_clone
-                        .create_resource(&tenant_id, "User", user_data, &context)
-                        .await;
-
-                    assert!(result.is_ok());
-                    let resource = result.unwrap();
-                    if let Some(id) = resource.get_id() {
-                        created_ids.push(id.to_string());
-                    }
-                }
-
-                // Read all created resources
-                for id in &created_ids {
-                    let result = provider_clone
-                        .get_resource(&tenant_id, "User", id, &context)
-                        .await;
-                    assert!(result.is_ok());
-                    assert!(result.unwrap().is_some());
-                }
-
-                created_ids.len()
-            });
-
-            handles.push(handle);
-        }
-
-        // Wait for all operations to complete
-        let mut total_created = 0;
-        for handle in handles {
-            let created = handle.await.unwrap();
-            total_created += created;
-        }
-
-        // Verify total resources created
-        assert_eq!(total_created, 50); // 5 tenants * 10 users each
-
-        // Verify each tenant has correct count
-        for tenant_idx in 0..5 {
-            let tenant_id = format!("concurrent_tenant_{}", tenant_idx);
-            let count = provider.get_tenant_resource_count(&tenant_id).await;
-            assert_eq!(count, 10);
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    // Test Group 7: Integration with Common Test Patterns
-    // ------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn test_in_memory_provider_with_test_harness() {
-        let provider = InMemoryProvider::for_testing();
-
-        // Test basic multi-tenant functionality manually
-        let tenant_a_context = create_test_context("harness_tenant_a");
-        let tenant_b_context = create_test_context("harness_tenant_b");
+        let context_a = create_multi_tenant_context("tenant_a");
+        let context_b = create_multi_tenant_context("tenant_b");
 
         // Create users in different tenants
         let user_a = provider
-            .create_resource(
-                "harness_tenant_a",
-                "User",
-                create_test_user("harness_user_a"),
-                &tenant_a_context,
-            )
+            .create_resource("User", create_test_user_data("user_a"), &context_a)
             .await
             .unwrap();
 
         let user_b = provider
-            .create_resource(
-                "harness_tenant_b",
-                "User",
-                create_test_user("harness_user_b"),
-                &tenant_b_context,
-            )
+            .create_resource("User", create_test_user_data("user_b"), &context_b)
             .await
             .unwrap();
 
-        // Verify tenant isolation
-        let user_a_id = user_a.get_id().unwrap();
-        let user_b_id = user_b.get_id().unwrap();
+        let id_a = user_a.id.as_ref().unwrap().as_str();
+        let id_b = user_b.id.as_ref().unwrap().as_str();
 
-        // User A should exist in tenant A but not B
-        let exists_a_in_a = provider
-            .resource_exists("harness_tenant_a", "User", user_a_id, &tenant_a_context)
+        // Verify tenant A can access its own user but not tenant B's
+        let get_a_own = provider
+            .get_resource("User", id_a, &context_a)
             .await
             .unwrap();
-        assert!(exists_a_in_a, "User A should exist in tenant A");
+        assert!(get_a_own.is_some());
 
-        let exists_a_in_b = provider
-            .resource_exists("harness_tenant_b", "User", user_a_id, &tenant_b_context)
+        let get_a_cross = provider
+            .get_resource("User", id_b, &context_a)
             .await
             .unwrap();
-        assert!(!exists_a_in_b, "User A should not exist in tenant B");
+        assert!(get_a_cross.is_none());
 
-        // User B should exist in tenant B but not A
-        let exists_b_in_b = provider
-            .resource_exists("harness_tenant_b", "User", user_b_id, &tenant_b_context)
+        // Verify tenant B can access its own user but not tenant A's
+        let get_b_own = provider
+            .get_resource("User", id_b, &context_b)
             .await
             .unwrap();
-        assert!(exists_b_in_b, "User B should exist in tenant B");
+        assert!(get_b_own.is_some());
 
-        let exists_b_in_a = provider
-            .resource_exists("harness_tenant_a", "User", user_b_id, &tenant_a_context)
+        let get_b_cross = provider
+            .get_resource("User", id_a, &context_b)
             .await
             .unwrap();
-        assert!(!exists_b_in_a, "User B should not exist in tenant A");
+        assert!(get_b_cross.is_none());
 
-        println!("✅ Test harness integration successful");
+        // Verify list isolation
+        let list_a = provider
+            .list_resources("User", None, &context_a)
+            .await
+            .unwrap();
+        assert_eq!(list_a.len(), 1);
+
+        let list_b = provider
+            .list_resources("User", None, &context_b)
+            .await
+            .unwrap();
+        assert_eq!(list_b.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_in_memory_provider_with_scenario_builder() {
+    async fn test_username_uniqueness_within_tenant() {
         let provider = InMemoryProvider::for_testing();
+        let context = create_multi_tenant_context("test_tenant");
 
-        let scenario = MultiTenantScenarioBuilder::new()
-            .add_tenant("test_tenant_1")
-            .add_tenant("test_tenant_2")
-            .add_tenant("test_tenant_3")
-            .with_users_per_tenant(5)
-            .with_groups_per_tenant(2)
-            .build();
+        // Create first user
+        let user_data = create_test_user_data("testuser");
+        let _created = provider
+            .create_resource("User", user_data.clone(), &context)
+            .await
+            .unwrap();
 
-        let populated = scenario.populate_provider(&provider).await.unwrap();
+        // Try to create duplicate user (should fail)
+        let result = provider.create_resource("User", user_data, &context).await;
 
-        assert_eq!(populated.tenants.len(), 3);
-        assert_eq!(populated.total_users(), 15); // 3 tenants * 5 users
-        assert_eq!(populated.total_groups(), 6); // 3 tenants * 2 groups
-
-        // Verify isolation - each tenant should only see its own resources
-        for tenant_result in &populated.tenants {
-            let context = create_test_context(&tenant_result.tenant_id);
-
-            let users = provider
-                .list_resources(&tenant_result.tenant_id, "User", None, &context)
-                .await
-                .unwrap();
-
-            assert_eq!(users.len(), 5);
-
-            let groups = provider
-                .list_resources(&tenant_result.tenant_id, "Group", None, &context)
-                .await
-                .unwrap();
-
-            assert_eq!(groups.len(), 2);
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            InMemoryProviderError::DuplicateResource {
+                attribute, value, ..
+            } => {
+                assert_eq!(attribute, "userName");
+                assert_eq!(value, "testuser");
+            }
+            _ => panic!("Expected DuplicateResource error"),
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Test Group 8: Provider-Specific Feature Tests
-    // ------------------------------------------------------------------------
-
     #[tokio::test]
-    async fn test_in_memory_provider_specific_features() {
-        println!("\n🧠 In-Memory Provider Specific Features Test");
-        println!("=============================================");
-
+    async fn test_username_allowed_across_tenants() {
         let provider = InMemoryProvider::for_testing();
-        let tenant_id = "feature_test_tenant";
-        let context = create_test_context(tenant_id);
+        let context_a = create_multi_tenant_context("tenant_a");
+        let context_b = create_multi_tenant_context("tenant_b");
 
-        // Test 1: Fast in-memory operations
-        let start = std::time::Instant::now();
+        let user_data = create_test_user_data("testuser");
 
-        for i in 0..100 {
-            let username = format!("speed_test_user_{}", i);
-            let _user = provider
-                .create_resource(tenant_id, "User", create_test_user(&username), &context)
-                .await
-                .unwrap();
-        }
-
-        let create_duration = start.elapsed();
-        println!("Created 100 users in: {:?}", create_duration);
-
-        // Test 2: Fast retrieval
-        let start = std::time::Instant::now();
-        let users = provider
-            .list_resources(tenant_id, "User", None, &context)
+        // Create user in tenant A
+        let user_a = provider
+            .create_resource("User", user_data.clone(), &context_a)
             .await
             .unwrap();
-        let list_duration = start.elapsed();
 
-        assert_eq!(users.len(), 100);
-        println!("Listed 100 users in: {:?}", list_duration);
-
-        // Test 3: Memory-based search performance
-        let start = std::time::Instant::now();
-        let found_user = provider
-            .find_resource_by_attribute(
-                tenant_id,
-                "User",
-                "userName",
-                &json!("speed_test_user_50"),
-                &context,
-            )
+        // Create user with same username in tenant B (should succeed)
+        let user_b = provider
+            .create_resource("User", user_data, &context_b)
             .await
             .unwrap();
-        let search_duration = start.elapsed();
 
-        assert!(found_user.is_some());
-        println!("Found specific user in: {:?}", search_duration);
-
-        // All operations should be very fast for in-memory provider
-        assert!(
-            create_duration.as_millis() < 1000,
-            "Create operations should be fast"
-        );
-        assert!(
-            list_duration.as_millis() < 100,
-            "List operations should be very fast"
-        );
-        assert!(
-            search_duration.as_millis() < 100,
-            "Search operations should be very fast"
+        assert_ne!(user_a.id, user_b.id);
+        assert_eq!(
+            user_a.user_name.as_ref().unwrap().as_str(),
+            user_b.user_name.as_ref().unwrap().as_str()
         );
     }
 
     #[tokio::test]
-    async fn test_provider_documentation() {
-        println!("\n🧠 In-Memory Provider Test Documentation");
-        println!("=======================================");
-        println!("This test suite validates the production-ready in-memory provider");
-        println!("with comprehensive multi-tenant support.\n");
+    async fn test_find_resource_by_attribute() {
+        let provider = InMemoryProvider::for_testing();
+        let context = create_single_tenant_context();
 
-        println!("✅ Test Categories Completed:");
-        println!("  • Basic provider functionality and configuration");
-        println!("  • Capacity and resource management");
-        println!("  • Metrics collection and monitoring");
-        println!("  • Advanced query support");
-        println!("  • Error handling and edge cases");
-        println!("  • Concurrency and thread safety");
-        println!("  • Integration with common test patterns");
-        println!("  • Provider-specific features and performance\n");
+        // Create user
+        let user_data = create_test_user_data("searchuser");
+        let created = provider
+            .create_resource("User", user_data, &context)
+            .await
+            .unwrap();
 
-        println!("🔒 Security Features Tested:");
-        println!("  • Complete tenant data isolation");
-        println!("  • Tenant context validation");
-        println!("  • Cross-tenant access prevention");
-        println!("  • Resource ID scoping within tenants\n");
+        // Find by username
+        let found = provider
+            .find_resource_by_attribute("User", "userName", &json!("searchuser"), &context)
+            .await
+            .unwrap()
+            .unwrap();
 
-        println!("⚡ Performance Characteristics:");
-        println!("  • Fast in-memory operations");
-        println!("  • Efficient concurrent access");
-        println!("  • Low-latency resource operations");
-        println!("  • Memory-based search and filtering\n");
+        assert_eq!(found.id, created.id);
 
-        println!("🔧 Provider-Specific Features:");
-        println!("  • Configurable capacity limits");
-        println!("  • Optional metrics collection");
-        println!("  • Thread-safe concurrent operations");
-        println!("  • Advanced query support");
-        println!("  • Memory usage monitoring\n");
+        // Find by non-existent username
+        let not_found = provider
+            .find_resource_by_attribute("User", "userName", &json!("nonexistent"), &context)
+            .await
+            .unwrap();
 
-        println!("🎯 Use Cases:");
-        println!("  • High-performance testing and development");
-        println!("  • Reference implementation for other providers");
-        println!("  • Simple deployments without external dependencies");
-        println!("  • Caching layer for other providers");
+        assert!(not_found.is_none());
     }
-}
-
-// ============================================================================
-// Provider Configuration Tests
-// ============================================================================
-
-#[cfg(test)]
-mod configuration_tests {
-    use super::*;
 
     #[tokio::test]
-    async fn test_different_configuration_scenarios() {
-        let configs = vec![
-            ProviderTestConfig::new("unlimited")
-                .with_setting("max_resources_per_tenant", json!(null))
-                .with_setting("metrics_enabled", json!(true)),
-            ProviderTestConfig::new("limited_capacity")
-                .with_setting("max_resources_per_tenant", json!(100))
-                .with_setting("metrics_enabled", json!(true)),
-            ProviderTestConfig::new("minimal_memory")
-                .with_setting("max_memory_bytes", json!(1024 * 1024))
-                .with_setting("metrics_enabled", json!(false)),
-        ];
+    async fn test_resource_limits() {
+        let config = InMemoryProviderConfig {
+            enable_metrics: false,
+            max_resources_per_tenant: Some(2),
+            max_tenants: Some(10),
+            enable_validation: true,
+        };
+        let provider = InMemoryProvider::with_config(config);
+        let context = create_single_tenant_context();
 
-        for config in configs {
-            println!("Testing configuration: {}", config.name);
+        // Create resources up to limit
+        provider
+            .create_resource("User", create_test_user_data("user1"), &context)
+            .await
+            .unwrap();
 
-            let provider_config = match config.name.as_str() {
-                "unlimited" => InMemoryProviderConfig {
-                    max_resources_per_tenant: None,
-                    metrics_enabled: true,
-                    ..Default::default()
-                },
-                "limited_capacity" => InMemoryProviderConfig {
-                    max_resources_per_tenant: Some(100),
-                    metrics_enabled: true,
-                    ..Default::default()
-                },
-                "minimal_memory" => InMemoryProviderConfig {
-                    max_memory_bytes: Some(1024 * 1024),
-                    metrics_enabled: false,
-                    ..Default::default()
-                },
-                _ => InMemoryProviderConfig::default(),
-            };
+        provider
+            .create_resource("User", create_test_user_data("user2"), &context)
+            .await
+            .unwrap();
 
-            let provider = Arc::new(InMemoryProvider::with_config(provider_config));
+        // Try to create beyond limit (should fail)
+        let result = provider
+            .create_resource("User", create_test_user_data("user3"), &context)
+            .await;
 
-            // Run basic functionality test
-            let tenant_id = format!("config_test_{}", config.name);
-            let context = create_test_context(&tenant_id);
-
-            let result = provider
-                .create_resource(
-                    &tenant_id,
-                    "User",
-                    create_test_user("config_user"),
-                    &context,
-                )
-                .await;
-
-            assert!(
-                result.is_ok(),
-                "Configuration '{}' should work",
-                config.name
-            );
-
-            println!("Configuration '{}' passed basic test", config.name);
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            InMemoryProviderError::ResourceLimitExceeded { max_resources, .. } => {
+                assert_eq!(max_resources, 2);
+            }
+            _ => panic!("Expected ResourceLimitExceeded error"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_statistics() {
+        let provider = InMemoryProvider::for_testing();
+        let context = create_single_tenant_context();
+
+        // Create some resources
+        provider
+            .create_resource("User", create_test_user_data("user1"), &context)
+            .await
+            .unwrap();
+
+        provider
+            .create_resource("User", create_test_user_data("user2"), &context)
+            .await
+            .unwrap();
+
+        provider
+            .create_resource("Group", create_test_group_data("group1"), &context)
+            .await
+            .unwrap();
+
+        // Get statistics
+        let stats = provider.get_tenant_statistics("default").await;
+
+        assert_eq!(stats.tenant_id, "default");
+        assert_eq!(stats.total_resources, 3);
+        assert_eq!(stats.resource_counts.get("User"), Some(&2));
+        assert_eq!(stats.resource_counts.get("Group"), Some(&1));
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_operations() {
+        let provider = Arc::new(InMemoryProvider::for_testing());
+        let context = create_single_tenant_context();
+
+        // Create concurrent tasks
+        let tasks: Vec<_> = (0..10)
+            .map(|i| {
+                let provider = Arc::clone(&provider);
+                let context = context.clone();
+                tokio::spawn(async move {
+                    let username = format!("user{}", i);
+                    provider
+                        .create_resource("User", create_test_user_data(&username), &context)
+                        .await
+                        .unwrap()
+                })
+            })
+            .collect();
+
+        // Wait for all tasks to complete
+        let mut results = Vec::new();
+        for task in tasks {
+            results.push(task.await.unwrap());
+        }
+
+        // Verify all resources were created
+        let resources = provider
+            .list_resources("User", None, &context)
+            .await
+            .unwrap();
+
+        assert_eq!(resources.len(), 10);
     }
 }

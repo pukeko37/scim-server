@@ -351,6 +351,81 @@ pub enum ValidationError {
         attribute: String,
         characteristic: String,
     },
+
+    // Schema-Driven Value Object Errors
+    /// Unsupported attribute type for value object creation
+    #[error("Unsupported attribute type '{type_name}' for attribute '{attribute}'")]
+    UnsupportedAttributeType {
+        attribute: String,
+        type_name: String,
+    },
+
+    /// Invalid attribute name mismatch
+    #[error("Invalid attribute name '{actual}', expected '{expected}'")]
+    InvalidAttributeName { actual: String, expected: String },
+
+    /// Required attribute missing
+    #[error("Required attribute '{0}' is missing")]
+    RequiredAttributeMissing(String),
+
+    /// Null value for optional attribute (used in factory)
+    #[error("Null value provided for optional attribute '{0}'")]
+    NullValueForOptionalAttribute(String),
+
+    /// Expected array for multi-valued attribute
+    #[error("Expected array for multi-valued attribute '{0}'")]
+    ExpectedArray(String),
+
+    /// Invalid primary index for multi-valued attribute
+    #[error("Invalid primary index {index} for attribute '{attribute}' (length: {length})")]
+    InvalidPrimaryIndex {
+        attribute: String,
+        index: usize,
+        length: usize,
+    },
+
+    /// Attribute is not multi-valued
+    #[error("Attribute '{0}' is not multi-valued")]
+    NotMultiValued(String),
+
+    /// Reserved username error
+    #[error("Username '{0}' is reserved and cannot be used")]
+    ReservedUsername(String),
+
+    /// Username too short
+    #[error("Username '{0}' is too short (minimum 3 characters)")]
+    UsernameTooShort(String),
+
+    /// Username too long
+    #[error("Username '{0}' is too long (maximum 64 characters)")]
+    UsernameTooLong(String),
+
+    /// Invalid username format
+    #[error("Username '{0}' has invalid format")]
+    InvalidUsernameFormat(String),
+
+    /// Invalid email domain
+    #[error("Email '{email}' has invalid domain, allowed domains: {allowed_domains:?}")]
+    InvalidEmailDomain {
+        email: String,
+        allowed_domains: Vec<String>,
+    },
+
+    /// Work email required
+    #[error("A work email address is required")]
+    WorkEmailRequired,
+
+    /// External ID required
+    #[error("External ID is required")]
+    ExternalIdRequired,
+
+    /// Name component required
+    #[error("At least one name component (given, family, or formatted) is required")]
+    NameComponentRequired,
+
+    /// Empty formatted name
+    #[error("Formatted name cannot be empty")]
+    EmptyFormattedName,
 }
 
 /// Errors that can occur during server building/configuration.
@@ -445,6 +520,15 @@ impl ValidationError {
 pub type ScimResult<T> = Result<T, ScimError>;
 pub type ValidationResult<T> = Result<T, ValidationError>;
 pub type BuildResult<T> = Result<T, BuildError>;
+
+// Implement From for common error conversions
+impl From<serde_json::Error> for ValidationError {
+    fn from(error: serde_json::Error) -> Self {
+        ValidationError::Custom {
+            message: format!("JSON serialization error: {}", error),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -6,6 +6,7 @@
 
 pub mod advanced;
 pub mod core;
+pub mod integration_tests;
 pub mod provider_trait;
 
 // Re-export test utilities for multi-tenant testing

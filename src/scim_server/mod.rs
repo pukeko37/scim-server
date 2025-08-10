@@ -10,7 +10,7 @@
 //! * [`registration`] - Resource type registration and operation support management
 //! * [`operations`] - CRUD operations for resources (create, read, update, delete, list, search)
 //! * [`schema_management`] - Schema-related operations and validation helpers
-//! * [`tests`] - Test infrastructure and comprehensive test cases
+//! - `tests` - Test infrastructure and comprehensive test cases
 
 pub mod core;
 pub mod operations;

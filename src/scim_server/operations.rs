@@ -7,6 +7,7 @@
 use super::core::ScimServer;
 use crate::error::ScimResult;
 use crate::resource::{RequestContext, Resource, ResourceProvider, ScimOperation};
+use log::{debug, info, warn};
 use serde_json::Value;
 
 impl<P: ResourceProvider> ScimServer<P> {
@@ -17,6 +18,11 @@ impl<P: ResourceProvider> ScimServer<P> {
         data: Value,
         context: &RequestContext,
     ) -> ScimResult<Resource> {
+        info!(
+            "SCIM create {} operation initiated (request: '{}')",
+            resource_type, context.request_id
+        );
+
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Create)?;
 
@@ -27,10 +33,30 @@ impl<P: ResourceProvider> ScimServer<P> {
         self.schema_registry.validate_resource(&schema, &data)?;
 
         // Delegate to provider
-        self.provider
+        let result = self
+            .provider
             .create_resource(resource_type, data, context)
             .await
-            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(resource) => {
+                info!(
+                    "SCIM create {} operation completed successfully: ID '{}' (request: '{}')",
+                    resource_type,
+                    resource.get_id().unwrap_or("unknown"),
+                    context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM create {} operation failed: {} (request: '{}')",
+                    resource_type, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Generic read operation
@@ -40,13 +66,42 @@ impl<P: ResourceProvider> ScimServer<P> {
         id: &str,
         context: &RequestContext,
     ) -> ScimResult<Option<Resource>> {
+        debug!(
+            "SCIM get {} operation initiated for ID '{}' (request: '{}')",
+            resource_type, id, context.request_id
+        );
+
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Read)?;
 
-        self.provider
+        let result = self
+            .provider
             .get_resource(resource_type, id, context)
             .await
-            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(Some(_)) => {
+                debug!(
+                    "SCIM get {} operation completed: found resource with ID '{}' (request: '{}')",
+                    resource_type, id, context.request_id
+                );
+            }
+            Ok(None) => {
+                debug!(
+                    "SCIM get {} operation completed: resource with ID '{}' not found (request: '{}')",
+                    resource_type, id, context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM get {} operation failed for ID '{}': {} (request: '{}')",
+                    resource_type, id, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Generic update operation
@@ -57,6 +112,12 @@ impl<P: ResourceProvider> ScimServer<P> {
         data: Value,
         context: &RequestContext,
     ) -> ScimResult<Resource> {
+        info!(
+            "SCIM update {} operation initiated for ID '{}' (request: '{}')",
+            resource_type, id, context.request_id
+        );
+
+        // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Update)?;
 
         // Get the schema for validation
@@ -65,10 +126,28 @@ impl<P: ResourceProvider> ScimServer<P> {
         // Validate against schema
         self.schema_registry.validate_resource(&schema, &data)?;
 
-        self.provider
+        let result = self
+            .provider
             .update_resource(resource_type, id, data, context)
             .await
-            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(_) => {
+                info!(
+                    "SCIM update {} operation completed successfully for ID '{}' (request: '{}')",
+                    resource_type, id, context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM update {} operation failed for ID '{}': {} (request: '{}')",
+                    resource_type, id, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Generic delete operation
@@ -78,12 +157,36 @@ impl<P: ResourceProvider> ScimServer<P> {
         id: &str,
         context: &RequestContext,
     ) -> ScimResult<()> {
+        info!(
+            "SCIM delete {} operation initiated for ID '{}' (request: '{}')",
+            resource_type, id, context.request_id
+        );
+
+        // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Delete)?;
 
-        self.provider
+        let result = self
+            .provider
             .delete_resource(resource_type, id, context)
             .await
-            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(_) => {
+                info!(
+                    "SCIM delete {} operation completed successfully for ID '{}' (request: '{}')",
+                    resource_type, id, context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM delete {} operation failed for ID '{}': {} (request: '{}')",
+                    resource_type, id, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Generic list operation for any resource type
@@ -92,13 +195,38 @@ impl<P: ResourceProvider> ScimServer<P> {
         resource_type: &str,
         context: &RequestContext,
     ) -> ScimResult<Vec<Resource>> {
+        debug!(
+            "SCIM list {} operation initiated (request: '{}')",
+            resource_type, context.request_id
+        );
+
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::List)?;
 
-        self.provider
+        let result = self
+            .provider
             .list_resources(resource_type, None, context)
             .await
-            .map_err(|e| crate::error::ScimError::internal(format!("Provider error: {}", e)))
+            .map_err(|e| crate::error::ScimError::internal(format!("Provider error: {}", e)));
+
+        match &result {
+            Ok(resources) => {
+                debug!(
+                    "SCIM list {} operation completed: found {} resources (request: '{}')",
+                    resource_type,
+                    resources.len(),
+                    context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM list {} operation failed: {} (request: '{}')",
+                    resource_type, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Generic search by attribute (replaces find_user_by_username)
@@ -109,13 +237,44 @@ impl<P: ResourceProvider> ScimServer<P> {
         value: &Value,
         context: &RequestContext,
     ) -> ScimResult<Option<Resource>> {
+        debug!(
+            "SCIM find {} operation initiated for {}='{}' (request: '{}')",
+            resource_type, attribute, value, context.request_id
+        );
+
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Search)?;
 
-        self.provider
+        let result = self
+            .provider
             .find_resource_by_attribute(resource_type, attribute, value, context)
             .await
-            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(Some(resource)) => {
+                debug!(
+                    "SCIM find {} operation completed: found resource with ID '{}' (request: '{}')",
+                    resource_type,
+                    resource.get_id().unwrap_or("unknown"),
+                    context.request_id
+                );
+            }
+            Ok(None) => {
+                debug!(
+                    "SCIM find {} operation completed: no resource found for {}='{}' (request: '{}')",
+                    resource_type, attribute, value, context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM find {} operation failed for {}='{}': {} (request: '{}')",
+                    resource_type, attribute, value, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 
     /// Check if a resource exists
@@ -125,6 +284,10 @@ impl<P: ResourceProvider> ScimServer<P> {
         id: &str,
         context: &RequestContext,
     ) -> ScimResult<bool> {
+        debug!(
+            "SCIM resource exists check for {} with ID '{}' (request: '{}')",
+            resource_type, id, context.request_id
+        );
         self.provider
             .resource_exists(resource_type, id, context)
             .await

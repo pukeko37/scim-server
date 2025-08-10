@@ -160,6 +160,7 @@ impl SchemaRegistry {
     }
 
     /// Check if a schema URI has valid format.
+    #[allow(dead_code)]
     pub(super) fn is_valid_schema_uri(&self, uri: &str) -> bool {
         // Basic validation: must be a URN that starts with correct prefix
         uri.starts_with("urn:") && uri.contains("scim:schemas")
@@ -179,6 +180,7 @@ impl SchemaRegistry {
     }
 
     /// Find attribute definition in schema (including sub-attributes)
+    #[allow(dead_code)]
     pub(super) fn find_attribute_definition<'a>(
         &self,
         schema: &'a Schema,
@@ -200,6 +202,7 @@ impl SchemaRegistry {
     }
 
     /// Extract schema URIs from the schemas array.
+    #[allow(dead_code)]
     pub(super) fn extract_schema_uris(
         &self,
         obj: &serde_json::Map<String, Value>,

@@ -9,8 +9,7 @@ use std::collections::HashMap;
 
 // Re-export from integration tests for convenience
 pub use crate::integration::providers::common::{
-    MultiTenantScenarioBuilder, PopulatedTestData, ProviderTestConfig, ProviderTestingSuite,
-    TenantPopulationResult, TestResult, TestResults,
+    MultiTenantScenarioBuilder, ProviderTestConfig, ProviderTestingSuite, TestDataSize, TestResults,
 };
 
 /// Provider test categories for systematic testing
@@ -208,7 +207,7 @@ pub struct ProviderTestValidation;
 
 impl ProviderTestValidation {
     /// Validate that a resource has required SCIM fields
-    pub fn validate_scim_resource(resource: &Value, resource_type: &str) -> Result<(), String> {
+    pub fn validate_json_resource(resource: &Value, resource_type: &str) -> Result<(), String> {
         // Check schemas
         let schemas = resource
             .get("schemas")
@@ -304,7 +303,7 @@ impl ProviderTestValidation {
     ) -> Result<(), String> {
         for resource in resources {
             // Verify resource has proper structure
-            Self::validate_scim_resource(resource, "unknown")?;
+            Self::validate_json_resource(resource, "unknown")?;
 
             // Additional tenant-specific validation would go here
             // This depends on how tenant information is encoded in resources
@@ -327,7 +326,7 @@ impl ProviderTestValidation {
         }
 
         for result in results {
-            Self::validate_scim_resource(result, "unknown")?;
+            Self::validate_json_resource(result, "unknown")?;
         }
 
         Ok(())
@@ -449,48 +448,28 @@ impl ProviderConfigTester {
     /// Create standard test configurations for providers
     pub fn standard_configs() -> Vec<ProviderTestConfig> {
         vec![
-            ProviderTestConfig::new("minimal")
-                .with_setting("max_connections", json!(1))
-                .with_setting("timeout_ms", json!(1000)),
-            ProviderTestConfig::new("standard")
-                .with_setting("max_connections", json!(10))
-                .with_setting("timeout_ms", json!(5000))
-                .with_setting("cache_enabled", json!(true)),
-            ProviderTestConfig::new("high_performance")
-                .with_setting("max_connections", json!(100))
-                .with_setting("timeout_ms", json!(10000))
-                .with_setting("cache_enabled", json!(true))
-                .with_setting("bulk_operations", json!(true)),
-            ProviderTestConfig::new("strict_security")
-                .with_setting("max_connections", json!(5))
-                .with_setting("timeout_ms", json!(2000))
-                .with_setting("encryption", json!(true))
-                .with_setting("audit_logging", json!(true)),
+            ProviderTestConfig::minimal(),
+            ProviderTestConfig::default(),
+            ProviderTestConfig::for_performance(),
+            ProviderTestConfig {
+                enable_concurrent_tests: false,
+                max_concurrent_operations: 5,
+                test_data_size: TestDataSize::Small,
+                enable_performance_tests: false,
+            },
         ]
     }
 
     /// Validate provider configuration
     pub fn validate_config(config: &ProviderTestConfig) -> Result<(), String> {
         // Basic validation
-        if config.name.is_empty() {
-            return Err("Configuration name cannot be empty".to_string());
+        if config.max_concurrent_operations == 0 {
+            return Err("max_concurrent_operations must be positive".to_string());
         }
 
-        // Validate specific settings
-        if let Some(max_conn) = config.settings.get("max_connections") {
-            if let Some(val) = max_conn.as_i64() {
-                if val <= 0 {
-                    return Err("max_connections must be positive".to_string());
-                }
-            }
-        }
-
-        if let Some(timeout) = config.settings.get("timeout_ms") {
-            if let Some(val) = timeout.as_i64() {
-                if val <= 0 {
-                    return Err("timeout_ms must be positive".to_string());
-                }
-            }
+        // Validate that performance tests are only enabled with appropriate settings
+        if config.enable_performance_tests && config.max_concurrent_operations < 50 {
+            return Err("Performance tests require at least 50 concurrent operations".to_string());
         }
 
         Ok(())
@@ -554,14 +533,14 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_scim_resource() {
+    fn test_validate_json_resource() {
         let valid_user = json!({
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
             "id": "123",
             "userName": "testuser"
         });
 
-        let result = ProviderTestValidation::validate_scim_resource(&valid_user, "User");
+        let result = ProviderTestValidation::validate_json_resource(&valid_user, "User");
         assert!(result.is_ok());
 
         let invalid_user = json!({
@@ -569,20 +548,22 @@ mod tests {
             "userName": "testuser"
         });
 
-        let result = ProviderTestValidation::validate_scim_resource(&invalid_user, "User");
+        let result = ProviderTestValidation::validate_json_resource(&invalid_user, "User");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_provider_config_validation() {
-        let valid_config = ProviderTestConfig::new("test")
-            .with_setting("max_connections", json!(10))
-            .with_setting("timeout_ms", json!(5000));
+        let valid_config = ProviderTestConfig::default();
 
         assert!(ProviderConfigTester::validate_config(&valid_config).is_ok());
 
-        let invalid_config = ProviderTestConfig::new("").with_setting("max_connections", json!(-1));
-
+        let invalid_config = ProviderTestConfig {
+            enable_concurrent_tests: true,
+            max_concurrent_operations: 0,
+            test_data_size: TestDataSize::Small,
+            enable_performance_tests: false,
+        };
         assert!(ProviderConfigTester::validate_config(&invalid_config).is_err());
     }
 

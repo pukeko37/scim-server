@@ -8,10 +8,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 // Re-export from integration tests for convenience
-pub use crate::integration::multi_tenant::core::{
-    AuthInfo, AuthInfoBuilder, EnhancedRequestContext, IsolationLevel, TenantContext,
-    TenantContextBuilder, TenantPermissions,
-};
+pub use crate::integration::multi_tenant::core::{AuthInfo, AuthInfoBuilder, TenantContextBuilder};
+
+// Use main crate types directly
+pub use scim_server::{IsolationLevel, TenantContext, TenantPermissions};
 
 /// Multi-tenant test context builder for creating realistic test scenarios
 #[derive(Debug, Clone)]
@@ -102,11 +102,11 @@ impl TenantTestSetup {
             .build()
     }
 
-    pub fn to_request_context(&self) -> EnhancedRequestContext {
-        EnhancedRequestContext {
-            request_id: format!("test_req_{}", self.tenant_id),
-            tenant_context: self.to_tenant_context(),
-        }
+    pub fn to_request_context(&self) -> scim_server::RequestContext {
+        scim_server::RequestContext::with_tenant(
+            format!("test_req_{}", self.tenant_id),
+            self.to_tenant_context(),
+        )
     }
 }
 
@@ -464,15 +464,15 @@ impl MultiTenantTestUtils {
     /// Create multiple request contexts for different tenants
     pub fn create_contexts_for_tenants(
         tenant_ids: &[&str],
-    ) -> HashMap<String, EnhancedRequestContext> {
+    ) -> HashMap<String, scim_server::RequestContext> {
         tenant_ids
             .iter()
             .map(|&tenant_id| {
                 let context = TenantContextBuilder::new(tenant_id).build();
-                let request_context = EnhancedRequestContext {
-                    request_id: format!("test_req_{}", tenant_id),
-                    tenant_context: context,
-                };
+                let request_context = scim_server::RequestContext::with_tenant(
+                    format!("test_req_{}", tenant_id),
+                    context,
+                );
                 (tenant_id.to_string(), request_context)
             })
             .collect()

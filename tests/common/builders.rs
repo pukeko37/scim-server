@@ -4,6 +4,7 @@
 //! systematically modified to test specific validation errors.
 
 use super::ValidationErrorCode;
+use scim_server::resource::value_objects::{ExternalId, ResourceId, SchemaUri, UserName};
 use serde_json::{Value, json};
 
 /// Builder for User resources with fluent API for creating test data
@@ -270,6 +271,22 @@ impl UserBuilder {
         self
     }
 
+    /// Add readonly meta attributes - Error #17: Client-provided readonly meta attributes
+    pub fn with_readonly_meta_attributes(mut self) -> Self {
+        if let Some(meta) = self.data["meta"].as_object_mut() {
+            meta.insert("created".to_string(), json!("2024-01-01T00:00:00Z"));
+            meta.insert("lastModified".to_string(), json!("2024-01-01T00:00:00Z"));
+            meta.insert(
+                "location".to_string(),
+                json!("https://example.com/Users/123"),
+            );
+            meta.insert("version".to_string(), json!("W/\"123456\""));
+        }
+        self.expected_errors
+            .push(ValidationErrorCode::ClientProvidedMeta);
+        self
+    }
+
     /// Set invalid created datetime - Error #18: Invalid meta.created datetime format
     pub fn with_invalid_created_datetime(mut self) -> Self {
         self.data["meta"]["created"] = json!("invalid-date");
@@ -506,6 +523,91 @@ impl UserBuilder {
     pub fn with_active(mut self, active: bool) -> Self {
         self.data["active"] = json!(active);
         self
+    }
+
+    // === Enhanced Value Object Methods ===
+    // These methods use value objects for construction while maintaining JSON output
+
+    /// Set resource ID using ResourceId value object
+    pub fn with_resource_id(mut self, resource_id: ResourceId) -> Self {
+        self.data["id"] = json!(resource_id.as_str());
+        self
+    }
+
+    /// Set schema URIs using SchemaUri value objects
+    pub fn with_schema_uris(mut self, schema_uris: Vec<SchemaUri>) -> Self {
+        let uri_strings: Vec<String> = schema_uris
+            .into_iter()
+            .map(|uri| uri.as_str().to_string())
+            .collect();
+        self.data["schemas"] = json!(uri_strings);
+        self
+    }
+
+    /// Set external ID using ExternalId value object
+    pub fn with_external_id_value_object(mut self, external_id: ExternalId) -> Self {
+        self.data["externalId"] = json!(external_id.as_str());
+        self
+    }
+
+    /// Set user name using UserName value object
+    pub fn with_user_name_value_object(mut self, user_name: UserName) -> Self {
+        self.data["userName"] = json!(user_name.as_str());
+        self
+    }
+
+    /// Create a builder with validated value objects (convenience method)
+    pub fn new_with_value_objects(
+        resource_id: ResourceId,
+        user_name: UserName,
+        schema_uris: Vec<SchemaUri>,
+    ) -> Self {
+        Self::new()
+            .with_resource_id(resource_id)
+            .with_user_name_value_object(user_name)
+            .with_schema_uris(schema_uris)
+    }
+
+    /// Try to extract value objects from current builder state
+    pub fn extract_value_objects(
+        &self,
+    ) -> (
+        Option<ResourceId>,
+        Option<UserName>,
+        Option<ExternalId>,
+        Vec<SchemaUri>,
+    ) {
+        let resource_id = self
+            .data
+            .get("id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| ResourceId::new(s.to_string()).ok());
+
+        let user_name = self
+            .data
+            .get("userName")
+            .and_then(|v| v.as_str())
+            .and_then(|s| UserName::new(s.to_string()).ok());
+
+        let external_id = self
+            .data
+            .get("externalId")
+            .and_then(|v| v.as_str())
+            .and_then(|s| ExternalId::new(s.to_string()).ok());
+
+        let schema_uris = self
+            .data
+            .get("schemas")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .filter_map(|s| SchemaUri::new(s.to_string()).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        (resource_id, user_name, external_id, schema_uris)
     }
 
     /// Build the final JSON value

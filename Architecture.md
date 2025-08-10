@@ -4,12 +4,15 @@
 
 This crate implements a comprehensive System for Cross-domain Identity Management (SCIM) server library in Rust, following RFC 7643 (Core Schema) and RFC 7644 (Protocol) specifications. SCIM is designed to make identity management in cloud-based applications easier by providing a common user schema and extension model for exchanging identity data via HTTP.
 
+**⚠️ Critical Note**: The current implementation lacks ETag-based concurrency control, making it unsuitable for production scenarios with multiple concurrent clients. A provider-level concurrency strategy is planned that will require breaking changes. See [ETag Concurrency Design](ETAG_CONCURRENCY_DESIGN.md) for complete details.
+
 ## Purpose and Value
 
 The primary goal of this library is to enable developers to implement SCIM-compliant identity providers with minimal effort while maintaining type safety, performance, and extensibility. Key benefits include:
 
 - **Standards Compliance**: Full RFC 7643/7644 compliance for core User schema
 - **Type Safety**: Compile-time guarantees preventing invalid operations
+- **⚠️ Concurrency Gap**: ETag-based multi-client conflict detection not yet implemented
 - **Flexibility**: Trait-based architecture supporting any storage backend
 - **Performance**: Async-first design with functional programming patterns
 - **Extensibility**: Dynamic schema registration and custom resource types
@@ -281,7 +284,13 @@ The architecture supports comprehensive testing:
 
 ## Future Extensibility
 
-The architecture is designed for future enhancements:
+The architecture supports natural evolution:
+
+### Concurrency Control
+- **Planned**: ETag-based optimistic concurrency control
+- **Provider-level**: Conditional operations with version checking
+- **Breaking change**: Enhanced ResourceProvider trait with conditional methods
+- **Timeline**: 2-3 weeks implementation (see [ETag Concurrency Design](ETAG_CONCURRENCY_DESIGN.md))
 
 ### Protocol Support
 - Easy addition of new SCIM operations
@@ -302,6 +311,7 @@ The architecture is designed for future enhancements:
 
 This SCIM server architecture balances several competing concerns:
 - **Type Safety vs. Flexibility**: Uses Rust's type system for compile-time guarantees while maintaining runtime flexibility
+- **Concurrency vs. Simplicity**: Planned ETag-based concurrency control maintains simplicity while enabling multi-client safety
 - **Performance vs. Abstraction**: Provides high-level abstractions without sacrificing performance
 - **Standards Compliance vs. Customization**: Ensures RFC compliance while allowing extensive customization
 

@@ -1,7 +1,113 @@
-//! Schema validation utility for SCIM server.
+//! # SCIM Schema Validator
 //!
-//! This utility validates SCIM schema files to ensure they conform to the expected format
-//! and can be loaded by the SCIM server library.
+//! A command-line utility for validating SCIM schema files to ensure they conform to the
+//! expected format and can be loaded by the SCIM server library.
+//!
+//! ## Overview
+//!
+//! This utility performs comprehensive validation of SCIM schema files, including:
+//! - JSON syntax validation
+//! - Required field presence checking
+//! - Schema ID URI format validation
+//! - Attribute structure validation
+//! - Complex attribute sub-attribute validation
+//! - Canonical values format verification
+//! - Schema registry loading tests
+//!
+//! ## Usage
+//!
+//! ### Validate a Single Schema File
+//!
+//! ```bash
+//! cargo run --bin schema-validator schemas/User.json
+//! ```
+//!
+//! ### Validate All Schemas in a Directory
+//!
+//! ```bash
+//! cargo run --bin schema-validator ./schemas/
+//! ```
+//!
+//! ## Output Examples
+//!
+//! ### Successful Validation
+//!
+//! ```text
+//! Validating schema file: schemas/User.json
+//! ✓ Schema is valid!
+//!
+//! Schema Summary:
+//!   ID: urn:ietf:params:scim:schemas:core:2.0:User
+//!   Name: User
+//!   Description: User Account
+//!   Attributes: 15
+//!   Required attributes: 2
+//!   Multi-valued attributes: 4
+//!   Attribute types:
+//!     - String: 8
+//!     - Boolean: 2
+//!     - Complex: 4
+//!     - DateTime: 1
+//!   Required attribute names: id, userName
+//! ```
+//!
+//! ### Directory Validation
+//!
+//! ```text
+//! Validating schemas in directory: ./schemas/
+//!
+//! Validating: User.json
+//!   ✓ Valid - User (urn:ietf:params:scim:schemas:core:2.0:User)
+//!
+//! Validating: Group.json
+//!   ✓ Valid - Group (urn:ietf:params:scim:schemas:core:2.0:Group)
+//!
+//! Validation Summary:
+//!   Valid schemas: 2
+//!   Invalid schemas: 0
+//!
+//! Testing schema registry loading...
+//! ✓ Schema registry loaded successfully
+//!   Total schemas loaded: 2
+//!     - User (urn:ietf:params:scim:schemas:core:2.0:User)
+//!     - Group (urn:ietf:params:scim:schemas:core:2.0:Group)
+//! ```
+//!
+//! ### Error Output
+//!
+//! ```text
+//! Validating schema file: invalid-schema.json
+//! ❌ Schema validation failed: Schema missing required 'id' field
+//! ```
+//!
+//! ## Validation Rules
+//!
+//! The validator enforces these rules:
+//!
+//! ### Schema Structure
+//! - Must be valid JSON
+//! - Must have required fields: `id`, `name`, `attributes`
+//! - Schema ID must be a valid URI (starts with `urn:` or `http`)
+//! - Schema name cannot be empty
+//! - Must have at least one attribute
+//!
+//! ### Attribute Validation
+//! - Attribute name cannot be empty
+//! - Canonical values only allowed for string attributes
+//! - Complex attributes must have sub-attributes
+//! - Non-complex attributes cannot have sub-attributes
+//! - Sub-attributes are recursively validated
+//!
+//! ## Exit Codes
+//!
+//! - `0`: All schemas are valid
+//! - `1`: One or more schemas are invalid or validation error occurred
+//!
+//! ## Integration with SCIM Server
+//!
+//! This utility uses the same validation logic as the SCIM server library,
+//! ensuring that schemas validated here will work correctly when loaded
+//! into a production SCIM server instance.
 
 use scim_server::schema::{Schema, SchemaRegistry};
 use std::env;

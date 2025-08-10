@@ -11,12 +11,12 @@
 //! - [`types`] - Core schema data structures (Schema, AttributeDefinition, etc.)
 //! - [`registry`] - Schema registry for loading and managing schemas
 //! - [`validation`] - Comprehensive validation logic for SCIM resources
-//! - [`tests`] - Test cases for schema functionality
+//! - `tests` - Test cases for schema functionality
 //!
 //! ## Usage
 //!
 //! ```rust
-//! use scim_server::schema::{SchemaRegistry, Schema};
+//! use scim_server::schema::{SchemaRegistry, OperationContext};
 //! use serde_json::json;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,11 +26,10 @@
 //! // Validate a SCIM resource
 //! let user = json!({
 //!     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-//!     "id": "12345",
 //!     "userName": "jdoe@example.com"
 //! });
 //!
-//! registry.validate_scim_resource(&user)?;
+//! registry.validate_json_resource_with_context("User", &user, OperationContext::Create)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -45,3 +44,4 @@ mod tests;
 // Re-export the main types for convenience
 pub use registry::SchemaRegistry;
 pub use types::{AttributeDefinition, AttributeType, Mutability, Schema, Uniqueness};
+pub use validation::OperationContext;

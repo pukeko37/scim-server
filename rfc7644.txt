@@ -1,0 +1,736 @@
+Internet Engineering Task Force (IETF)                      P. Hunt, Ed.
+Request for Comments: 7644                                        Oracle
+Category: Standards Track                                     K. Grizzle
+ISSN: 2070-1721                                                SailPoint
+                                                               M. Ansari
+                                                                   Cisco
+                                                           E. Wahlstroem
+                                                        Nexus Technology
+                                                            C. Mortimore
+                                                              Salesforce
+                                                          September 2015
+
+
+         System for Cross-domain Identity Management: Protocol
+
+Abstract
+
+   The System for Cross-domain Identity Management (SCIM) specification
+   is an HTTP-based protocol that makes managing identities in multi-
+   domain scenarios easier to support via a standardized service.
+   Examples include, but are not limited to, enterprise-to-cloud service
+   providers and inter-cloud scenarios.  The specification suite seeks
+   to build upon experience with existing schemas and deployments,
+   placing specific emphasis on simplicity of development and
+   integration, while applying existing authentication, authorization,
+   and privacy models.  SCIM's intent is to reduce the cost and
+   complexity of user management operations by providing a common user
+   schema, an extension model, and a service protocol defined by this
+   document.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7644.
+
+
+
+
+Hunt, et al.                 Standards Track                    [Page 1]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction and Overview .......................................3
+      1.1. Intended Audience ..........................................3
+      1.2. Notational Conventions .....................................4
+      1.3. Definitions ................................................4
+   2. Authentication and Authorization ................................5
+      2.1. Use of Tokens as Authorizations ............................7
+      2.2. Anonymous Requests .........................................7
+   3. SCIM Protocol ...................................................8
+      3.1. Background .................................................8
+      3.2. SCIM Endpoints and HTTP Methods ............................9
+      3.3. Creating Resources ........................................11
+           3.3.1. Resource Types .....................................13
+      3.4. Retrieving Resources ......................................13
+           3.4.1. Retrieving a Known Resource ........................14
+           3.4.2. Query Resources ....................................15
+           3.4.3. Querying Resources Using HTTP POST .................27
+      3.5. Modifying Resources .......................................29
+           3.5.1. Replacing with PUT .................................30
+           3.5.2. Modifying with PATCH ...............................32
+      3.6. Deleting Resources ........................................48
+      3.7. Bulk Operations ...........................................49
+           3.7.1. Circular Reference Processing ......................51
+           3.7.2. "bulkId" Temporary Identifiers .....................53
+           3.7.3. Response and Error Handling ........................58
+           3.7.4. Maximum Operations .................................63
+      3.8. Data Input/Output Formats .................................64
+      3.9. Additional Operation Response Parameters ..................64
+      3.10. Attribute Notation .......................................66
+      3.11. "/Me" Authenticated Subject Alias ........................66
+
+Hunt, et al.                 Standards Track                    [Page 2]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+      3.12. HTTP Status and Error Response Handling ..................67
+      3.13. SCIM Protocol Versioning .................................71
+      3.14. Versioning Resources .....................................71
+   4. Service Provider Configuration Endpoints .......................73
+   5. Preparation and Comparison of Internationalized Strings ........76
+   6. Multi-Tenancy ..................................................76
+      6.1. Associating Clients to Tenants ............................77
+      6.2. SCIM Identifiers with Multiple Tenants ....................78
+   7. Security Considerations ........................................78
+      7.1. HTTP Considerations .......................................78
+      7.2. TLS Support Considerations ................................78
+      7.3. Authorization Token Considerations ........................78
+      7.4. Bearer Token and Cookie Considerations ....................79
+      7.5. Privacy Considerations ....................................79
+           7.5.1. Personal Information ...............................79
+           7.5.2. Disclosure of Sensitive Information in URIs ........80
+      7.6. Anonymous Requests ........................................80
+      7.7. Secure Storage and Handling of Sensitive Data .............81
+      7.8. Case-Insensitive Comparison and International Languages ...82
+   8. IANA Considerations ............................................82
+      8.1. Media Type Registration ...................................82
+      8.2. Registering URIs for SCIM Messages ........................84
+   9. References .....................................................85
+      9.1. Normative References ......................................85
+      9.2. Informative References ....................................87
+   Acknowledgements ..................................................88
+   Contributors ......................................................88
+   Authors' Addresses ................................................89
+
+1.  Introduction and Overview
+
+   The SCIM protocol is an application-level HTTP-based protocol for
+   provisioning and managing identity data on the web and in
+   cross-domain environments such as enterprise-to-cloud service
+   providers or inter-cloud scenarios.  The protocol supports creation,
+   modification, retrieval, and discovery of core identity resources
+   such as Users and Groups, as well as custom resources and resource
+   extensions.
+
+   The definition of resources, attributes, and overall schema are
+   defined in the SCIM Core Schema document [RFC7643].
+
+1.1.  Intended Audience
+
+   This document is intended to serve as a guide to SCIM protocol usage
+   for both SCIM HTTP service providers and HTTP clients who may
+   provision information to service providers or retrieve information
+   from them.
+
+Hunt, et al.                 Standards Track                    [Page 3]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+1.2.  Notational Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].  These key
+   words are capitalized when used to unambiguously specify requirements
+   of the protocol or application features and behavior that affect the
+   interoperability and security of implementations.  When these words
+   are not capitalized, they are meant in their natural-language sense.
+
+   For purposes of readability, examples are not URL encoded.
+   Implementers MUST percent-encode URLs as described in Section 2.1 of
+   [RFC3986].
+
+   Throughout this document, figures may contain spaces and extra line
+   wrapping to improve readability and accommodate space limitations.
+   Similarly, some URIs contained within examples have been shortened
+   for space and readability reasons (as indicated by "...").
+
+1.3.  Definitions
+
+   This specification uses the definitions from [RFC7643] and defines
+   the following additional term:
+
+   Base URI
+      The SCIM HTTP protocol is described in terms of a path relative to
+      a Base URI.  The Base URI MUST NOT contain a query string, as
+      clients MAY append additional path information and query
+      parameters as part of forming the request.  The base URI is a URL
+      that most often consists of the "https" protocol scheme, a domain
+      name, and some initial path [RFC3986].  For example:
+
+      "https://example.com/scim/"
+
+   For readability, all examples in this document assume that the SCIM
+   service root and the server root are the same (no path prefix).  It
+   is expected that SCIM servers may be deployed using any URI path
+   prefix.  For example, a SCIM server might have a prefix of
+   "https://example.com/" or "https://example.com/scim/tenancypath/".
+   Additionally, a client MAY apply a version number to the server root
+   prefix (see Section 3.13).
+
+
+
+
+
+
+Hunt, et al.                 Standards Track                    [Page 4]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+2.  Authentication and Authorization
+
+   The SCIM protocol is based upon HTTP and does not itself define a
+   SCIM-specific scheme for authentication and authorization.  SCIM
+   depends on the use of Transport Layer Security (TLS) and/or standard
+   HTTP authentication and authorization schemes as per [RFC7235].  For
+   example, the following methodologies could be used, among others:
+
+   TLS Client Authentication
+      The SCIM service provider MAY request TLS client authentication
+      (also known as mutual authentication).  See Section 7.3 of
+      [RFC5246].
+
+   HOBA Authentication
+      HTTP Origin-Bound Authentication (HOBA) is a variation on TLS
+      client authentication and uses a digital-signature-based design
+      for an HTTP authentication method (see [RFC7486]).  The design can
+      also be used in JavaScript-based authentication embedded in HTML.
+      HOBA is an alternative to HTTP authentication schemes that require
+      passwords and therefore avoids all problems related to passwords,
+      such as leakage of server-side password databases.
+
+   Bearer Tokens
+      Bearer tokens [RFC6750] MAY be used when combined with TLS and a
+      token framework such as OAuth 2.0 [RFC6749].  Tokens that are
+      issued based on weak or no authentication of authorizing users
+      and/or OAuth clients SHOULD NOT be used, unless, for example, they
+      are being used as single-use tokens to permit one-time requests
+      such as anonymous registration (see Section 3.3).  For security
+      considerations regarding the use of bearer tokens in SCIM, see
+      Section 7.4.  While bearer tokens most often represent an
+      authorization, it is assumed that the authorization was based upon
+      a successful authentication of the SCIM client.  Accordingly, the
+      SCIM service provider must have a method for validating, parsing,
+      and/or "introspecting" the bearer token for the relevant
+      authentication and authorization information.  The method for this
+      is assumed to be defined by the token-issuing system and is beyond
+      the scope of this specification.
+
+   PoP Tokens
+      A proof-of-possession (PoP) token demonstrates that the presenter
+      of the token possesses a particular key and that the recipient can
+      cryptographically confirm proof of possession of the key by the
+      presenter.  This property is sometimes also described as the
+      presenter being a holder of the key.  See [OAuth-PoP-Arch] for an
+      example of such a token and its use.
+
+Hunt, et al.                 Standards Track                    [Page 5]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   Cookies
+      JavaScript clients MAY assert HTTP cookies over TLS that contain
+      an authentication state that is understood by the SCIM service
+      provider (see [RFC6265]).  An example of this is scenarios where
+      web-form authentication has taken place with the user and HTTP
+      cookies were set representing the authentication state.  For the
+      purposes of SCIM, the security considerations in Section 7.4
+      apply.
+
+   Basic Authentication
+      Usage of basic authentication should be avoided, due to its use of
+      a single factor that is based upon a relatively static, symmetric
+      secret.  Implementers SHOULD combine the use of basic
+      authentication with other factors.  The security considerations of
+      HTTP Basic are well documented in [HTTP-BASIC-AUTH]; therefore,
+      implementers are encouraged to use stronger authentication
+      methods.  Designating the specific methods of authentication and
+      authorization is out of scope for SCIM; however, this information
+      is provided as a resource to implementers.
+
+   As per Section 4.1 of [RFC7235], a SCIM service provider SHALL
+   indicate supported HTTP authentication schemes via the
+   "WWW-Authenticate" header.
+
+   Regardless of methodology, the SCIM service provider MUST be able to
+   map the authenticated client to an access control policy in order to
+   determine the client's authorization to retrieve and update SCIM
+   resources.  For example, while a browser session may have been
+   established via HTTP cookie or TLS client authentication, the unique
+   client MUST be mapped to a security subject (e.g., User).  The
+   authorization model and the process by which this is done are beyond
+   the scope of this specification.
+
+   When processing requests, the service provider SHOULD consider the
+   subject performing the request and whether or not the action is
+   appropriate given the subject and the resource affected by the
+   request.  The subject performing the request is usually determined
+   directly or indirectly from the "Authorization" header present in the
+   request.  For example, a subject MAY be permitted to retrieve and
+   update their own "User" resource but will normally have restricted
+   ability to access resources associated with other Users.  In other
+   cases, the SCIM service provider might only grant access to a
+   subject's own associated "User" resource (e.g., for the purpose of
+   updating personal contact attributes).
+
+Hunt, et al.                 Standards Track                    [Page 6]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   For illustrative purposes only, SCIM protocol examples show an
+   OAuth 2.0 bearer token value [RFC6750] in the authorization
+   header, e.g.,
+
+   GET /Users/2819c223-7f76-453a-919d-413861904646 HTTP/1.1
+   Host: example.com
+   Authorization: Bearer h480djs93hd8
+
+   This is not intended to imply that bearer tokens are preferred.
+   However, the use of bearer tokens in the specification does reflect
+   common implementation practice.
+
+2.1.  Use of Tokens as Authorizations
+
+   When using bearer tokens or PoP tokens that represent an
+   authorization grant, such as a grant issued by OAuth (see [RFC6749]),
+   implementers SHOULD consider the type of authorization granted, any
+   authorized scopes (see Section 3.3 of [RFC6749]), and the security
+   subject(s) that SHOULD be mapped from the authorization when
+   considering local access control rules.  Section 6 of [RFC7521]
+   documents common scenarios for authorization, including:
+
+   o  A client using an assertion to authenticate and/or act on behalf
+      of itself,
+
+   o  A client acting on behalf of a user, and
+
+   o  A client acting on behalf of an anonymous user (for example, see
+      Section 2.2).
+
+   When using OAuth authorization tokens, implementers MUST take into
+   account the threats and countermeasures related to the use of client
+   authorizations, as documented in Section 8 of [RFC7521].  When using
+   other token formats or frameworks, implementers MUST take into
+   account similar threats and countermeasures, especially those
+   documented by the relevant specifications.
+
+2.2.  Anonymous Requests
+
+   In some SCIM deployments, it MAY be acceptable to permit
+   unauthenticated (anonymous) requests -- for example, a user
+   self-registration request where the service provider chooses to
+   accept a SCIM Create request (see Section 3.3) from an anonymous
+   client.  See Section 7.6 for security considerations regarding
+   anonymous requests.
+
+Hunt, et al.                 Standards Track                    [Page 7]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+3.  SCIM Protocol
+
+3.1.  Background
+
+   SCIM is a protocol that is based on HTTP [RFC7230].  Along with HTTP
+   headers and URIs, SCIM uses JSON [RFC7159] payloads to convey SCIM
+   resources, as well as protocol-specific payload messages that convey
+   request parameters and response information such as errors.  Both
+   resources and messages are passed in the form of JSON-based
+   structures in the message body of an HTTP request or response.  To
+   identify this content, SCIM uses a media type of
+   "application/scim+json" (see Section 8.1).
+
+   A SCIM "resource" is a JSON object [RFC7159] that may be created,
+   maintained, and retrieved via HTTP request methods as described in
+   this document.  Each JSON resource representation contains a
+   "schemas" attribute that contains a list of one or more URIs that
+   indicate included SCIM schemas that are used to indicate the
+   attributes contained within a resource.  Specific information about
+   what attributes are defined within a schema MAY be obtained by
+   querying a SCIM service provider's "/Schemas" endpoint for a schema
+   definition (see Section 8.7 of [RFC7643]).  Responses from this
+   endpoint describe the schema supported by a service provider,
+   including attribute characteristics such as cardinality,
+   case-exactness, mutability, uniqueness, returnability, and whether or
+   not attributes are required.  While SCIM schemas and an associated
+   extension model are defined in [RFC7643], SCIM clients should expect
+   that some attribute schema may change from service provider to
+   service provider, particularly across administrative domains.  In
+   cases where SCIM may be used as an open protocol in front of an
+   application service, it is quite reasonable to expect that some
+   service providers may only support a subset of the schema defined in
+   [RFC7643].
+
+   A SCIM message conveys protocol parameters related to a SCIM request
+   or response; this specification defines these parameters.  As with a
+   SCIM resource, a SCIM message is a JSON object [RFC7159] that
+   contains a "schemas" attribute with a URI whose namespace prefix MUST
+   begin with "urn:ietf:params:scim:api:".  As SCIM protocol messages
+   are fixed and defined by SCIM specifications and registered
+   extensions, SCIM message schemas using the above prefix URN SHALL NOT
+   be discoverable using the "/Schemas" endpoint.
+
+   As SCIM is intended for use in cross-domain scenarios where schema
+   and implementations may vary, techniques such as document validation
+   (e.g., [XML-Schema]) are not recommended.  A SCIM service provider
+   interprets a request in the context of its own schema (which may be
+   different from the client's schema) and following the defined
+
+Hunt, et al.                 Standards Track                    [Page 8]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   processing rules for each request.  The sections that follow define
+   the processing rules for SCIM and provide allowances for schema
+   differences where appropriate.  For example, in a SCIM PUT request,
+   "readOnly" attributes are ignored, while "readWrite" attributes are
+   updated.  There is no need for a SCIM client to discover which
+   attributes are "readOnly", and the client does not need to remove
+   them from a PUT request in order to be accepted.  Similarly, a SCIM
+   client SHOULD NOT expect a service provider to return SCIM resources
+   with exactly the same schema and values as submitted.  SCIM responses
+   SHALL reflect resource state as interpreted by the SCIM service
+   provider.
+
+3.2.  SCIM Endpoints and HTTP Methods
+
+   The SCIM protocol specifies well-known endpoints and HTTP methods for
+   managing resources defined in the SCIM Core Schema document
+   ([RFC7643]); i.e., "User" and "Group" resources correspond to
+   "/Users" and "/Groups", respectively.  Service providers that support
+   extended resources SHOULD define resource endpoints using the
+   convention of pluralizing the resource name defined in the extended
+   schema, by appending an 's'.  Given that there are cases where
+   resource pluralization is ambiguous, e.g., a resource named "Person"
+   is legitimately "Persons" and "People", clients SHOULD discover
+   resource endpoints via the "/ResourceTypes" endpoint.
+
+   HTTP   SCIM Usage
+   Method
+   ------ --------------------------------------------------------------
+   GET    Retrieves one or more complete or partial resources.
+
+   POST   Depending on the endpoint, creates new resources, creates a
+          search request, or MAY be used to bulk-modify resources.
+
+   PUT    Modifies a resource by replacing existing attributes with a
+          specified set of replacement attributes (replace).  PUT
+          MUST NOT be used to create new resources.
+
+   PATCH  Modifies a resource with a set of client-specified changes
+          (partial update).
+
+   DELETE Deletes a resource.
+
+                        Table 1: SCIM HTTP Methods
+
+Hunt, et al.                 Standards Track                    [Page 9]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   Resource Endpoint         Operations             Description
+   -------- ---------------- ---------------------- --------------------
+   User     /Users           GET (Section 3.4.1),   Retrieve, add,
+                             POST (Section 3.3),    modify Users.
+                             PUT (Section 3.5.1),
+                             PATCH (Section 3.5.2),
+                             DELETE (Section 3.6)
+
+   Group    /Groups          GET (Section 3.4.1),   Retrieve, add,
+                             POST (Section 3.3),    modify Groups.
+                             PUT (Section 3.5.1),
+                             PATCH (Section 3.5.2),
+                             DELETE (Section 3.6)
+
+   Self     /Me              GET, POST, PUT, PATCH, Alias for operations
+                             DELETE (Section 3.11)  against a resource
+                                                    mapped to an
+                                                    authenticated
+                                                    subject (e.g.,
+                                                    User).
+
+   Service  /ServiceProvider GET (Section 4)        Retrieve service
+   provider Config                                  provider's
+   config.                                          configuration.
+
+   Resource /ResourceTypes   GET (Section 4)        Retrieve supported
+   type                                             resource types.
+
+   Schema   /Schemas         GET (Section 4)        Retrieve one or more
+                                                    supported schemas.
+
+   Bulk     /Bulk            POST (Section 3.7)     Bulk updates to one
+                                                    or more resources.
+
+   Search   [prefix]/.search POST (Section 3.4.3)   Search from system
+                                                    root or within a
+                                                    resource endpoint
+                                                    for one or more
+                                                    resource types using
+                                                    POST.
+
+                        Table 2: Defined Endpoints
+
+Hunt, et al.                 Standards Track                   [Page 10]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   All requests to the service provider are made via HTTP methods as per
+   Section 4.3 of [RFC7231] on a URL derived from the Base URL.
+   Responses are returned in the body of the HTTP response, formatted as
+   JSON.  Error status codes SHOULD be transmitted via the HTTP status
+   code of the response (if possible) and SHOULD also be specified in
+   the body of the response (see Section 3.12).
+
+3.3.  Creating Resources
+
+   To create new resources, clients send HTTP POST requests to the
+   resource endpoint, such as "/Users" or "/Groups", as defined by the
+   associated resource type endpoint discovery (see Section 4).
+
+   The server SHALL process attributes according to the following
+   mutability rules:
+
+   o  In the request body, attributes whose mutability is "readOnly"
+      (see Sections 2.2 and 7 of [RFC7643]) SHALL be ignored.
+
+   o  Attributes whose mutability is "readWrite" (see Section 2.2 of
+      [RFC7643]) and that are omitted from the request body MAY be
+      assumed to be not asserted by the client.  The service provider
+      MAY assign a default value to non-asserted attributes in the final
+      resource representation.
+
+   o  Service providers MAY take into account whether or not a client
+      has access to all of the resource's attributes when deciding
+      whether or not non-asserted attributes should be defaulted.
+
+   o  Clients that intend to override existing or server-defaulted
+      values for attributes MAY specify "null" for a single-valued
+      attribute or an empty array "[]" for a multi-valued attribute to
+      clear all values.
+
+   When the service provider successfully creates the new resource, an
+   HTTP response SHALL be returned with HTTP status code 201 (Created).
+   The response body SHOULD contain the service provider's
+   representation of the newly created resource.  The URI of the created
+   resource SHALL include, in the HTTP "Location" header and the HTTP
+   body, a JSON representation [RFC7159] with the attribute
+   "meta.location".  Since the server is free to alter and/or ignore
+   POSTed content, returning the full representation can be useful to
+   the client, enabling it to correlate the client's and server's views
+   of the new resource.
+
+Hunt, et al.                 Standards Track                   [Page 11]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   If the service provider determines that the creation of the requested
+   resource conflicts with existing resources (e.g., a "User" resource
+   with a duplicate "userName"), the service provider MUST return HTTP
+   status code 409 (Conflict) with a "scimType" error code of
+   "uniqueness", as per Section 3.12.
+
+   In the following example, a client sends a POST request containing a
+   "User" to the "/Users" endpoint.
+
+   POST /Users  HTTP/1.1
+   Host: example.com
+   Accept: application/scim+json
+   Content-Type: application/scim+json
+   Authorization: Bearer h480djs93hd8
+   Content-Length: ...
+
+   {
+     "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+     "userName":"bjensen",
+     "externalId":"bjensen",
+     "name":{
+       "formatted":"Ms. Barbara J Jensen III",
+       "familyName":"Jensen",
+       "givenName":"Barbara"
+     }
+   }
+
+Hunt, et al.                 Standards Track                   [Page 12]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+   In response to the example request above, the server signals a
+   successful creation with an HTTP status code 201 (Created) and
+   returns a representation of the resource created:
+
+   HTTP/1.1 201 Created
+   Content-Type: application/scim+json
+   Location:
+    https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646
+   ETag: W/"e180ee84f0671b1"
+
+   {
+     "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+     "id":"2819c223-7f76-453a-919d-413861904646",
+     "externalId":"bjensen",
+     "meta":{
+       "resourceType":"User",
+       "created":"2011-08-01T21:32:44.882Z",
+       "lastModified":"2011-08-01T21:32:44.882Z",
+       "location":
+   "https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646",
+       "version":"W\/\"e180ee84f0671b1\""
+     },
+     "name":{
+       "formatted":"Ms. Barbara J Jensen III",
+       "familyName":"Jensen",
+       "givenName":"Barbara"
+     },
+     "userName":"bjensen"
+   }
+
+3.3.1.  Resource Types
+
+   When adding a resource to a specific endpoint, the meta attribute
+   "resourceType" SHALL be set by the HTTP service provider to the
+   corresponding resource type for the endpoint.  For example, a POST to
+   the endpoint "/Users" will set "resourceType" to "User", and
+   "/Groups" will set "resourceType" to "Group".
+
+3.4.  Retrieving Resources
+
+   Resources MAY be retrieved via opaque, unique URLs or via queries
+   (see Section 3.4.2).  The attributes returned are defined in the
+   server's attribute schema (see Section 8.7 of [RFC7643]) and may be
+   modified by request parameters (see Section 3.9).  By default,
+   resource attributes returned in a response are those attributes whose
+   characteristic "returned" setting is "always" or "default" (see
+   Section 2.2 of [RFC7643]).
+
+Hunt, et al.                 Standards Track                   [Page 13]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+3.4.1.  Retrieving a Known Resource
+
+   To retrieve a known resource, clients send GET requests to the
+   resource endpoint, e.g., "/Users/{id}", "/Groups/{id}", or
+   "/Schemas/{id}", where "{id}" is a resource identifier (for example,
+   the value of the "id" attribute).
+
+   If the resource exists, the server responds with HTTP status code 200
+   (OK) and includes the result in the body of the response.
+
+   The example below retrieves a single User via the "/Users" endpoint.
+
+   GET /Users/2819c223-7f76-453a-919d-413861904646
+   Host: example.com
+   Accept: application/scim+json
+   Authorization: Bearer h480djs93hd8
+
+   The server responds with:
+
+   HTTP/1.1 200 OK
+   Content-Type: application/scim+json
+   Location:
+     https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646
+   ETag: W/"f250dd84f0671c3"
+
+   {
+     "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+     "id":"2819c223-7f76-453a-919d-413861904646",
+     "externalId":"bjensen",
+     "meta":{
+       "resourceType":"User",
+       "created":"2011-08-01T18:29:49.793Z",
+       "lastModified":"2011-08-01T18:29:49.793Z",
+       "location":
+   "https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646",
+       "version":"W\/\"f250dd84f0671c3\""
+     },
+     "name":{
+       "formatted":"Ms. Barbara J Jensen III",
+       "familyName":"Jensen",
+       "givenName":"Barbara"
+     },
+
+Hunt, et al.                 Standards Track                   [Page 14]
+
+RFC 7644               SCIM Protocol Specification        September 2015
+
+     "userName":"bjensen",
+     "phoneNumbers":[
+       {
+         "value":"555-555-8377",
+         "type":"work"
+       }
+     ],
+     "emails":[
+       {
+         "value":"bjensen@example.com",
+         "type":"work"
+       }
+     ]
+   }
+
+3.4.2.  Query Resources
+
+   The SCIM protocol defines a standard set of query parameters that can
+   be used to filter, sort, and paginate to return zero or more
+   resources in a query response.  Queries MAY be made against a single
+   resource or a resource type endpoint (e.g., "/Users"), or the service
+   provider Base URI.  SCIM service providers MAY support additional
+   query parameters not specified here and SHOULD ignore any query
+   parameters they do not recognize instead of rejecting the query for
+   versioning compatibility reasons.
+
+   Responses MUST be identified using the following URI:
+   "urn:ietf:params:scim:api:messages:2.0:ListResponse".  The following
+   attributes are defined for responses:
+
+   totalResults  The total number of results returned by the list or
+      query operation.  The value may be larger than the number of
+      resources returned, such as when returning a single page (see
+      Section 3.4.2.4) of results where multiple pages are available.
+      REQUIRED.
+
+   Resources  A multi-valued list of complex objects containing the
+      requested resources.  This MAY be a subset of the full set of
+      resources if pagination (Section 3.4.2.4) is requested.  REQUIRED
+      if "totalResults" is non-zero.
+
+   startIndex  The 1-based index of the first result in the current set
+      of list results.  REQUIRED when partial results are returned due
+      to pagination.
+
+   itemsPerPage  The number of resources returned in a list response
+      page.  REQUIRED when partial results are returned due to
+      pagination.
+
+Hunt, et al.                 Standards Track                   [Page 15]
+
+RFC 7644               SCIM Protocol Specification        September 2

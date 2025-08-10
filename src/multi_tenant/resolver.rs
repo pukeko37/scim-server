@@ -35,14 +35,20 @@ use tokio::sync::RwLock;
 ///     credentials: HashMap<String, TenantContext>,
 /// }
 ///
+/// #[derive(Debug, thiserror::Error)]
+/// #[error("Database resolver error: {message}")]
+/// struct DatabaseError {
+///     message: String,
+/// }
+///
 /// impl TenantResolver for DatabaseTenantResolver {
-///     type Error = String;
+///     type Error = DatabaseError;
 ///
 ///     async fn resolve_tenant(&self, credential: &str) -> Result<TenantContext, Self::Error> {
 ///         self.credentials
 ///             .get(credential)
 ///             .cloned()
-///             .ok_or_else(|| "Invalid credentials".to_string())
+///             .ok_or_else(|| DatabaseError { message: "Invalid credentials".to_string() })
 ///     }
 ///
 ///     async fn validate_tenant(&self, tenant_id: &str) -> Result<bool, Self::Error> {
@@ -136,29 +142,31 @@ pub trait TenantResolver: Send + Sync {
 /// # Example Usage
 ///
 /// ```rust
-/// use scim_server::multi_tenant::StaticTenantResolver;
+/// use scim_server::multi_tenant::{StaticTenantResolver, TenantResolver};
 /// use scim_server::{TenantContext, IsolationLevel};
 ///
-/// let mut resolver = StaticTenantResolver::new();
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let mut resolver = StaticTenantResolver::new();
 ///
-/// // Add tenant mappings
-/// resolver.add_tenant(
-///     "api-key-tenant-a",
-///     TenantContext::new("tenant-a".to_string(), "client-a".to_string())
-///         .with_isolation_level(IsolationLevel::Strict)
-/// );
+///     // Add tenant mappings
+///     resolver.add_tenant(
+///         "api-key-tenant-a",
+///         TenantContext::new("tenant-a".to_string(), "client-a".to_string())
+///             .with_isolation_level(IsolationLevel::Strict)
+///     ).await;
 ///
-/// resolver.add_tenant(
-///     "api-key-tenant-b",
-///     TenantContext::new("tenant-b".to_string(), "client-b".to_string())
-/// );
+///     resolver.add_tenant(
+///         "api-key-tenant-b",
+///         TenantContext::new("tenant-b".to_string(), "client-b".to_string())
+///     ).await;
 ///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// // Resolve tenant from credentials
-/// let tenant_context = resolver.resolve_tenant("api-key-tenant-a").await?;
-/// assert_eq!(tenant_context.tenant_id, "tenant-a");
-/// # Ok(())
-/// # }
+///     // Resolve tenant from credentials
+///     let tenant_context = resolver.resolve_tenant("api-key-tenant-a").await?;
+///     assert_eq!(tenant_context.tenant_id, "tenant-a");
+///
+///     Ok(())
+/// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct StaticTenantResolver {
@@ -275,23 +283,24 @@ impl TenantResolver for StaticTenantResolver {
 /// use scim_server::multi_tenant::StaticTenantResolverBuilder;
 /// use scim_server::{TenantContext, IsolationLevel};
 ///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let resolver = StaticTenantResolverBuilder::new()
-///     .with_tenant(
-///         "key1",
-///         TenantContext::new("tenant1".to_string(), "client1".to_string())
-///     )
-///     .with_tenant(
-///         "key2",
-///         TenantContext::new("tenant2".to_string(), "client2".to_string())
-///             .with_isolation_level(IsolationLevel::Strict)
-///     )
-///     .build()
-///     .await;
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let resolver = StaticTenantResolverBuilder::new()
+///         .with_tenant(
+///             "key1",
+///             TenantContext::new("tenant1".to_string(), "client1".to_string())
+///         )
+///         .with_tenant(
+///             "key2",
+///             TenantContext::new("tenant2".to_string(), "client2".to_string())
+///                 .with_isolation_level(IsolationLevel::Strict)
+///         )
+///         .build()
+///         .await;
 ///
-/// assert_eq!(resolver.tenant_count().await, 2);
-/// # Ok(())
-/// # }
+///     assert_eq!(resolver.tenant_count().await, 2);
+///     Ok(())
+/// }
 /// ```
 pub struct StaticTenantResolverBuilder {
     tenants: Vec<(String, TenantContext)>,

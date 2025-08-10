@@ -23,8 +23,12 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 #[derive(Debug, thiserror::Error)]
-#[error("Test error")]
-pub struct TestError;
+pub enum TestError {
+    #[error("Test error")]
+    Test,
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+}
 
 #[cfg(test)]
 #[derive(Debug)]
@@ -59,7 +63,8 @@ impl ResourceProvider for TestProvider {
                 obj.insert("id".to_string(), Value::String(id.clone()));
             }
 
-            let resource = Resource::new(resource_type.clone(), data);
+            let resource = Resource::from_json(resource_type.clone(), data)
+                .map_err(|e| TestError::ValidationError(e.to_string()))?;
 
             let mut resources = resources.lock().unwrap();
             resources
@@ -104,7 +109,8 @@ impl ResourceProvider for TestProvider {
                 obj.insert("id".to_string(), Value::String(id.clone()));
             }
 
-            let resource = Resource::new(resource_type.clone(), data);
+            let resource = Resource::from_json(resource_type.clone(), data)
+                .map_err(|e| TestError::ValidationError(e.to_string()))?;
 
             let mut resources = resources.lock().unwrap();
             resources

@@ -57,7 +57,8 @@ impl ResourceProvider for InMemoryProvider {
         let mut resource_data = data;
         resource_data["id"] = json!(id);
 
-        let resource = Resource::new(resource_type.to_string(), resource_data);
+        let resource = Resource::from_json(resource_type.to_string(), resource_data)
+            .map_err(|e| ProviderError(format!("Failed to create resource: {}", e)))?;
 
         let mut resources = self.resources.lock().unwrap();
         let type_resources = resources
@@ -92,7 +93,8 @@ impl ResourceProvider for InMemoryProvider {
         let mut resource_data = data;
         resource_data["id"] = json!(id);
 
-        let resource = Resource::new(resource_type.to_string(), resource_data);
+        let resource = Resource::from_json(resource_type.to_string(), resource_data)
+            .map_err(|e| ProviderError(format!("Failed to update resource: {}", e)))?;
 
         let mut resources = self.resources.lock().unwrap();
         let type_resources = resources
@@ -227,11 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Created Engineering Team: {}",
-        created_engineering
-            .get_attribute("id")
-            .unwrap()
-            .as_str()
-            .unwrap()
+        created_engineering.get_id().unwrap()
     );
 
     let marketing_group = json!({
@@ -251,23 +249,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Created Marketing Team: {}",
-        created_marketing
-            .get_attribute("id")
-            .unwrap()
-            .as_str()
-            .unwrap()
+        created_marketing.get_id().unwrap()
     );
 
     // 5. Demonstrate Group retrieval
     println!("\n🔍 Retrieving Groups...");
 
-    let engineering_id = created_engineering
-        .get_attribute("id")
-        .unwrap()
-        .as_str()
-        .unwrap();
+    let engineering_id = created_engineering.get_id().unwrap();
     let retrieved_group = server
-        .get_resource("Group", engineering_id, &context)
+        .get_resource("Group", &engineering_id, &context)
         .await?;
 
     if let Some(group) = retrieved_group {
@@ -331,7 +321,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let updated_group = server
-        .update_resource("Group", engineering_id, updated_engineering, &context)
+        .update_resource("Group", &engineering_id, updated_engineering, &context)
         .await?;
 
     println!(
@@ -351,14 +341,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "displayName": "Management",
         "members": [
             {
-                "value": engineering_id,
+                "value": &engineering_id,
                 "$ref": format!("https://example.com/v2/Groups/{}", engineering_id),
                 "type": "Group"
             },
             {
-                "value": created_marketing.get_attribute("id").unwrap().as_str().unwrap(),
-                "$ref": format!("https://example.com/v2/Groups/{}",
-                    created_marketing.get_attribute("id").unwrap().as_str().unwrap()),
+                "value": created_marketing.get_id().unwrap(),
+                "$ref": format!("https://example.com/v2/Groups/{}", created_marketing.get_id().unwrap()),
                 "type": "Group"
             }
         ]
@@ -370,11 +359,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Created Management group with nested groups: {}",
-        created_management
-            .get_attribute("id")
-            .unwrap()
-            .as_str()
-            .unwrap()
+        created_management.get_id().unwrap()
     );
 
     // 9. Demonstrate Group search
@@ -387,7 +372,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match search_result {
         Some(group) => println!(
             "✅ Found group matching 'Engineering Team': {}",
-            group.get_attribute("id").unwrap().as_str().unwrap()
+            group.get_id().unwrap()
         ),
         None => println!("❌ No groups found matching 'Engineering Team'"),
     }
@@ -418,28 +403,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 11. Demonstrate Group deletion
     println!("\n🗑️  Cleaning up Groups...");
 
-    let management_id = created_management
-        .get_attribute("id")
-        .unwrap()
-        .as_str()
-        .unwrap();
+    let management_id = created_management.get_id().unwrap();
     server
-        .delete_resource("Group", management_id, &context)
+        .delete_resource("Group", &management_id, &context)
         .await?;
     println!("✅ Deleted Management group");
 
     server
-        .delete_resource("Group", engineering_id, &context)
+        .delete_resource("Group", &engineering_id, &context)
         .await?;
     println!("✅ Deleted Engineering Team");
 
-    let marketing_id = created_marketing
-        .get_attribute("id")
-        .unwrap()
-        .as_str()
-        .unwrap();
+    let marketing_id = created_marketing.get_id().unwrap();
     server
-        .delete_resource("Group", marketing_id, &context)
+        .delete_resource("Group", &marketing_id, &context)
         .await?;
     println!("✅ Deleted Marketing Team");
 

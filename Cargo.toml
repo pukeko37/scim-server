@@ -2,6 +2,16 @@
 name = "scim-server"
 version = "0.1.0"
 edition = "2024"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+description = "A comprehensive SCIM 2.0 server library for Rust with multi-tenant support and type-safe operations"
+readme = "README.md"
+homepage = "https://github.com/pukeko37/scim-server"
+repository = "https://github.com/pukeko37/scim-server"
+documentation = "https://docs.rs/scim-server"
+keywords = ["scim", "identity", "provisioning", "oauth", "enterprise"]
+categories = ["authentication", "web-programming", "api-bindings"]
+exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
@@ -10,12 +20,36 @@ tokio = { version = "1.47.0", features = ["full"] }
 uuid = { version = "1.11.0", features = ["v4"] }
 thiserror = "2.0.9"
 chrono = { version = "0.4.38", features = ["serde"] }
-async-trait = "0.1.85"
+base64 = "0.21"
+log = "0.4"
+
+# MCP integration dependencies (optional)
+rust-mcp-sdk = { version = "0.5", optional = true }
+async-trait = { version = "0.1", optional = true }
+
+[features]
+default = []
+
+# Model Context Protocol integration for AI agents
+# Enables SCIM operations as discoverable tools for AI systems
+# Includes structured tool schemas, error handling, and multi-tenant support
+mcp = ["rust-mcp-sdk", "async-trait"]
 
 [dev-dependencies]
-tokio-test = "0.4.4"
-tempfile = "3.8.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+env_logger = "0.10"
 
+# Schema validation utility for SCIM schema files
+# Validates JSON structure, required fields, and SCIM compliance
+# Usage: cargo run --bin schema-validator <file-or-directory>
 [[bin]]
 name = "schema-validator"
 path = "src/bin/schema-validator.rs"
+
+[[bench]]
+name = "resource_performance"
+harness = false
+
+[[bench]]
+name = "validation_overhead"
+harness = false

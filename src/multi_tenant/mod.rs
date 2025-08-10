@@ -17,66 +17,54 @@
 //!
 //! ```rust,no_run
 //! use scim_server::multi_tenant::{
-//!     MultiTenantResourceProvider, TenantResolver, StaticTenantResolver
+//!     TenantValidator, TenantResolver, StaticTenantResolver
 //! };
-//! use scim_server::{TenantContext, EnhancedRequestContext, Resource};
+//! use scim_server::{TenantContext, RequestContext, Resource, ResourceProvider};
 //! use serde_json::json;
 //!
-//! // Set up tenant resolver
-//! let mut resolver = StaticTenantResolver::new();
-//! resolver.add_tenant("api-key-123", TenantContext::new(
-//!     "tenant-a".to_string(),
-//!     "client-a".to_string()
-//! ));
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Set up tenant resolver
+//!     let resolver = StaticTenantResolver::new();
+//!     resolver.add_tenant("api-key-123", TenantContext::new(
+//!         "tenant-a".to_string(),
+//!         "client-a".to_string()
+//!     )).await;
 //!
-//! // Use in multi-tenant operations
-//! # async fn example(provider: impl MultiTenantResourceProvider) -> Result<(), Box<dyn std::error::Error>> {
-//! let tenant_context = resolver.resolve_tenant("api-key-123").await?;
-//! let context = EnhancedRequestContext::with_generated_id(tenant_context);
+//!     // Use in multi-tenant operations
+//!     let tenant_context = resolver.resolve_tenant("api-key-123").await?;
+//!     let context = RequestContext::with_tenant_generated_id(tenant_context);
 //!
-//! let user_data = json!({
-//!     "userName": "john.doe",
-//!     "displayName": "John Doe"
-//! });
+//!     let user_data = json!({
+//!         "userName": "john.doe",
+//!         "displayName": "John Doe"
+//!     });
 //!
-//! let user = provider.create_resource("tenant-a", "User", user_data, &context).await?;
-//! # Ok(())
-//! # }
+//!     Ok(())
+//! }
 //! ```
 
 pub mod adapter;
-pub mod config_database;
-pub mod config_inmemory;
-pub mod config_provider;
-pub mod configuration;
-pub mod database;
+
 pub mod provider;
 pub mod resolver;
+pub mod scim_config;
 
 // Re-export key types for convenience
 pub use adapter::{SingleTenantAdapter, ToSingleTenant};
-pub use config_database::DatabaseConfigurationProvider;
-pub use config_inmemory::InMemoryConfigurationProvider;
-pub use config_provider::{
-    BulkConfigurationOperation, BulkOperationResult, CachedConfigurationProvider,
-    ConfigurationQuery, ConfigurationQueryResult, ConfigurationStats, TenantConfigurationProvider,
-    ValidationContext,
+
+// SCIM-focused configuration (recommended)
+pub use scim_config::{
+    RateLimit, ScimAuditConfig, ScimAuthScheme, ScimClientAuth, ScimClientConfig,
+    ScimConfigurationError, ScimCustomAttribute, ScimEndpointConfig, ScimOperation, ScimRateLimits,
+    ScimSchemaConfig, ScimSchemaExtension, ScimSearchConfig, ScimTenantConfiguration,
 };
-pub use configuration::{
-    AuditLevel, BrandingConfiguration, ComplianceConfiguration, ComplianceFramework,
-    ConfigurationError, EncryptionConfiguration, OperationalConfiguration,
-    PerformanceConfiguration, RateLimitConfiguration, RateLimitPeriod, ResourceLimits,
-    RetentionConfiguration, SchemaConfiguration, SchemaExtension, SessionConfiguration,
-    TenantConfiguration, ValidationRule, ValidationType,
-};
-pub use database::{DatabaseResourceProvider, InMemoryDatabase};
-pub use provider::MultiTenantResourceProvider;
-pub use resolver::{StaticTenantResolver, TenantResolver};
+
+pub use provider::TenantValidator;
+pub use resolver::{StaticTenantResolver, StaticTenantResolverBuilder, TenantResolver};
 
 // Re-export core types from resource module
-pub use crate::resource::{
-    EnhancedRequestContext, IsolationLevel, TenantContext, TenantPermissions,
-};
+pub use crate::resource::{IsolationLevel, TenantContext, TenantPermissions};
 
 #[cfg(test)]
 mod tests {
@@ -90,7 +78,7 @@ mod tests {
 
         // Test core type re-exports
         let tenant_context = TenantContext::new("test".to_string(), "client".to_string());
-        let _enhanced_context = EnhancedRequestContext::with_generated_id(tenant_context);
+        let _context = RequestContext::with_tenant_generated_id(tenant_context);
     }
 
     #[test]
@@ -151,43 +139,22 @@ mod tests {
     }
 
     #[test]
-    fn test_enhanced_request_context() {
+    fn test_request_context_usage() {
         let tenant_context = TenantContext::new("test".to_string(), "client".to_string());
-        let enhanced = EnhancedRequestContext::with_generated_id(tenant_context.clone());
+        let context = RequestContext::with_tenant_generated_id(tenant_context.clone());
 
-        assert_eq!(enhanced.tenant_id(), "test");
-        assert_eq!(enhanced.client_id(), "client");
-        assert_eq!(enhanced.isolation_level(), &IsolationLevel::Standard);
-        assert!(enhanced.can_perform_operation("read"));
-        assert!(enhanced.validate_operation("create").is_ok());
-
-        let regular_context = enhanced.to_request_context();
-        assert!(regular_context.is_multi_tenant());
-        assert_eq!(regular_context.tenant_id(), Some("test"));
+        assert_eq!(context.tenant_id(), Some("test"));
+        assert_eq!(context.client_id(), Some("client"));
+        assert!(context.is_multi_tenant());
+        assert!(context.can_perform_operation("read"));
+        assert!(context.validate_operation("create").is_ok());
     }
 
     #[test]
-    fn test_request_context_conversion() {
-        let tenant_context = TenantContext::new("test".to_string(), "client".to_string());
-        let regular = RequestContext::with_tenant("req-123".to_string(), tenant_context);
-
-        let enhanced: Result<EnhancedRequestContext, _> = regular.try_into();
-        assert!(enhanced.is_ok());
-
-        let enhanced = enhanced.unwrap();
-        assert_eq!(enhanced.tenant_id(), "test");
-        assert_eq!(enhanced.request_id, "req-123");
-    }
-
-    #[test]
-    fn test_request_context_conversion_failure() {
-        let regular = RequestContext::new("req-123".to_string());
-        let enhanced: Result<EnhancedRequestContext, _> = regular.try_into();
-        assert!(enhanced.is_err());
-        assert!(
-            enhanced
-                .unwrap_err()
-                .contains("does not contain tenant information")
-        );
+    fn test_single_tenant_context() {
+        let context = RequestContext::new("req-123".to_string());
+        assert_eq!(context.request_id, "req-123");
+        assert!(!context.is_multi_tenant());
+        assert_eq!(context.tenant_id(), None);
     }
 }
