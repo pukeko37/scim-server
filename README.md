@@ -9,6 +9,53 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 > **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications. Think automatic user onboarding/offboarding across your entire tech stack.
 
+## 🏗️ How It Works: Client → Server → Provider Architecture
+
+The SCIM Server acts as an **intelligent middleware** that handles all provisioning complexity so your applications don't have to:
+
+### **Multiple Ways to Connect**
+
+Connect any type of client through standardized interfaces:
+
+- **🌐 Web Applications** - REST APIs for admin portals, user dashboards, and sync tools
+- **🤖 AI Assistants** - Natural language provisioning via Model Context Protocol (Claude, ChatGPT, custom bots)
+- **⚡ Automation Tools** - CLI scripts for bulk imports, migrations, and DevOps pipelines  
+- **🔧 Custom Integrations** - GraphQL, gRPC, message queues, webhooks, or any protocol you need
+
+### **The Intelligence Layer**
+
+The SCIM Server core provides enterprise-grade capabilities that would take months to build yourself:
+
+- **📋 Dynamic Schema Management** - Define custom resource types with automatic validation
+- **🛡️ Type-Safe Validation** - Comprehensive error checking with detailed reporting
+- **⚙️ Standardized Operations** - Consistent CRUD, filtering, and bulk operations across all resources
+- **🏢 Multi-Tenant Architecture** - Built-in organization isolation and configuration management
+- **🔍 Automatic Capabilities** - Self-documenting API features and service provider configuration
+
+### **Flexible Storage Backend**
+
+Choose your data storage strategy without changing your application code:
+
+- **🚀 Development** - In-memory providers for testing and prototyping
+- **🏢 Production** - Database providers with full ACID compliance
+- **☁️ Cloud-Native** - Custom providers for S3, DynamoDB, or any storage system
+- **🔄 Multi-Tenant** - Automatic tenant isolation with shared or dedicated infrastructure
+
+### 💡 **Value Proposition: Offload Complexity from Your SaaS**
+
+Instead of building provisioning logic into every Rust application:
+
+| **Without SCIM Server** | **With SCIM Server** |
+|-------------------------|----------------------|
+| ❌ Custom validation in each app | ✅ **Centralized validation engine** |
+| ❌ Manual schema management | ✅ **Dynamic schema registry** |
+| ❌ Ad-hoc API endpoints | ✅ **Standardized SCIM protocol** |
+| ❌ Reinvent capability discovery | ✅ **Automatic capability construction** |
+| ❌ Build multi-tenancy from scratch | ✅ **Built-in tenant isolation** |
+| ❌ Custom error handling per resource | ✅ **Consistent error semantics** |
+
+**Result**: Your SaaS applications focus on business logic while the SCIM server handles all provisioning complexity with enterprise-grade reliability.
+
 ## ✨ Why Choose This Library?
 
 - 🛡️ **Type-Safe by Design** - Leverage Rust's type system to prevent runtime errors
