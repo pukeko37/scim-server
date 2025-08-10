@@ -282,6 +282,7 @@ The library provides a clean separation between:
 | Resource | Description |
 |----------|-------------|
 | [API Documentation](https://docs.rs/scim-server) | Complete API reference |
+| [Roadmap](ROADMAP.md) | Feature roadmap and future releases |
 | [User Guide](docs/guides/user-guide.md) | Step-by-step tutorials |
 | [Architecture Guide](docs/guides/architecture.md) | Design decisions and patterns |
 | [SCIM Compliance](docs/reference/scim-compliance.md) | RFC 7644 implementation details |
