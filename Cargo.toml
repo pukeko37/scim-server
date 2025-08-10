@@ -2,14 +2,14 @@
 name = "scim-server"
 version = "0.1.0"
 edition = "2024"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Andrew Bowers <abowers37@gmail.com>"]
 license = "MIT"
 description = "A comprehensive SCIM 2.0 server library for Rust with multi-tenant support and type-safe operations"
 readme = "README.md"
 homepage = "https://github.com/pukeko37/scim-server"
 repository = "https://github.com/pukeko37/scim-server"
 documentation = "https://docs.rs/scim-server"
-keywords = ["scim", "identity", "provisioning", "oauth", "enterprise"]
+keywords = ["scim", "identity", "provisioning", "oauth", "enterprise", "mcp"]
 categories = ["authentication", "web-programming", "api-bindings"]
 exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 
