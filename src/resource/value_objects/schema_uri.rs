@@ -58,19 +58,6 @@ impl SchemaUri {
         Ok(Self(value))
     }
 
-    /// Create a SchemaUri without validation.
-    ///
-    /// This constructor bypasses validation and should only be used in contexts
-    /// where the value is guaranteed to be valid (e.g., from trusted data sources).
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the value meets all SchemaUri validation requirements.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(value: String) -> Self {
-        Self(value)
-    }
-
     /// Get the string representation of the SchemaUri.
     pub fn as_str(&self) -> &str {
         &self.0

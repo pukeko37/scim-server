@@ -23,10 +23,12 @@
 //! ## Table of Contents
 //!
 //! - [Two Main Components](#two-main-components)
+//! - [Table of Contents](#two-main-components)
 //! - [Features](#features)
 //! - [Installation](#installation)
 //! - [MCP Integration](#mcp-model-context-protocol-integration)
 //! - [Architecture Overview](#architecture-overview)
+//! - [ETag Concurrency Control](#etag-concurrency-control)
 //! - [Logging Support](#logging-support)
 //! - [Multi-Tenant Support](#multi-tenant-support)
 //! - [Quick Start - Full SCIM Server](#quick-start---full-scim-server)
@@ -57,6 +59,7 @@
 //! - **Comprehensive Logging**: Structured logging with request IDs and tenant context
 //! - **Flexible Backends**: Choose from env_logger, tracing, slog, or any log-compatible crate
 //! - **Auto-Discovery**: Automatic provider capability detection
+//! - **ETag Concurrency Control**: Built-in optimistic locking with conditional operations
 //! - **MCP Integration**: AI agent support via Model Context Protocol (optional feature)
 //!
 //! ## Installation
@@ -102,37 +105,35 @@
 //! ### Basic MCP Server Setup
 //!
 //! ```rust,no_run
-//! # #[cfg(feature = "mcp")]
-//! use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::InMemoryProvider};
+//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! // Note: MCP integration requires the "mcp" feature
+//! // use scim_server::mcp_integration::ScimMcpServer;
 //!
-//! # #[cfg(feature = "mcp")]
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create SCIM server
 //!     let provider = InMemoryProvider::new();
 //!     let scim_server = ScimServer::new(provider)?;
 //!
-//!     // Wrap with MCP integration
-//!     let mcp_server = ScimMcpServer::new(scim_server);
+//!     // With MCP feature enabled:
+//!     // let mcp_server = ScimMcpServer::new(scim_server);
+//!     // let tools = mcp_server.get_tools();
+//!     // All operations automatically include ETag versioning
+//!     // mcp_server.run_stdio().await?;
 //!
-//!     // Get available tools for AI agents
-//!     let tools = mcp_server.get_tools();
-//!     println!("Available tools: {}", tools.len());
-//!
-//!     // Run MCP server with stdio transport
-//!     mcp_server.run_stdio().await?;
+//!     println!("SCIM server created successfully");
 //!     Ok(())
 //! }
 //! ```
 //!
-//! ### Available MCP Tools
+//! ### Available MCP Tools with ETag Support
 //!
-//! The MCP integration provides these tools for AI agents:
+//! The MCP integration provides these tools for AI agents with automatic ETag versioning:
 //!
-//! - **`scim_create_user`** - Create new users with SCIM schema validation
-//! - **`scim_get_user`** - Retrieve user by ID with full attribute access
-//! - **`scim_update_user`** - Update user attributes with conflict detection
-//! - **`scim_delete_user`** - Remove users with proper cleanup
+//! - **`scim_create_user`** - Create new users with SCIM schema validation (returns ETag)
+//! - **`scim_get_user`** - Retrieve user by ID with full attribute access (returns ETag)
+//! - **`scim_update_user`** - Update user attributes with optional ETag conflict detection
+//! - **`scim_delete_user`** - Remove users with optional ETag safety checks
 //! - **`scim_list_users`** - List all users with pagination support
 //! - **`scim_search_users`** - Search users by attributes with filtering
 //! - **`scim_user_exists`** - Check user existence for validation
@@ -140,17 +141,76 @@
 //! - **`scim_get_schema`** - Get specific schema details for validation
 //! - **`scim_server_info`** - Get server capabilities and supported operations
 //!
+//! ### AI Agent ETag Usage Pattern
+//!
+//! ```rust
+//! # #[cfg(feature = "mcp")]
+//! # {
+//! use serde_json::json;
+//! use scim_server::mcp_integration::ScimMcpServer;
+//! use scim_server::providers::InMemoryProvider;
+//! use scim_server::ScimServer;
+//!
+//! # async {
+//! // AI agent workflow with ETag versioning
+//! let provider = InMemoryProvider::new();
+//! let scim_server = ScimServer::new(provider).unwrap();
+//! let mcp_server = ScimMcpServer::new(scim_server);
+//!
+//! // 1. Create user - captures ETag for subsequent operations
+//! let create_result = mcp_server.execute_tool(
+//!     "scim_create_user",
+//!     json!({
+//!         "user_data": {
+//!             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+//!             "userName": "ai.agent@company.com",
+//!             "active": true
+//!         }
+//!     })
+//! ).await;
+//!
+//! let metadata = create_result.metadata.unwrap();
+//! let user_id = metadata["resource_id"].as_str().unwrap();
+//! let etag = metadata["etag"].as_str().unwrap();
+//!
+//! // 2. Conditional update using ETag - prevents lost updates
+//! let update_result = mcp_server.execute_tool(
+//!     "scim_update_user",
+//!     json!({
+//!         "user_id": user_id,
+//!         "user_data": {"userName": "ai.agent@company.com", "active": false},
+//!         "expected_version": etag  // ETag from create operation
+//!     })
+//! ).await;
+//!
+//! // 3. Handle version conflicts automatically
+//! if !update_result.success {
+//!     if update_result.content["is_version_conflict"].as_bool().unwrap_or(false) {
+//!         // AI agent should refresh and retry with current version
+//!         println!("Version conflict - resource modified by another client");
+//!     }
+//! }
+//! # };
+//! # }
+//! ```
+//!
 //! ### Multi-Tenant MCP Operations
 //!
 //! AI agents can work with multi-tenant environments:
 //!
-//! ```rust,no_run
+//! ```rust
 //! # #[cfg(feature = "mcp")]
+//! # {
 //! use serde_json::json;
-//! # #[cfg(feature = "mcp")]
-//! # use scim_server::mcp_integration::ScimMcpServer;
-//! # #[cfg(feature = "mcp")]
-//! # async fn example(mcp_server: ScimMcpServer<scim_server::providers::InMemoryProvider>) -> Result<(), Box<dyn std::error::Error>> {
+//! use scim_server::mcp_integration::ScimMcpServer;
+//! use scim_server::providers::InMemoryProvider;
+//! use scim_server::ScimServer;
+//!
+//! # async {
+//! // Set up MCP server with InMemoryProvider
+//! let provider = InMemoryProvider::new();
+//! let scim_server = ScimServer::new(provider).unwrap();
+//! let mcp_server = ScimMcpServer::new(scim_server);
 //!
 //! // Create user in specific tenant
 //! let result = mcp_server.execute_tool(
@@ -164,17 +224,20 @@
 //!         "tenant_id": "enterprise-corp"
 //!     })
 //! ).await;
-//! # Ok(())
+//! println!("MCP operation success: {}", result.success);
+//! # };
 //! # }
 //! ```
 //!
 //! ### AI Agent Integration Benefits
 //!
 //! - **Schema Discovery**: AI agents can introspect SCIM schemas for proper validation
+//! - **ETag Versioning**: Automatic optimistic locking prevents lost updates in concurrent scenarios
 //! - **Type Safety**: All operations include JSON schema validation for inputs
 //! - **Error Handling**: Structured error responses with actionable information
+//! - **Version Conflict Detection**: Clear indicators for AI agents to handle concurrent modifications
 //! - **Multi-Tenant**: Automatic tenant isolation for enterprise scenarios
-//! - **Comprehensive CRUD**: Full resource lifecycle management
+//! - **Comprehensive CRUD**: Full resource lifecycle management with version control
 //! - **Standards Compliance**: SCIM 2.0 compliant operations for enterprise integration
 //!
 //! ### Custom MCP Server Configuration
@@ -243,6 +306,140 @@
 //! └─────────────────────────────────────────────────┘
 //! ```
 //!
+//! ## ETag Concurrency Control
+//!
+//! The library provides built-in optimistic concurrency control using ETags as specified
+//! in RFC 7232. This prevents accidental overwrites when multiple clients modify the same
+//! resource simultaneously.
+//!
+//! ### Automatic Version Management
+//!
+//! All resources automatically include version information computed from their content:
+//!
+//! ```rust
+//! use scim_server::resource::{conditional_provider::VersionedResource, version::ScimVersion};
+//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! use serde_json::json;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let provider = InMemoryProvider::new();
+//! let server = ScimServer::new(provider)?;
+//!
+//! // All operations automatically include version information
+//! let context = scim_server::resource::RequestContext::with_generated_id();
+//!
+//! // Create returns a versioned resource
+//! let user_data = json!({
+//!     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+//!     "userName": "john.doe",
+//!     "active": true
+//! });
+//!
+//! let versioned = server.provider().create_versioned_resource("User", user_data, &context).await.unwrap();
+//! println!("Resource version: {}", versioned.version().to_http_header());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Conditional Operations
+//!
+//! Perform safe updates and deletes using expected versions:
+//!
+//! ```rust,no_run
+//! use scim_server::resource::{
+//!     version::{ScimVersion, ConditionalResult},
+//!     conditional_provider::VersionedResource,
+//!     RequestContext,
+//! };
+//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! use serde_json::json;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let provider = InMemoryProvider::new();
+//! let server = ScimServer::new(provider)?;
+//! let context = RequestContext::with_generated_id();
+//!
+//! // Get current resource with version
+//! let versioned = server.provider().get_versioned_resource("User", "123", &context).await.unwrap();
+//! if let Some(versioned) = versioned {
+//!     let current_version = versioned.version().clone();
+//!
+//!     // Conditional update - only succeeds if version matches
+//!     let update_data = json!({
+//!         "id": "123",
+//!         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+//!         "userName": "john.doe",
+//!         "active": false  // Changed field
+//!     });
+//!
+//!     match server.provider().conditional_update(
+//!         "User", "123", update_data, &current_version, &context
+//!     ).await? {
+//!         ConditionalResult::Success(updated_resource) => {
+//!             println!("Update successful: {}", updated_resource.version().to_http_header());
+//!         },
+//!         ConditionalResult::VersionMismatch(conflict) => {
+//!             println!("Version conflict: {}", conflict.message);
+//!         },
+//!         ConditionalResult::NotFound => {
+//!             println!("Resource not found");
+//!         }
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### HTTP Integration
+//!
+//! ETags work seamlessly with HTTP frameworks:
+//!
+//! ```rust,no_run
+//! use scim_server::operation_handler::{ScimOperationHandler, ScimOperationRequest};
+//! use scim_server::resource::version::ScimVersion;
+//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! use serde_json::json;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let provider = InMemoryProvider::new();
+//! let server = ScimServer::new(provider)?;
+//! let handler = ScimOperationHandler::new(server);
+//!
+//! // Conditional update with ETag from HTTP If-Match header
+//! let expected_version = ScimVersion::parse_http_header("W/\"abc123\"")?;
+//! let update_request = ScimOperationRequest::update(
+//!     "User",
+//!     "123",
+//!     json!({"userName": "jane.doe", "active": true})
+//! ).with_expected_version(expected_version);
+//!
+//! let response = handler.handle_operation(update_request).await;
+//! if response.success {
+//! if let Some(version_str) = response.metadata.additional.get("etag") {
+//!         println!("New weak ETag: {}", version_str);
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Version Computation
+//!
+//! Versions are computed deterministically from resource content using SHA-256 hashing:
+//!
+//! - **Content-Based**: Versions change when any resource field changes
+//! - **Deterministic**: Same content always produces the same version
+//! - **Collision-Resistant**: Cryptographic hashing prevents accidental conflicts
+//! - **Provider-Agnostic**: Works with any storage backend
+//!
+//! ### Benefits
+//!
+//! - **Prevent Lost Updates**: Automatic detection of concurrent modifications
+//! - **Data Integrity**: Ensure operations only proceed with expected resource state
+//! - **HTTP Compliance**: Full RFC 7232 weak ETag support for web applications
+//! - **Zero Configuration**: Works automatically with any ResourceProvider implementation
+//! - **Performance**: Efficient hash-based versioning with minimal overhead
+//!
 //! ## Logging Support
 //!
 //! The library uses the standard Rust `log` crate facade, allowing you to choose your preferred
@@ -272,15 +469,21 @@
 //!
 //! The library provides built-in multi-tenant capabilities:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use scim_server::{TenantContext, RequestContext};
+//! use serde_json::json;
 //!
 //! // Create tenant context
 //! let tenant = TenantContext::new("customer-123".to_string(), "app-456".to_string());
 //! let context = RequestContext::with_tenant_generated_id(tenant);
 //!
+//! // Example user data
+//! let user_data = json!({"userName": "john.doe", "active": true});
+//! println!("Tenant ID: {}", context.tenant_context.unwrap().tenant_id);
+//! println!("User data: {}", user_data);
+//!
 //! // All operations are automatically scoped to this tenant
-//! let user = server.create_resource("User", user_data, &context).await?;
+//! // let user = server.create_resource("User", user_data, &context).await?;
 //! ```
 //!
 //! ## Quick Start - Full SCIM Server
@@ -345,6 +548,9 @@
 //!     fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> impl Future<Output = Result<bool, Self::Error>> + Send {
 //!         async move { Ok(false) }
 //!     }
+//!
+//!     // Conditional operations are automatically available with default implementations
+//!     // Override conditional_update and conditional_delete for more efficient provider-specific implementations
 //! }
 //!
 //! #[tokio::main]
@@ -372,24 +578,19 @@
 //!
 //! For schema discovery and service provider configuration only:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use scim_server::SchemaDiscovery;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create schema discovery component
-//!     let discovery = SchemaDiscovery::new()?;
+//! # async fn example() {
+//! let discovery = SchemaDiscovery::new().unwrap();
+//! // Get available schemas
+//! let schemas = discovery.get_schemas().await.unwrap();
+//! println!("Available schemas: {}", schemas.len());
 //!
-//!     // Get available schemas
-//!     let schemas = discovery.get_schemas().await?;
-//!     println!("Available schemas: {}", schemas.len());
-//!
-//!     // Get service provider configuration
-//!     let config = discovery.get_service_provider_config().await?;
-//!     println!("Service provider config: {:?}", config);
-//!
-//!     Ok(())
-//! }
+//! // Get service provider configuration
+//! let config = discovery.get_service_provider_config().await.unwrap();
+//! println!("Bulk operations supported: {}", config.bulk_supported);
+//! # }
 //! ```
 //!
 //! ## Provider Implementation
@@ -447,6 +648,8 @@
 //! This crate includes comprehensive examples in the `examples/` directory:
 //!
 //! - **`basic_usage.rs`** - Simple SCIM server setup
+//! - **`etag_concurrency_example.rs`** - ETag concurrency control and conditional operations
+//! - **`mcp_etag_example.rs`** - AI agent ETag usage with Model Context Protocol
 //! - **`multi_tenant_demo.rs`** - Multi-tenant operations
 //! - **`logging_example.rs`** - Comprehensive logging configuration
 //! - **`operation_handler_example.rs`** - Framework-agnostic operation handling
@@ -455,6 +658,8 @@
 //! Run examples with:
 //! ```bash
 //! cargo run --example basic_usage
+//! cargo run --example etag_concurrency_example
+//! cargo run --example mcp_etag_example --features mcp
 //! ```
 //!
 //! ## Schema Validation Utility
@@ -548,6 +753,8 @@
 //! - Service provider configuration
 //! - Multi-valued attribute handling
 //! - Complex attribute validation
+//! - Conditional operations with ETag support
+//! - Optimistic concurrency control
 //!
 //! ### Standards Compliance
 //! - Full User schema implementation
@@ -556,6 +763,8 @@
 //! - JSON Schema validation
 //! - HTTP status code compliance
 //! - Error response formatting
+//! - **RFC 7232 weak ETag support for conditional operations**
+//! - RFC 7644 versioning requirements
 //!
 //! ## Contributing
 //!

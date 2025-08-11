@@ -386,6 +386,17 @@ impl Resource {
         self.id.as_ref().map(|id| id.as_str())
     }
 
+    /// Set the unique identifier of this resource.
+    pub fn set_id(&mut self, id: &str) -> ValidationResult<()> {
+        self.id = Some(ResourceId::new(id.to_string())?);
+        Ok(())
+    }
+
+    /// Get an attribute value from the resource.
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.attributes.get(key)
+    }
+
     /// Get the userName field for User resources.
     pub fn get_username(&self) -> Option<&str> {
         self.user_name.as_ref().map(|name| name.as_str())

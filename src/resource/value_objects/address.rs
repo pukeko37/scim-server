@@ -216,30 +216,6 @@ impl Address {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that the provided values are valid according to
-    /// SCIM address validation rules.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        formatted: Option<String>,
-        street_address: Option<String>,
-        locality: Option<String>,
-        region: Option<String>,
-        postal_code: Option<String>,
-        country: Option<String>,
-        address_type: Option<String>,
-        primary: Option<bool>,
-    ) -> Self {
-        Self {
-            formatted,
-            street_address,
-            locality,
-            region,
-            postal_code,
-            country,
-            address_type,
-            primary,
-        }
-    }
 
     /// Get the formatted address.
     pub fn formatted(&self) -> Option<&str> {
@@ -692,39 +668,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty() {
-        let empty_address = Address::new_unchecked(None, None, None, None, None, None, None, None);
-        assert!(empty_address.is_empty());
-
-        let non_empty_address = Address::new_simple(
-            "123 Main St".to_string(),
-            "Anytown".to_string(),
-            "US".to_string(),
-        )
-        .unwrap();
-        assert!(!non_empty_address.is_empty());
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let address = Address::new_unchecked(
-            Some("123 Main St".to_string()),
-            Some("123 Main St".to_string()),
-            Some("Anytown".to_string()),
-            Some("NY".to_string()),
-            Some("12345".to_string()),
-            Some("US".to_string()),
-            Some("home".to_string()),
-            Some(false),
-        );
-
-        assert_eq!(address.street_address(), Some("123 Main St"));
-        assert_eq!(address.locality(), Some("Anytown"));
-        assert_eq!(address.address_type(), Some("home"));
-        assert!(!address.is_primary());
-    }
-
-    #[test]
     fn test_display() {
         let address = Address::new_work(
             "100 Business Blvd".to_string(),
@@ -739,8 +682,16 @@ mod tests {
         assert!(display.contains("100 Business Blvd"));
         assert!(display.contains("(work)"));
 
-        let empty_address = Address::new_unchecked(None, None, None, None, None, None, None, None);
-        assert_eq!(format!("{}", empty_address), "[Empty Address]");
+        // Test display with minimal address
+        let minimal_address = Address::new_simple(
+            "123 Main St".to_string(),
+            "Anytown".to_string(),
+            "US".to_string(),
+        )
+        .unwrap();
+        let minimal_display = format!("{}", minimal_address);
+        assert!(minimal_display.contains("123 Main St"));
+        assert!(minimal_display.contains("Anytown"));
     }
 
     #[test]

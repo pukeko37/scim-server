@@ -75,35 +75,6 @@ impl ResourceId {
         Ok(Self(value))
     }
 
-    /// Create a ResourceId without validation.
-    ///
-    /// This constructor bypasses validation and should only be used in contexts
-    /// where the value is guaranteed to be valid (e.g., from trusted data sources
-    /// like databases where validation has already occurred).
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the value meets all ResourceId validation requirements.
-    /// Using this with invalid data may lead to inconsistent system state.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The pre-validated string value
-    ///
-    /// # Examples
-    ///
-    /// This method is for internal crate usage only when loading pre-validated
-    /// resource IDs from trusted sources like databases.
-    ///
-    /// ```text
-    /// // Internal usage pattern:
-    /// let id = ResourceId::new_unchecked("db-validated-id".to_string());
-    /// ```
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(value: String) -> Self {
-        Self(value)
-    }
-
     /// Get the string representation of the ResourceId.
     ///
     /// Returns a reference to the underlying string value. This is safe
@@ -332,12 +303,6 @@ mod tests {
 
         let id = id.unwrap();
         assert_eq!(id.as_str(), "user-123");
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let id = ResourceId::new_unchecked("unchecked-id".to_string());
-        assert_eq!(id.as_str(), "unchecked-id");
     }
 
     #[test]

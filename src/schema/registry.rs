@@ -4,7 +4,7 @@
 //! schema management, and provides access to registered schemas for validation.
 
 use super::types::{AttributeDefinition, AttributeType, Schema};
-use crate::error::{ValidationError, ValidationResult};
+
 use chrono::{DateTime, FixedOffset};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -159,13 +159,6 @@ impl SchemaRegistry {
         value.contains("://") || value.starts_with("urn:")
     }
 
-    /// Check if a schema URI has valid format.
-    #[allow(dead_code)]
-    pub(super) fn is_valid_schema_uri(&self, uri: &str) -> bool {
-        // Basic validation: must be a URN that starts with correct prefix
-        uri.starts_with("urn:") && uri.contains("scim:schemas")
-    }
-
     /// Get the type name of a JSON value for error messages.
     pub(super) fn get_value_type(value: &Value) -> &'static str {
         match value {
@@ -179,16 +172,6 @@ impl SchemaRegistry {
         }
     }
 
-    /// Find attribute definition in schema (including sub-attributes)
-    #[allow(dead_code)]
-    pub(super) fn find_attribute_definition<'a>(
-        &self,
-        schema: &'a Schema,
-        attr_name: &str,
-    ) -> Option<&'a AttributeDefinition> {
-        schema.attributes.iter().find(|attr| attr.name == attr_name)
-    }
-
     /// Get attribute definition for a complex attribute
     pub(super) fn get_complex_attribute_definition(
         &self,
@@ -199,31 +182,6 @@ impl SchemaRegistry {
             .attributes
             .iter()
             .find(|attr| attr.name == attr_name && matches!(attr.data_type, AttributeType::Complex))
-    }
-
-    /// Extract schema URIs from the schemas array.
-    #[allow(dead_code)]
-    pub(super) fn extract_schema_uris(
-        &self,
-        obj: &serde_json::Map<String, Value>,
-    ) -> ValidationResult<Vec<String>> {
-        let schemas_value = obj
-            .get("schemas")
-            .ok_or_else(|| ValidationError::MissingSchemas)?;
-
-        let schemas_array = schemas_value
-            .as_array()
-            .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
-
-        let mut uris = Vec::new();
-        for schema_value in schemas_array {
-            let uri = schema_value
-                .as_str()
-                .ok_or_else(|| ValidationError::InvalidMetaStructure)?;
-            uris.push(uri.to_string());
-        }
-
-        Ok(uris)
     }
 }
 

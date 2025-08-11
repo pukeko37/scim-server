@@ -13,6 +13,7 @@
 //! * [`provider`] - The main `ResourceProvider` trait for data access
 
 pub mod builder;
+pub mod conditional_provider;
 pub mod context;
 pub mod core;
 pub mod handlers;
@@ -23,6 +24,7 @@ pub mod serialization;
 pub mod tenant;
 pub mod types;
 pub mod value_objects;
+pub mod version;
 
 // Re-export all public types to maintain API compatibility
 pub use builder::ResourceBuilder;

@@ -9,6 +9,7 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 - **[Installation Guide](guides/installation.md)** - Installation and setup instructions
 - **[Basic Usage](guides/basic-usage.md)** - Core concepts and simple examples
 - **[Configuration](guides/configuration.md)** - Server configuration options
+- **[ETag Concurrency Control](guides/etag-concurrency-control.md)** - Prevent lost updates with automatic versioning
 
 ### API Documentation
 - **[API Reference](api/README.md)** - Complete API documentation
@@ -16,6 +17,7 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 - **[Resource Providers](api/providers.md)** - Storage backend interfaces
 - **[Multi-tenancy](api/multi-tenancy.md)** - Multi-tenant architecture
 - **[Error Handling](api/error-handling.md)** - Error types and handling patterns
+- **[Version Control](api/version-control.md)** - ETag implementation and conditional operations
 
 ### Guides
 - **[User Guide](guides/user-guide.md)** - Comprehensive user documentation
@@ -49,6 +51,7 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 - **Deploy to production** → [Production Deployment](guides/tutorial-production.md)
 - **Check SCIM compliance** → [SCIM 2.0 Compliance](reference/scim-compliance.md)
 - **Browse API documentation** → [API Reference](api/README.md)
+- **Prevent lost updates** → [ETag Concurrency Control](guides/etag-concurrency-control.md)
 
 ## 📋 Documentation Status
 
@@ -62,6 +65,7 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 | Architecture | ✅ Complete | 2024-12-19 |
 | SCIM Compliance | ✅ Complete | 2024-12-19 |
 | Performance Guide | ✅ Complete | 2024-12-19 |
+| ETag Concurrency Control | ✅ Complete | 2024-12-19 |
 
 ## 🏗️ About This Project
 
@@ -73,6 +77,7 @@ The SCIM Server crate provides:
 - **🔧 Extensible provider system** for custom storage backends
 - **📊 Comprehensive validation** following SCIM 2.0 specifications
 - **🔍 Rich logging and observability** for production monitoring
+- **🏷️ Built-in ETag concurrency control** preventing lost updates automatically
 - **🧪 Extensive test coverage** with 57 passing documentation tests
 
 ## 📊 Project Statistics

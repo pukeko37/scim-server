@@ -1,6 +1,6 @@
 [package]
 name = "scim-server"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Andrew Bowers <abowers37@gmail.com>"]
 license = "MIT"
@@ -21,6 +21,7 @@ uuid = { version = "1.11.0", features = ["v4"] }
 thiserror = "2.0.9"
 chrono = { version = "0.4.38", features = ["serde"] }
 base64 = "0.21"
+sha2 = "0.10"
 log = "0.4"
 
 # MCP integration dependencies (optional)

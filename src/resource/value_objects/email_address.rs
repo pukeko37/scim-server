@@ -110,29 +110,6 @@ impl EmailAddress {
         Self::new(value, None, None, None)
     }
 
-    /// Create an EmailAddress without validation.
-    ///
-    /// This constructor bypasses validation and should only be used in contexts
-    /// where the values are guaranteed to be valid (e.g., from trusted data sources).
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that all values meet EmailAddress validation requirements.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        value: String,
-        email_type: Option<String>,
-        primary: Option<bool>,
-        display: Option<String>,
-    ) -> Self {
-        Self {
-            value,
-            email_type,
-            primary,
-            display,
-        }
-    }
-
     /// Get the email address value.
     pub fn value(&self) -> &str {
         &self.value
@@ -412,19 +389,6 @@ mod tests {
             }
             other => panic!("Expected InvalidStringFormat error, got: {:?}", other),
         }
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let email = EmailAddress::new_unchecked(
-            "unchecked@example.com".to_string(),
-            Some("work".to_string()),
-            Some(false),
-            None,
-        );
-        assert_eq!(email.value(), "unchecked@example.com");
-        assert_eq!(email.email_type(), Some("work"));
-        assert_eq!(email.primary(), Some(false));
     }
 
     #[test]

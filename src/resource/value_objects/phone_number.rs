@@ -147,28 +147,6 @@ impl PhoneNumber {
     }
 
     /// Create a PhoneNumber instance without validation for internal use.
-    ///
-    /// This method bypasses validation and should only be used when the data
-    /// is known to be valid, such as when deserializing from trusted sources.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the provided values are valid according to
-    /// SCIM phone number validation rules.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        value: String,
-        display: Option<String>,
-        phone_type: Option<String>,
-        primary: Option<bool>,
-    ) -> Self {
-        Self {
-            value,
-            display,
-            phone_type,
-            primary,
-        }
-    }
 
     /// Get the phone number value.
     pub fn value(&self) -> &str {
@@ -495,21 +473,6 @@ mod tests {
 
         let phone2 = PhoneNumber::new_work("555-123-4567".to_string()).unwrap();
         assert_eq!(phone2.display_value(), "555-123-4567");
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let phone = PhoneNumber::new_unchecked(
-            "555-123-4567".to_string(),
-            Some("Work Phone".to_string()),
-            Some("work".to_string()),
-            Some(true),
-        );
-
-        assert_eq!(phone.value(), "555-123-4567");
-        assert_eq!(phone.display(), Some("Work Phone"));
-        assert_eq!(phone.phone_type(), Some("work"));
-        assert!(phone.is_primary());
     }
 
     #[test]

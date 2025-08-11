@@ -39,7 +39,11 @@
 //! # }
 //! ```
 
-use crate::resource::{ListQuery, RequestContext, Resource, ResourceProvider};
+use crate::resource::{
+    ListQuery, RequestContext, Resource, ResourceProvider,
+    conditional_provider::VersionedResource,
+    version::{ConditionalResult, ScimVersion, VersionConflict},
+};
 use log::{debug, info, trace, warn};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -598,10 +602,146 @@ impl ResourceProvider for InMemoryProvider {
     }
 }
 
+// Essential conditional operations for testing
+impl InMemoryProvider {
+    pub async fn conditional_update(
+        &self,
+        resource_type: &str,
+        id: &str,
+        data: Value,
+        expected_version: &ScimVersion,
+        context: &RequestContext,
+    ) -> Result<ConditionalResult<VersionedResource>, InMemoryError> {
+        let tenant_id = context.tenant_id().unwrap_or("default");
+
+        let mut store = self.data.write().await;
+        let tenant_data = store
+            .entry(tenant_id.to_string())
+            .or_insert_with(HashMap::new);
+        let type_data = tenant_data
+            .entry(resource_type.to_string())
+            .or_insert_with(HashMap::new);
+
+        // Check if resource exists
+        let existing_resource = match type_data.get(id) {
+            Some(resource) => resource,
+            None => return Ok(ConditionalResult::NotFound),
+        };
+
+        // Compute current version
+        let current_version = VersionedResource::new(existing_resource.clone())
+            .version()
+            .clone();
+
+        // Check version match
+        if !current_version.matches(expected_version) {
+            let conflict = VersionConflict::new(
+                expected_version.clone(),
+                current_version,
+                format!(
+                    "Resource {}/{} was modified by another client",
+                    resource_type, id
+                ),
+            );
+            return Ok(ConditionalResult::VersionMismatch(conflict));
+        }
+
+        // Create updated resource
+        let mut updated_resource =
+            Resource::from_json(resource_type.to_string(), data).map_err(|e| {
+                InMemoryError::InvalidData {
+                    message: format!("Failed to update resource: {}", e),
+                }
+            })?;
+
+        // Preserve ID
+        if let Some(original_id) = existing_resource.get_id() {
+            updated_resource
+                .set_id(original_id)
+                .map_err(|e| InMemoryError::InvalidData {
+                    message: format!("Failed to set ID: {}", e),
+                })?;
+        }
+
+        type_data.insert(id.to_string(), updated_resource.clone());
+        Ok(ConditionalResult::Success(VersionedResource::new(
+            updated_resource,
+        )))
+    }
+
+    pub async fn conditional_delete(
+        &self,
+        resource_type: &str,
+        id: &str,
+        expected_version: &ScimVersion,
+        context: &RequestContext,
+    ) -> Result<ConditionalResult<()>, InMemoryError> {
+        let tenant_id = context.tenant_id().unwrap_or("default");
+
+        let mut store = self.data.write().await;
+        let tenant_data = store
+            .entry(tenant_id.to_string())
+            .or_insert_with(HashMap::new);
+        let type_data = tenant_data
+            .entry(resource_type.to_string())
+            .or_insert_with(HashMap::new);
+
+        // Check if resource exists
+        let existing_resource = match type_data.get(id) {
+            Some(resource) => resource,
+            None => return Ok(ConditionalResult::NotFound),
+        };
+
+        // Compute current version
+        let current_version = VersionedResource::new(existing_resource.clone())
+            .version()
+            .clone();
+
+        // Check version match
+        if !current_version.matches(expected_version) {
+            let conflict = VersionConflict::new(
+                expected_version.clone(),
+                current_version,
+                format!(
+                    "Resource {}/{} was modified by another client",
+                    resource_type, id
+                ),
+            );
+            return Ok(ConditionalResult::VersionMismatch(conflict));
+        }
+
+        // Delete resource
+        type_data.remove(id);
+        Ok(ConditionalResult::Success(()))
+    }
+
+    pub async fn get_versioned_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        context: &RequestContext,
+    ) -> Result<Option<VersionedResource>, InMemoryError> {
+        match self.get_resource(resource_type, id, context).await? {
+            Some(resource) => Ok(Some(VersionedResource::new(resource))),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn create_versioned_resource(
+        &self,
+        resource_type: &str,
+        data: Value,
+        context: &RequestContext,
+    ) -> Result<VersionedResource, InMemoryError> {
+        let resource = self.create_resource(resource_type, data, context).await?;
+        Ok(VersionedResource::new(resource))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resource::{RequestContext, TenantContext};
+    use crate::resource::{ListQuery, TenantContext};
     use serde_json::json;
 
     fn create_test_user_data(username: &str) -> Value {
@@ -932,5 +1072,211 @@ mod tests {
         let stats_after = provider.get_stats().await;
         assert_eq!(stats_after.total_resources, 0);
         assert_eq!(stats_after.tenant_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_operations_via_resource_provider() {
+        // This test ensures InMemoryProvider implements conditional operations via ResourceProvider trait
+        // Using static dispatch with generic function to enforce trait bounds
+        async fn test_provider<P>(provider: &P, context: &RequestContext)
+        where
+            P: ResourceProvider<Error = InMemoryError> + Sync,
+        {
+            // Create a user first using regular provider
+            let user_data = create_test_user_data("jane.doe");
+            let user = provider
+                .create_resource("User", user_data, context)
+                .await
+                .unwrap();
+            let user_id = user.get_id().unwrap();
+
+            // Get versioned resource using trait method
+            let versioned = provider
+                .get_versioned_resource("User", user_id, context)
+                .await
+                .unwrap()
+                .unwrap();
+
+            // Test conditional update using trait method
+            let update_data = json!({
+                "userName": "jane.doe",
+                "displayName": "Jane Updated",
+                "active": false
+            });
+
+            let result = provider
+                .conditional_update("User", user_id, update_data, versioned.version(), context)
+                .await
+                .unwrap();
+
+            // Should succeed since version matches
+            assert!(matches!(result, ConditionalResult::Success(_)));
+        }
+
+        let provider = InMemoryProvider::new();
+        let context = RequestContext::with_generated_id();
+
+        // This tests that conditional operations work via ResourceProvider trait
+        test_provider(&provider, &context).await;
+    }
+
+    #[tokio::test]
+    async fn test_conditional_provider_concurrent_updates() {
+        use tokio::task::JoinSet;
+
+        let provider = Arc::new(InMemoryProvider::new());
+        let context = RequestContext::with_generated_id();
+
+        // Create a user first
+        let user_data = create_test_user_data("concurrent.user");
+        let user = provider
+            .create_resource("User", user_data, &context)
+            .await
+            .unwrap();
+        let user_id = user.get_id().unwrap().to_string();
+
+        // Get initial version
+        let initial_versioned = provider
+            .get_versioned_resource("User", &user_id, &context)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Launch concurrent updates with the same version
+        let mut tasks = JoinSet::new();
+        let num_concurrent = 10;
+
+        for i in 0..num_concurrent {
+            let provider_clone = Arc::clone(&provider);
+            let context_clone = context.clone();
+            let user_id_clone = user_id.clone();
+            let version_clone = initial_versioned.version().clone();
+
+            tasks.spawn(async move {
+                let update_data = json!({
+                    "userName": "concurrent.user",
+                    "displayName": format!("Update {}", i),
+                    "active": true
+                });
+
+                provider_clone
+                    .conditional_update(
+                        &"User",
+                        &user_id_clone,
+                        update_data,
+                        &version_clone,
+                        &context_clone,
+                    )
+                    .await
+            });
+        }
+
+        // Collect results
+        let mut success_count = 0;
+        let mut conflict_count = 0;
+
+        while let Some(result) = tasks.join_next().await {
+            match result.unwrap().unwrap() {
+                ConditionalResult::Success(_) => success_count += 1,
+                ConditionalResult::VersionMismatch(_) => conflict_count += 1,
+                ConditionalResult::NotFound => panic!("Resource should exist"),
+            }
+        }
+
+        // Only one update should succeed, others should get version conflicts
+        assert_eq!(success_count, 1, "Exactly one update should succeed");
+        assert_eq!(
+            conflict_count,
+            num_concurrent - 1,
+            "Other updates should conflict"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_provider_delete_version_conflict() {
+        let provider = InMemoryProvider::new();
+        let context = RequestContext::with_generated_id();
+
+        // Create a user
+        let user_data = create_test_user_data("delete.user");
+        let user = provider
+            .create_resource("User", user_data, &context)
+            .await
+            .unwrap();
+        let user_id = user.get_id().unwrap();
+
+        // Get initial version
+        let initial_versioned = provider
+            .get_versioned_resource("User", user_id, &context)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Update the resource to change its version
+        let update_data = json!({
+            "userName": "delete.user",
+            "displayName": "Updated Before Delete",
+            "active": false
+        });
+        provider
+            .update_resource("User", user_id, update_data, &context)
+            .await
+            .unwrap();
+
+        // Try to delete with old version - should fail
+        let delete_result = provider
+            .conditional_delete("User", user_id, initial_versioned.version(), &context)
+            .await
+            .unwrap();
+
+        // Should get version conflict
+        assert!(matches!(
+            delete_result,
+            ConditionalResult::VersionMismatch(_)
+        ));
+
+        // Resource should still exist
+        let still_exists = provider
+            .resource_exists("User", user_id, &context)
+            .await
+            .unwrap();
+        assert!(still_exists);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_provider_successful_delete() {
+        let provider = InMemoryProvider::new();
+        let context = RequestContext::with_generated_id();
+
+        // Create a user
+        let user_data = create_test_user_data("delete.success");
+        let user = provider
+            .create_resource("User", user_data, &context)
+            .await
+            .unwrap();
+        let user_id = user.get_id().unwrap();
+
+        // Get current version
+        let current_versioned = provider
+            .get_versioned_resource("User", user_id, &context)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Delete with correct version - should succeed
+        let delete_result = provider
+            .conditional_delete("User", user_id, current_versioned.version(), &context)
+            .await
+            .unwrap();
+
+        // Should succeed
+        assert!(matches!(delete_result, ConditionalResult::Success(())));
+
+        // Resource should no longer exist
+        let exists = provider
+            .resource_exists("User", user_id, &context)
+            .await
+            .unwrap();
+        assert!(!exists);
     }
 }

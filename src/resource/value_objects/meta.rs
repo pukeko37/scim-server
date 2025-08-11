@@ -138,31 +138,6 @@ impl Meta {
         Self::new_simple(resource_type, now, now)
     }
 
-    /// Create a Meta without validation.
-    ///
-    /// This constructor bypasses validation and should only be used in contexts
-    /// where the values are guaranteed to be valid (e.g., from trusted data sources).
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that all values meet Meta validation requirements.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        resource_type: String,
-        created: DateTime<Utc>,
-        last_modified: DateTime<Utc>,
-        location: Option<String>,
-        version: Option<String>,
-    ) -> Self {
-        Self {
-            resource_type,
-            created,
-            last_modified,
-            location,
-            version,
-        }
-    }
-
     /// Get the resource type.
     pub fn resource_type(&self) -> &str {
         &self.resource_type
@@ -527,26 +502,6 @@ mod tests {
         let version = Meta::generate_version("123", timestamp);
         let expected_millis = timestamp.timestamp_millis();
         assert_eq!(version, format!("W/\"123-{}\"", expected_millis));
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let created = Utc.with_ymd_and_hms(2023, 1, 1, 12, 0, 0).unwrap();
-        let modified = Utc.with_ymd_and_hms(2023, 1, 2, 12, 0, 0).unwrap();
-
-        let meta = Meta::new_unchecked(
-            "User".to_string(),
-            created,
-            modified,
-            Some("https://example.com/Users/123".to_string()),
-            Some("W/\"123-456\"".to_string()),
-        );
-
-        assert_eq!(meta.resource_type(), "User");
-        assert_eq!(meta.created(), created);
-        assert_eq!(meta.last_modified(), modified);
-        assert_eq!(meta.location(), Some("https://example.com/Users/123"));
-        assert_eq!(meta.version(), Some("W/\"123-456\""));
     }
 
     #[test]

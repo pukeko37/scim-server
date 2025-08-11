@@ -167,32 +167,6 @@ impl Name {
     }
 
     /// Create a Name instance without validation for internal use.
-    ///
-    /// This method bypasses validation and should only be used when the data
-    /// is known to be valid, such as when deserializing from trusted sources.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the provided values are valid according to
-    /// SCIM name validation rules.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        formatted: Option<String>,
-        family_name: Option<String>,
-        given_name: Option<String>,
-        middle_name: Option<String>,
-        honorific_prefix: Option<String>,
-        honorific_suffix: Option<String>,
-    ) -> Self {
-        Self {
-            formatted,
-            family_name,
-            given_name,
-            middle_name,
-            honorific_prefix,
-            honorific_suffix,
-        }
-    }
 
     /// Get the formatted name.
     pub fn formatted(&self) -> Option<&str> {
@@ -573,37 +547,14 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty() {
-        let empty_name = Name::new_unchecked(None, None, None, None, None, None);
-        assert!(empty_name.is_empty());
-
-        let non_empty_name = Name::new_simple("John".to_string(), "Doe".to_string()).unwrap();
-        assert!(!non_empty_name.is_empty());
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let name = Name::new_unchecked(
-            Some("John Doe".to_string()),
-            Some("Doe".to_string()),
-            Some("John".to_string()),
-            None,
-            None,
-            None,
-        );
-
-        assert_eq!(name.formatted(), Some("John Doe"));
-        assert_eq!(name.family_name(), Some("Doe"));
-        assert_eq!(name.given_name(), Some("John"));
-    }
-
-    #[test]
     fn test_display() {
         let name = Name::new_simple("John".to_string(), "Doe".to_string()).unwrap();
         assert_eq!(format!("{}", name), "John Doe");
 
-        let empty_name = Name::new_unchecked(None, None, None, None, None, None);
-        assert_eq!(format!("{}", empty_name), "[Empty Name]");
+        // Test display with formatted name
+        let formatted_name = Name::new_formatted("Dr. John Smith Doe Jr.".to_string()).unwrap();
+        let display_str = format!("{}", formatted_name);
+        assert_eq!(display_str, "Dr. John Smith Doe Jr.");
     }
 
     #[test]

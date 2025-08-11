@@ -11,6 +11,7 @@
 //! * **SCIM Compliance**: Generates RFC 7644 compliant ServiceProviderConfig
 //! * **Type Safety**: Leverages Rust's type system for capability constraints
 //! * **Real-time Updates**: Capabilities reflect current server state
+//! * **Mandatory ETag Support**: All providers automatically support conditional operations
 //!
 //! # Discovery Sources
 //!
@@ -18,6 +19,7 @@
 //! * **Operations**: From registered resource handlers - determines CRUD capabilities
 //! * **Provider Type**: From ResourceProvider implementation - determines advanced features
 //! * **Attribute Metadata**: From schema definitions - determines filtering capabilities
+//! * **ETag Versioning**: Always enabled - conditional operations are mandatory for all providers
 
 use crate::error::ScimError;
 use crate::resource::{ResourceProvider, ScimOperation};
@@ -122,7 +124,7 @@ pub struct AuthenticationCapabilities {
 /// Extended capabilities specific to the provider implementation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtendedCapabilities {
-    /// Whether ETag versioning is supported
+    /// Whether ETag versioning is supported (always true - conditional operations are mandatory)
     pub etag_supported: bool,
 
     /// Whether PATCH operations are supported
@@ -239,7 +241,10 @@ impl CapabilityDiscovery {
         let bulk_capabilities = Self::default_bulk_capabilities();
         let pagination_capabilities = Self::default_pagination_capabilities();
         let authentication_capabilities = Self::default_authentication_capabilities();
-        let extended_capabilities = ExtendedCapabilities::default();
+        let mut extended_capabilities = ExtendedCapabilities::default();
+
+        // Ensure ETag support is always enabled (conditional operations are mandatory)
+        extended_capabilities.etag_supported = true;
 
         Ok(ProviderCapabilities {
             supported_operations: supported_operations_map,
@@ -556,7 +561,7 @@ impl Default for AuthenticationCapabilities {
 impl Default for ExtendedCapabilities {
     fn default() -> Self {
         Self {
-            etag_supported: false,
+            etag_supported: true, // Always true - conditional operations are mandatory
             patch_supported: false,
             change_password_supported: false,
             sort_supported: false,

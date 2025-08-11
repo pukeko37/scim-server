@@ -54,11 +54,15 @@
 //! ```
 
 // pub mod end_to_end; // Disabled until implemented
+pub mod conditional_operations;
+pub mod etag_comprehensive;
+
 pub mod multi_tenant;
 pub mod permission_enforcement;
 pub mod providers;
 pub mod scim_multi_tenant;
 pub mod scim_protocol;
+pub mod version_operations;
 
 // Re-export commonly used test utilities
 pub use crate::common::{

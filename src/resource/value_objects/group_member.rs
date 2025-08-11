@@ -190,26 +190,6 @@ impl GroupMember {
     /// where the inputs are already known to be valid.
     ///
     /// # Arguments
-    ///
-    /// * `value` - The resource ID of the member
-    /// * `display` - Optional display name
-    /// * `member_type` - Optional member type
-    ///
-    /// # Returns
-    ///
-    /// A group member without validation
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(
-        value: ResourceId,
-        display: Option<String>,
-        member_type: Option<String>,
-    ) -> Self {
-        Self {
-            value,
-            display,
-            member_type,
-        }
-    }
 
     /// Returns the resource ID of the member.
     ///
@@ -601,20 +581,6 @@ mod tests {
         let minimal = GroupMember::new(member_id.clone(), None, None).unwrap();
         let display_str = format!("{}", minimal);
         assert_eq!(display_str, "[user-123]");
-    }
-
-    #[test]
-    fn test_group_member_new_unchecked() {
-        let member_id = create_test_resource_id("user-123");
-        let member = GroupMember::new_unchecked(
-            member_id.clone(),
-            Some("".to_string()),        // This would normally fail validation
-            Some("Invalid".to_string()), // This would normally fail validation
-        );
-
-        assert_eq!(member.value(), &member_id);
-        assert_eq!(member.display_name(), Some(""));
-        assert_eq!(member.member_type(), Some("Invalid"));
     }
 
     #[test]

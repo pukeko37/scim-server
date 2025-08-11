@@ -12,6 +12,7 @@
 //! - **Automated Identity Management**: AI agents can provision/deprovision users
 //! - **Schema-Driven Operations**: AI agents understand SCIM data structures
 //! - **Multi-Tenant Support**: Tenant-aware operations for enterprise scenarios
+//! - **ETag Concurrency Control**: Built-in optimistic locking prevents lost updates
 //! - **Error Handling**: Structured error responses for AI decision making
 //! - **Real-time Operations**: Async operations suitable for AI workflows
 //!
@@ -27,6 +28,65 @@
 //!    Tool Discovery          Tool Execution        Resource Management
 //!    Schema Learning         JSON Validation        Provider Integration
 //!    Error Handling          Tenant Context        Multi-Tenant Isolation
+//! ```
+//!
+//! ## ETag Concurrency Control for AI Agents
+//!
+//! The MCP integration includes automatic ETag support, enabling AI agents to safely
+//! perform concurrent operations with optimistic locking:
+//!
+//! ```rust,no_run
+//! # #[cfg(feature = "mcp")]
+//! use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::InMemoryProvider};
+//! use serde_json::json;
+//!
+//! # #[cfg(feature = "mcp")]
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let provider = InMemoryProvider::new();
+//!     let scim_server = ScimServer::new(provider)?;
+//!     let mcp_server = ScimMcpServer::new(scim_server);
+//!
+//!     // Create user - returns ETag in response
+//!     let create_result = mcp_server.execute_tool(
+//!         "scim_create_user",
+//!         json!({
+//!             "user_data": {
+//!                 "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+//!                 "userName": "ai.agent@company.com",
+//!                 "active": true
+//!             }
+//!         })
+//!     ).await;
+//!
+//!     // Extract ETag from response for subsequent operations
+//!     let metadata = create_result.metadata.unwrap();
+//!     let etag = metadata["etag"].as_str().unwrap();
+//!     let user_id = metadata["resource_id"].as_str().unwrap();
+//!
+//!     // Conditional update using ETag - prevents lost updates
+//!     let update_result = mcp_server.execute_tool(
+//!         "scim_update_user",
+//!         json!({
+//!             "user_id": user_id,
+//!             "user_data": {
+//!                 "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+//!                 "userName": "ai.agent@company.com",
+//!                 "active": false
+//!             },
+//!             "expected_version": etag  // ETag from previous operation
+//!         })
+//!     ).await;
+//!
+//!     if !update_result.success {
+//!         if update_result.content["is_version_conflict"].as_bool().unwrap_or(false) {
+//!             println!("Version conflict detected - resource was modified by another client");
+//!             // AI agent should refresh and retry with current version
+//!         }
+//!     }
+//!
+//!     # Ok(())
+//! }
 //! ```
 //!
 //! ## Usage Example
@@ -130,6 +190,7 @@ use crate::{
     ResourceProvider,
     multi_tenant::TenantContext,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
+    resource::version::ScimVersion,
     scim_server::ScimServer,
 };
 
@@ -236,7 +297,7 @@ pub struct ScimToolResult {
 ///     println!("Available tools: {}", tools.len());
 ///
 ///     // Run MCP server
-///     mcp_server.run_stdio().await?;
+///     mcp_server.run_stdio().await.unwrap();
 ///     Ok(())
 /// }
 /// ```
@@ -417,7 +478,7 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     fn update_user_tool(&self) -> Value {
         json!({
             "name": "scim_update_user",
-            "description": "Update an existing user in the SCIM server",
+            "description": "Update an existing user in the SCIM server with optional ETag versioning for optimistic locking",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -428,6 +489,10 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
                     "user_data": {
                         "type": "object",
                         "description": "Updated user data conforming to SCIM User schema"
+                    },
+                    "expected_version": {
+                        "type": "string",
+                        "description": "Optional ETag version for conditional update (e.g., 'W/\"abc123\"'). If provided, update only succeeds if current version matches. Prevents lost updates in concurrent scenarios."
                     },
                     "tenant_id": {
                         "type": "string",
@@ -442,13 +507,17 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     fn delete_user_tool(&self) -> Value {
         json!({
             "name": "scim_delete_user",
-            "description": "Delete a user from the SCIM server",
+            "description": "Delete a user from the SCIM server with optional ETag versioning for safe deletion",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "user_id": {
                         "type": "string",
                         "description": "The unique identifier of the user to delete"
+                    },
+                    "expected_version": {
+                        "type": "string",
+                        "description": "Optional ETag version for conditional delete (e.g., 'W/\"abc123\"'). If provided, deletion only succeeds if current version matches. Prevents accidental deletion of modified resources."
                     },
                     "tenant_id": {
                         "type": "string",
@@ -580,15 +649,32 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
         let response = self.operation_handler.handle_operation(request).await;
 
         if response.success {
+            let mut content = response
+                .data
+                .unwrap_or_else(|| json!({"status": "created"}));
+
+            // Include version information in response for AI agent to use in subsequent operations
+            let mut metadata = json!({
+                "operation": "create_user",
+                "resource_type": "User",
+                "resource_id": response.metadata.resource_id
+            });
+
+            if let Some(version) = response.metadata.additional.get("version") {
+                metadata["version"] = version.clone();
+            }
+            if let Some(etag) = response.metadata.additional.get("etag") {
+                metadata["etag"] = etag.clone();
+                // Also include in content for easy access by AI
+                if let Some(content_obj) = content.as_object_mut() {
+                    content_obj.insert("_etag".to_string(), etag.clone());
+                }
+            }
+
             ScimToolResult {
                 success: true,
-                content: response
-                    .data
-                    .unwrap_or_else(|| json!({"status": "created"})),
-                metadata: Some(json!({
-                    "operation": "create_user",
-                    "resource_type": "User"
-                })),
+                content,
+                metadata: Some(metadata),
             }
         } else {
             ScimToolResult {
@@ -627,21 +713,39 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
         let response = self.operation_handler.handle_operation(request).await;
 
         if response.success {
+            let mut content = response
+                .data
+                .unwrap_or_else(|| json!({"error": "No data returned"}));
+
+            // Include version information in response for AI agent to use in subsequent conditional operations
+            let mut metadata = json!({
+                "operation": "get_user",
+                "resource_type": "User",
+                "resource_id": user_id
+            });
+
+            if let Some(version) = response.metadata.additional.get("version") {
+                metadata["version"] = version.clone();
+            }
+            if let Some(etag) = response.metadata.additional.get("etag") {
+                metadata["etag"] = etag.clone();
+                // Also include in content for easy access by AI
+                if let Some(content_obj) = content.as_object_mut() {
+                    content_obj.insert("_etag".to_string(), etag.clone());
+                }
+            }
+
             ScimToolResult {
                 success: true,
-                content: response.data.unwrap_or_else(|| json!({"error": "No data"})),
-                metadata: Some(json!({
-                    "operation": "get_user",
-                    "resource_type": "User",
-                    "resource_id": user_id
-                })),
+                content,
+                metadata: Some(metadata),
             }
         } else {
             ScimToolResult {
                 success: false,
                 content: json!({
-                    "error": response.error.unwrap_or_else(|| "Get failed".to_string()),
-                    "error_code": "GET_USER_FAILED"
+                    "error": response.error.unwrap_or_else(|| "User not found".to_string()),
+                    "error_code": response.error_code.unwrap_or_else(|| "GET_USER_FAILED".to_string())
                 }),
                 metadata: None,
             }
@@ -682,26 +786,69 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             request = request.with_tenant(tenant);
         }
 
+        // Handle optional expected version for conditional update
+        if let Some(expected_version_str) =
+            arguments.get("expected_version").and_then(|v| v.as_str())
+        {
+            match ScimVersion::parse_http_header(expected_version_str) {
+                Ok(version) => {
+                    request = request.with_expected_version(version);
+                }
+                Err(_) => {
+                    return ScimToolResult {
+                        success: false,
+                        content: json!({
+                            "error": format!("Invalid expected_version format: '{}'. Expected ETag format like 'W/\"abc123\"'", expected_version_str),
+                            "error_code": "INVALID_VERSION_FORMAT"
+                        }),
+                        metadata: None,
+                    };
+                }
+            }
+        }
+
         let response = self.operation_handler.handle_operation(request).await;
 
         if response.success {
+            let mut content = response
+                .data
+                .unwrap_or_else(|| json!({"status": "updated"}));
+
+            // Include version information in response for AI agent to use in subsequent operations
+            let mut metadata = json!({
+                "operation": "update_user",
+                "resource_type": "User",
+                "resource_id": user_id
+            });
+
+            if let Some(version) = response.metadata.additional.get("version") {
+                metadata["version"] = version.clone();
+            }
+            if let Some(etag) = response.metadata.additional.get("etag") {
+                metadata["etag"] = etag.clone();
+                // Also include in content for easy access
+                if let Some(content_obj) = content.as_object_mut() {
+                    content_obj.insert("_etag".to_string(), etag.clone());
+                }
+            }
+
             ScimToolResult {
                 success: true,
-                content: response
-                    .data
-                    .unwrap_or_else(|| json!({"status": "updated"})),
-                metadata: Some(json!({
-                    "operation": "update_user",
-                    "resource_type": "User",
-                    "resource_id": user_id
-                })),
+                content,
+                metadata: Some(metadata),
             }
         } else {
+            let error_code = response
+                .error_code
+                .as_deref()
+                .unwrap_or("UPDATE_USER_FAILED");
+
             ScimToolResult {
                 success: false,
                 content: json!({
                     "error": response.error.unwrap_or_else(|| "Update failed".to_string()),
-                    "error_code": "UPDATE_USER_FAILED"
+                    "error_code": error_code,
+                    "is_version_conflict": error_code == "version_mismatch"
                 }),
                 metadata: None,
             }
@@ -730,6 +877,27 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             request = request.with_tenant(tenant);
         }
 
+        // Handle optional expected version for conditional delete
+        if let Some(expected_version_str) =
+            arguments.get("expected_version").and_then(|v| v.as_str())
+        {
+            match ScimVersion::parse_http_header(expected_version_str) {
+                Ok(version) => {
+                    request = request.with_expected_version(version);
+                }
+                Err(_) => {
+                    return ScimToolResult {
+                        success: false,
+                        content: json!({
+                            "error": format!("Invalid expected_version format: '{}'. Expected ETag format like 'W/\"abc123\"'", expected_version_str),
+                            "error_code": "INVALID_VERSION_FORMAT"
+                        }),
+                        metadata: None,
+                    };
+                }
+            }
+        }
+
         let response = self.operation_handler.handle_operation(request).await;
 
         if response.success {
@@ -743,11 +911,17 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
                 })),
             }
         } else {
+            let error_code = response
+                .error_code
+                .as_deref()
+                .unwrap_or("DELETE_USER_FAILED");
+
             ScimToolResult {
                 success: false,
                 content: json!({
                     "error": response.error.unwrap_or_else(|| "Delete failed".to_string()),
-                    "error_code": "DELETE_USER_FAILED"
+                    "error_code": error_code,
+                    "is_version_conflict": error_code == "version_mismatch"
                 }),
                 metadata: None,
             }

@@ -179,7 +179,6 @@ impl<T> MultiValuedAttribute<T> {
     /// # Returns
     ///
     /// An empty multi-valued attribute
-    #[allow(dead_code)]
     pub(crate) fn empty() -> Self {
         Self {
             values: Vec::new(),

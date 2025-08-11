@@ -7,10 +7,7 @@
 
 use scim_server::{
     RequestContext, TenantContext,
-    multi_tenant::{
-        adapter::SingleTenantAdapter,
-        resolver::{StaticTenantResolver, TenantResolver},
-    },
+    multi_tenant::resolver::{StaticTenantResolver, TenantResolver},
     providers::InMemoryProvider,
     resource::{
         core::{IsolationLevel, TenantPermissions},
@@ -18,7 +15,6 @@ use scim_server::{
     },
 };
 use serde_json::json;
-use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -407,164 +403,6 @@ async fn demo_performance(provider: &InMemoryProvider) -> Result<(), Box<dyn std
     println!("   - Total resources: {}", stats.total_resources);
     println!("   - Resource type count: {}", stats.resource_type_count);
     println!("   - Resource types: {:?}", stats.resource_types);
-
-    Ok(())
-}
-
-/// Helper function to create a demo single-tenant provider for adapter testing
-#[allow(dead_code)]
-async fn demo_single_tenant_adapter() -> Result<(), Box<dyn std::error::Error>> {
-    use scim_server::{Resource, ResourceProvider};
-    use std::collections::HashMap;
-    use tokio::sync::RwLock;
-
-    // Mock single-tenant provider
-    struct MockProvider {
-        resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>,
-    }
-
-    impl MockProvider {
-        fn new() -> Self {
-            Self {
-                resources: Arc::new(RwLock::new(HashMap::new())),
-            }
-        }
-    }
-
-    #[derive(Debug, thiserror::Error)]
-    #[error("Mock error")]
-    struct MockError;
-
-    impl ResourceProvider for MockProvider {
-        type Error = MockError;
-
-        async fn create_resource(
-            &self,
-            resource_type: &str,
-            data: serde_json::Value,
-            _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
-            let resource =
-                Resource::from_json(resource_type.to_string(), data).map_err(|_| MockError)?;
-            let id = resource.get_id().unwrap_or("generated").to_string();
-
-            let mut resources = self.resources.write().await;
-            resources
-                .entry(resource_type.to_string())
-                .or_insert_with(HashMap::new)
-                .insert(id, resource.clone());
-
-            Ok(resource)
-        }
-
-        async fn get_resource(
-            &self,
-            resource_type: &str,
-            id: &str,
-            _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
-            let resources = self.resources.read().await;
-            Ok(resources
-                .get(resource_type)
-                .and_then(|r| r.get(id))
-                .cloned())
-        }
-
-        async fn update_resource(
-            &self,
-            resource_type: &str,
-            id: &str,
-            data: serde_json::Value,
-            _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
-            let resource =
-                Resource::from_json(resource_type.to_string(), data).map_err(|_| MockError)?;
-            let mut resources = self.resources.write().await;
-            resources
-                .entry(resource_type.to_string())
-                .or_insert_with(HashMap::new)
-                .insert(id.to_string(), resource.clone());
-            Ok(resource)
-        }
-
-        async fn delete_resource(
-            &self,
-            resource_type: &str,
-            id: &str,
-            _context: &RequestContext,
-        ) -> Result<(), Self::Error> {
-            let mut resources = self.resources.write().await;
-            if let Some(type_resources) = resources.get_mut(resource_type) {
-                type_resources.remove(id);
-            }
-            Ok(())
-        }
-
-        async fn list_resources(
-            &self,
-            resource_type: &str,
-            _query: Option<&scim_server::ListQuery>,
-            _context: &RequestContext,
-        ) -> Result<Vec<Resource>, Self::Error> {
-            let resources = self.resources.read().await;
-            Ok(resources
-                .get(resource_type)
-                .map(|r| r.values().cloned().collect())
-                .unwrap_or_default())
-        }
-
-        async fn find_resource_by_attribute(
-            &self,
-            resource_type: &str,
-            attribute: &str,
-            value: &serde_json::Value,
-            _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
-            let resources = self.resources.read().await;
-            Ok(resources.get(resource_type).and_then(|type_resources| {
-                type_resources
-                    .values()
-                    .find(|resource| resource.get_attribute(attribute) == Some(value))
-                    .cloned()
-            }))
-        }
-
-        async fn resource_exists(
-            &self,
-            resource_type: &str,
-            id: &str,
-            _context: &RequestContext,
-        ) -> Result<bool, Self::Error> {
-            let resources = self.resources.read().await;
-            Ok(resources
-                .get(resource_type)
-                .map(|r| r.contains_key(id))
-                .unwrap_or(false))
-        }
-    }
-
-    println!("🔄 Testing single-tenant adapter...");
-
-    // Create single-tenant provider
-    let single_provider = MockProvider::new();
-
-    // Wrap it with multi-tenant adapter
-    let multi_provider = SingleTenantAdapter::new(single_provider);
-
-    // Use it with multi-tenant context
-    let tenant_context = TenantContext::new("adapted-tenant".to_string(), "client".to_string());
-    let context = RequestContext::with_tenant_generated_id(tenant_context);
-
-    let user_data = json!({
-        "id": "adapter-user",
-        "userName": "adapted.user",
-        "displayName": "Adapted User"
-    });
-
-    let _user = multi_provider
-        .create_resource("User", user_data, &context)
-        .await?;
-    println!("   ✅ Single-tenant provider successfully adapted for multi-tenant use");
 
     Ok(())
 }

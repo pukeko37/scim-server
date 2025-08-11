@@ -263,17 +263,7 @@ pub struct GenericValueObjectConstructor<T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T> GenericValueObjectConstructor<T>
-where
-    T: SchemaConstructible + 'static,
-{
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        Self {
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
+impl<T> GenericValueObjectConstructor<T> where T: SchemaConstructible + 'static {}
 
 impl<T> ValueObjectConstructor for GenericValueObjectConstructor<T>
 where

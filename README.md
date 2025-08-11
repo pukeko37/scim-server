@@ -40,6 +40,7 @@ Choose your data storage strategy without changing your application code:
 - **🏢 Production** - Database providers with full ACID compliance
 - **☁️ Cloud-Native** - Custom providers for S3, DynamoDB, or any storage system
 - **🔄 Multi-Tenant** - Automatic tenant isolation with shared or dedicated infrastructure
+- **🏷️ ETag Concurrency Control** - Built-in optimistic locking prevents lost updates
 
 ### 💡 **Value Proposition: Offload Complexity from Your SaaS**
 
@@ -48,11 +49,13 @@ Instead of building provisioning logic into every Rust application:
 | **Without SCIM Server** | **With SCIM Server** |
 |-------------------------|----------------------|
 | ❌ Custom validation in each app | ✅ **Centralized validation engine** |
+| ❌ Manual concurrency control | ✅ **Automatic ETag versioning with optimistic locking** |
 | ❌ Manual schema management | ✅ **Dynamic schema registry** |
 | ❌ Ad-hoc API endpoints | ✅ **Standardized SCIM protocol** |
 | ❌ Reinvent capability discovery | ✅ **Automatic capability construction** |
 | ❌ Build multi-tenancy from scratch | ✅ **Built-in tenant isolation** |
-| ❌ Custom error handling per resource | ✅ **Consistent error semantics** |
+| ❌ Custom error handling per resource | ✅ **Consistent error semantics with conflict resolution** |
+| ❌ Lost updates in concurrent scenarios | ✅ **Version conflict detection and prevention** |
 
 **Result**: Your SaaS applications focus on business logic while the SCIM server handles all provisioning complexity with enterprise-grade reliability.
 
@@ -66,7 +69,9 @@ Instead of building provisioning logic into every Rust application:
 - 🧩 **Provider Flexibility** - In-memory, database, or custom backends
 - 🤖 **AI-Ready with MCP** - Built-in Model Context Protocol for AI tool integration
 - 🎯 **Beyond Users & Groups** - Extensible schema system for any resource type
-- 📖 **Production Ready** - Extensive testing, logging, and error handling
+- 🔄 **ETag Concurrency Control** - Optimistic locking prevents lost updates in multi-client scenarios
+- 🧵 **Thread-Safe Operations** - Concurrent access safety with atomic version checking
+- 📖 **Production Ready** - Extensive testing (827 tests), logging, and error handling
 
 ## 🚀 Quick Start
 
@@ -74,7 +79,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "0.1.0"
+scim-server = "0.2.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -82,16 +87,28 @@ serde_json = "1.0"
 ### Minimal Example
 
 ```rust
-use scim_server::{ScimServer, InMemoryProvider};
+use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a SCIM server with in-memory storage
     let provider = InMemoryProvider::new();
-    let server = ScimServer::new(provider);
-
-    // Your server is ready to handle SCIM requests!
-    println!("SCIM Server initialized and ready");
+    let server = ScimServer::new(provider)?;
+    
+    // Create a user with automatic ETag versioning
+    let context = RequestContext::with_generated_id();
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "john.doe@example.com",
+        "active": true
+    });
+    
+    let versioned_user = server.provider()
+        .create_versioned_resource("User", user_data, &context)
+        .await?;
+    
+    println!("Created user with ETag: {}", versioned_user.version().to_http_header());
     Ok(())
 }
 ```
@@ -145,6 +162,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 🎛️ **Provider Capabilities** - Automatic feature detection and advertisement
 - 📝 **Comprehensive Logging** - Structured logging with multiple backends
 - 🔧 **Value Objects** - Type-safe domain modeling with compile-time validation
+
+### 🔄 ETag Concurrency Control (NEW in 0.2.0)
+
+**Production-Grade Optimistic Locking** - Prevent lost updates in multi-client environments:
+
+```rust
+use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let provider = InMemoryProvider::new();
+    let server = ScimServer::new(provider)?;
+    let context = RequestContext::with_generated_id();
+
+    // Create user with automatic versioning
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com",
+        "active": true
+    });
+    
+    let versioned_user = server.provider()
+        .create_versioned_resource("User", user_data, &context)
+        .await?;
+    
+    println!("User ETag: {}", versioned_user.version().to_http_header());
+    // Output: User ETag: W/"abc123def456"
+
+    // Conditional update - only succeeds if version matches
+    let update_data = json!({"active": false});
+    let current_version = versioned_user.version();
+    
+    match server.provider()
+        .conditional_update("User", "123", update_data, current_version, &context)
+        .await? 
+    {
+        ConditionalResult::Success(updated) => {
+            println!("Update successful! New ETag: {}", updated.version().to_http_header());
+        },
+        ConditionalResult::VersionMismatch(conflict) => {
+            println!("Version conflict detected!");
+            println!("Expected: {}, Current: {}", conflict.expected, conflict.current);
+            // Handle conflict: refresh, merge, or retry
+        },
+        ConditionalResult::NotFound => {
+            println!("Resource no longer exists");
+        }
+    }
+    
+    Ok(())
+}
+```
+
+**ETag Features:**
+- 🔒 **Weak ETags** - Semantic equivalence versioning (`W/"version"`)
+- ⚡ **Atomic Operations** - Thread-safe version checking and updates
+- 🤖 **AI Agent Safe** - MCP integration with conflict resolution workflows
+- 🏢 **Multi-Tenant** - Version isolation across tenant boundaries
+- 📊 **Conflict Resolution** - Structured error responses with resolution guidance
 
 ### Framework Integration
 - 🌐 **HTTP Framework Agnostic** - Bring your own web framework

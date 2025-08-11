@@ -62,19 +62,6 @@ impl UserName {
         Ok(Self(value))
     }
 
-    /// Create a UserName without validation.
-    ///
-    /// This constructor bypasses validation and should only be used in contexts
-    /// where the value is guaranteed to be valid (e.g., from trusted data sources).
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the value meets all UserName validation requirements.
-    #[allow(dead_code)]
-    pub(crate) fn new_unchecked(value: String) -> Self {
-        Self(value)
-    }
-
     /// Get the string representation of the UserName.
     pub fn as_str(&self) -> &str {
         &self.0
@@ -269,12 +256,6 @@ mod tests {
             }
             other => panic!("Expected MissingRequiredAttribute error, got: {:?}", other),
         }
-    }
-
-    #[test]
-    fn test_new_unchecked() {
-        let username = UserName::new_unchecked("unchecked-username".to_string());
-        assert_eq!(username.as_str(), "unchecked-username");
     }
 
     #[test]

@@ -102,4 +102,11 @@ impl<P: ResourceProvider> ScimServer<P> {
             .map(|ops| ops.contains(operation))
             .unwrap_or(false)
     }
+
+    /// Get a reference to the underlying provider.
+    ///
+    /// This allows access to provider-specific functionality like conditional operations.
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
 }

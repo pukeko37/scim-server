@@ -11,20 +11,13 @@ use scim_server::{
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::future::Future;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Test provider that implements capability introspection
-struct TestProvider {
-    #[allow(dead_code)]
-    resources: Arc<RwLock<HashMap<String, Resource>>>,
-}
+struct TestProvider;
 
 impl TestProvider {
     fn new() -> Self {
-        Self {
-            resources: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self
     }
 }
 

@@ -640,37 +640,6 @@ impl SchemaRegistry {
         Ok(())
     }
 
-    /// Validate canonical values in multi-valued attributes.
-    #[allow(dead_code)]
-    fn validate_canonical_values(
-        &self,
-        attr_def: &AttributeDefinition,
-        array: &[Value],
-    ) -> ValidationResult<()> {
-        if !attr_def.canonical_values.is_empty() {
-            for item in array {
-                if let Some(obj) = item.as_object() {
-                    for (key, value) in obj {
-                        if let Some(str_value) = value.as_str() {
-                            if key == &attr_def.name
-                                || attr_def.sub_attributes.iter().any(|sa| &sa.name == key)
-                            {
-                                if !attr_def.canonical_values.contains(&str_value.to_string()) {
-                                    return Err(ValidationError::InvalidCanonicalValue {
-                                        attribute: format!("{}.{}", attr_def.name, key),
-                                        value: str_value.to_string(),
-                                        allowed: attr_def.canonical_values.clone(),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// Validate complex attributes in the resource.
     fn validate_complex_attributes(&self, attributes: &Map<String, Value>) -> ValidationResult<()> {
         for (attr_name, attr_value) in attributes {
