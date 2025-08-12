@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/pukeko37/scim-server"
 repository = "https://github.com/pukeko37/scim-server"
 documentation = "https://docs.rs/scim-server"
-keywords = ["scim", "identity", "provisioning", "oauth", "enterprise", "mcp"]
+keywords = ["scim", "identity", "provisioning", "enterprise", "mcp"]
 categories = ["authentication", "web-programming", "api-bindings"]
 exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 
