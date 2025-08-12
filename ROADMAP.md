@@ -2,7 +2,7 @@
 
 This document outlines the current state of the SCIM Server library, future development plans, and the roadmap for upcoming releases.
 
-## 📍 Current State: Version 0.2.0
+## 📍 Current State: Version 0.2.1
 
 ### ✅ What's Included
 
@@ -23,13 +23,21 @@ This document outlines the current state of the SCIM Server library, future deve
 - ✅ **Logging Infrastructure** - Structured logging with multiple backends
 - ✅ **Performance Benchmarks** - Built-in performance monitoring
 
-**Concurrency & Safety (NEW in 0.2.0):**
+**Concurrency & Safety:**
 - ✅ **ETag Concurrency Control** - Full RFC 7644 compliant optimistic locking
 - ✅ **Weak ETag Implementation** - Semantic equivalence versioning (`W/"version"`)
 - ✅ **Conditional Operations** - Version-checked updates and deletes
 - ✅ **Thread-Safe Providers** - Concurrent operation safety with atomic version checking
 - ✅ **Version Conflict Resolution** - Structured error responses with resolution guidance
 - ✅ **AI Agent Safety** - MCP integration with concurrent operation workflows
+
+**Compile-Time Security (NEW in 0.2.1):**
+- ✅ **Type-Safe Authentication** - Authentication bugs caught at compile time
+- ✅ **Linear Credentials** - Single-use authentication tokens preventing replay attacks
+- ✅ **Authentication Witnesses** - Proof-carrying types for verified access
+- ✅ **Tenant Authority** - Compile-time tenant isolation enforcement
+- ✅ **RBAC Type System** - Role-based access control with zero runtime overhead
+- ✅ **Modular Architecture** - Refactored codebase with improved maintainability
 
 ### 🏗️ What You Provide (Integration Points)
 

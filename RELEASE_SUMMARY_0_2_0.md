@@ -124,7 +124,7 @@ The marquee feature of 0.2.0 is a complete **ETag-based optimistic locking syste
 ### Installation
 ```toml
 [dependencies]
-scim-server = "0.2.0"
+scim-server = "0.2.1"
 ```
 
 ### Basic ETag Usage

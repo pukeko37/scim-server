@@ -19,6 +19,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.1] - 2025-01-12
+
+### Added
+- **Compile-Time Authentication System** - Type-safe authorization enforced at compile time
+  - `AuthenticationState` phantom types for tracking auth status
+  - `LinearCredentials` that can only be consumed once to prevent reuse
+  - `AuthenticationWitness` types proving successful authentication
+  - `TenantAuthority` for compile-time tenant access validation
+  - Zero-cost runtime authentication with compile-time guarantees
+- **Type-Safe Request Contexts** - Authentication required for sensitive operations
+  - `AuthenticatedContext<T>` wrapper ensuring proper authorization
+  - Compile-time prevention of unauthenticated resource access
+  - Linear type consumption preventing credential replay attacks
+- **Enhanced Documentation** - Comprehensive guides for new authentication system
+  - [Compile-Time Authentication Guide](docs/COMPILE_TIME_AUTHENTICATION.md)
+  - Working examples demonstrating type-safe auth patterns
+  - RBAC (Role-Based Access Control) implementation examples
+
+### Changed
+- **Modular Architecture Refactoring** - Improved code organization and maintainability
+  - Split `operation_handler.rs` into focused submodules (core, handlers, builders, errors)
+  - Refactored MCP integration into clean modular structure with separate concerns
+  - Moved unit tests to dedicated test directory structure
+  - Enhanced separation between CRUD, query, schema, and utility operations
+- **MCP Integration Improvements** - Better organization and maintainability
+  - Separated core types, protocol handling, and tool schemas into distinct modules
+  - Enhanced error handling with dedicated modules per functional area
+  - Improved type safety through modular design
+- **Test Organization** - Restructured test suite for better maintainability
+  - Consolidated unit tests into logical module groupings
+  - Enhanced integration test coverage for new authentication features
+
+### Fixed
+- **Code Organization** - Resolved maintainability issues with large monolithic modules
+- **Module Dependencies** - Cleaner separation of concerns across the codebase
+- **Test Coverage** - Comprehensive testing for new compile-time authentication features
+
+### Security
+- **Compile-Time Security Guarantees** - Authentication bugs caught at compile time
+  - Impossible to access protected resources without proper authentication
+  - Linear credentials prevent authentication bypass through credential reuse
+  - Type system enforces tenant isolation at compile time
+
 ## [0.2.0] - 2024-12-28
 
 ### Added

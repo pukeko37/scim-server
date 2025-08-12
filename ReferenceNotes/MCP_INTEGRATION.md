@@ -20,7 +20,7 @@ The MCP integration is available as an optional feature. Enable it in your `Carg
 
 ```toml
 [dependencies]
-scim-server = { version = "0.1.0", features = ["mcp"] }
+scim-server = { version = "0.2.1", features = ["mcp"] }
 ```
 
 ## Quick Start

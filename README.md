@@ -79,7 +79,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "0.2.0"
+scim-server = "0.2.1"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 📝 **Comprehensive Logging** - Structured logging with multiple backends
 - 🔧 **Value Objects** - Type-safe domain modeling with compile-time validation
 
-### 🔄 ETag Concurrency Control (NEW in 0.2.0)
+### 🔄 ETag Concurrency Control
 
 **Production-Grade Optimistic Locking** - Prevent lost updates in multi-client environments:
 
@@ -222,6 +222,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 🤖 **AI Agent Safe** - MCP integration with conflict resolution workflows
 - 🏢 **Multi-Tenant** - Version isolation across tenant boundaries
 - 📊 **Conflict Resolution** - Structured error responses with resolution guidance
+
+### 🔐 Compile-Time Authentication (NEW in 0.2.1)
+
+**Zero-Cost Security Enforcement** - Catch authentication bugs at compile time, not runtime:
+
+```rust
+use scim_server::auth::{
+    AuthenticationState, Unauthenticated, Authenticated,
+    LinearCredentials, AuthenticationWitness, TenantAuthority
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Start with unauthenticated state - compile-time enforced
+    let mut credentials: LinearCredentials<Unauthenticated> = 
+        LinearCredentials::new("user123", "tenant456");
+    
+    // Authentication consumes credentials (can only happen once)
+    let auth_witness: AuthenticationWitness<Authenticated> = 
+        credentials.authenticate("valid_token").await?;
+    
+    // Tenant authority proves compile-time tenant access rights
+    let tenant_authority: TenantAuthority = 
+        auth_witness.verify_tenant_access("tenant456")?;
+    
+    // Operations require authentication witness - impossible to bypass
+    let protected_data = server
+        .get_protected_resource(&auth_witness, &tenant_authority)
+        .await?;
+    
+    // ❌ This would be a compile error:
+    // let data = server.get_protected_resource(); // Missing auth witness
+    
+    Ok(())
+}
+```
+
+**Authentication Features:**
+- 🛡️ **Compile-Time Security** - Authentication bugs caught during compilation
+- 🔄 **Linear Credentials** - Can only be used once, preventing replay attacks
+- 🏢 **Tenant Isolation** - Type-safe multi-tenant access control
+- ⚡ **Zero Runtime Cost** - All checks happen at compile time
+- 🎯 **RBAC Support** - Role-based access control with type safety
 
 ### Framework Integration
 - 🌐 **HTTP Framework Agnostic** - Bring your own web framework
@@ -332,9 +375,9 @@ let device = server.create_resource("devices", json!({
 | [`multi_tenant`](examples/multi_tenant_example.rs) | Multi-organization support |
 | [`custom_provider`](examples/provider_modes.rs) | Custom storage backends |
 | [`mcp_integration`](examples/mcp_server_example.rs) | AI assistant integration via MCP |
-| [`custom_schemas`](examples/) | Define and manage custom resource types |
-| [`web_framework`](examples/) | Integration with Axum/Warp/Actix |
-| [`bulk_operations`](examples/) | Handling bulk SCIM requests |
+| [`compile_time_auth`](examples/compile_time_auth_example.rs) | Type-safe authentication at compile time |
+| [`compile_time_rbac`](examples/compile_time_rbac_example.rs) | Role-based access control with type safety |
+| [`etag_concurrency`](examples/etag_concurrency_example.rs) | ETag-based optimistic locking |
 
 ## 🏗️ Architecture
 
@@ -364,6 +407,7 @@ The library provides a clean separation between:
 | [Architecture Guide](docs/guides/architecture.md) | Design decisions and patterns |
 | [SCIM Compliance](docs/reference/scim-compliance.md) | RFC 7644 implementation details |
 | [Multi-Tenancy](docs/api/multi-tenancy.md) | Multi-tenant setup and usage |
+| [Compile-Time Authentication](docs/COMPILE_TIME_AUTHENTICATION.md) | Type-safe authentication system |
 
 ## 🛠️ Development
 
@@ -397,7 +441,7 @@ We welcome contributions! Here's how you can help:
 3. 📖 **Improve documentation**
 4. 🔧 **Submit pull requests**
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+See the repository's contributing guidelines for detailed information on how to contribute.
 
 ### Development Principles
 - **Type safety first** - Leverage Rust's type system
@@ -428,7 +472,7 @@ This library is designed for production use with:
 | Bulk Operations | ✅ Complete | RFC 7644 §3.7 |
 | Patch Operations | ✅ Complete | RFC 7644 §3.5.2 |
 
-**94% SCIM 2.0 Compliance** - See [compliance report](SCIM_2_0_COMPLIANCE_SUMMARY.md) for details.
+**94% SCIM 2.0 Compliance** - See [compliance report](ReferenceNotes/SCIM_2_0_COMPLIANCE_SUMMARY.md) for details.
 
 ## 📝 License
 

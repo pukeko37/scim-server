@@ -91,7 +91,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "0.1.0"
+scim-server = "0.2.1"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 env_logger = "0.10"

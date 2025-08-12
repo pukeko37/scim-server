@@ -41,7 +41,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-scim-server = "0.1.0"
+scim-server = "0.2.1"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
