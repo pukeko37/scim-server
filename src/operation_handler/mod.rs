@@ -17,10 +17,10 @@
 //!
 //! The operation handler is organized into focused modules:
 //!
-//! - [`core`] - Core types, handler struct, and main dispatcher
-//! - [`handlers`] - Operation-specific handlers (CRUD, query, schema, utility)
-//! - [`builders`] - Builder utilities for requests and queries
-//! - [`errors`] - Error handling utilities
+//! - `core` - Core types, handler struct, and main dispatcher
+//! - `handlers` - Operation-specific handlers (CRUD, query, schema, utility)
+//! - `builders` - Builder utilities for requests and queries
+//! - `errors` - Error handling utilities
 //!
 //! ## Example Usage
 //!

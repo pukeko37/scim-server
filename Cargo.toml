@@ -13,6 +13,11 @@ keywords = ["scim", "identity", "provisioning", "enterprise", "mcp"]
 categories = ["authentication", "web-programming", "api-bindings"]
 exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 
+# docs.rs configuration for comprehensive documentation
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
