@@ -28,7 +28,7 @@ mod tests {
             .unwrap();
 
         let mcp_server = ScimMcpServer::new(scim_server);
-        assert_eq!(mcp_server.server_info.name, "SCIM Server");
+        assert_eq!(mcp_server.server_info().name, "SCIM Server");
     }
 
     #[tokio::test]
