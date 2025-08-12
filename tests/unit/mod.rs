@@ -10,6 +10,10 @@
 //! - [`value_objects`] - Tests for value object implementations
 //! - [`schema`] - Tests for schema system components
 
+pub mod mcp_integration;
+pub mod multi_tenant;
+pub mod operation_handler;
+pub mod providers;
 pub mod resource;
 pub mod schema;
 pub mod value_objects;

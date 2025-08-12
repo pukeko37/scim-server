@@ -48,7 +48,7 @@ pub mod in_memory;
 
 // Re-export commonly used test utilities
 pub use super::super::common::providers::*;
-pub use super::multi_tenant::provider_trait::{ProviderTestHarness, TestMultiTenantProvider};
+pub use crate::unit::multi_tenant::provider_trait::{ProviderTestHarness, TestMultiTenantProvider};
 pub use scim_server::resource::provider::ResourceProvider;
 
 #[cfg(test)]
