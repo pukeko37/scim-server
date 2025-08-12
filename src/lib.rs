@@ -777,6 +777,7 @@
 //! ## License
 //!
 //! This project is licensed under the MIT License - see the LICENSE file for details.
+pub mod auth;
 pub mod error;
 #[cfg(feature = "mcp")]
 pub mod mcp_integration;
