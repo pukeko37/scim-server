@@ -19,7 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [0.2.1] - 2025-01-12
+## [0.2.2] - 2025-08-13
+
+### Fixed
+- **Documentation Build** - Fixed private intra-doc link warnings for docs.rs
+- **docs.rs Configuration** - Added metadata for comprehensive feature documentation
+
+## [0.2.1] - 2025-08-12
 
 ### Added
 - **Compile-Time Authentication System** - Type-safe authorization enforced at compile time

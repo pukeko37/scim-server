@@ -2,6 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/scim-server.svg)](https://crates.io/crates/scim-server)
 [![Documentation](https://docs.rs/scim-server/badge.svg)](https://docs.rs/scim-server)
+[![Downloads](https://img.shields.io/crates/d/scim-server.svg)](https://crates.io/crates/scim-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-blue.svg)](https://www.rust-lang.org)
 
@@ -401,13 +402,14 @@ The library provides a clean separation between:
 
 | Resource | Description |
 |----------|-------------|
-| [API Documentation](https://docs.rs/scim-server) | Complete API reference |
-| [Roadmap](ROADMAP.md) | Feature roadmap and future releases |
-| [User Guide](docs/guides/user-guide.md) | Step-by-step tutorials |
-| [Architecture Guide](docs/guides/architecture.md) | Design decisions and patterns |
-| [SCIM Compliance](docs/reference/scim-compliance.md) | RFC 7644 implementation details |
-| [Multi-Tenancy](docs/api/multi-tenancy.md) | Multi-tenant setup and usage |
-| [Compile-Time Authentication](docs/COMPILE_TIME_AUTHENTICATION.md) | Type-safe authentication system |
+| [📚 API Documentation](https://docs.rs/scim-server) | Complete API reference with examples |
+| [🚀 Quick Start](docs/guides/quick-start.md) | Get running in 5 minutes |
+| [🗺️ Roadmap](ROADMAP.md) | Feature roadmap and future releases |
+| [📖 User Guide](docs/guides/user-guide.md) | Step-by-step tutorials |
+| [🏗️ Architecture Guide](docs/guides/architecture.md) | Design decisions and patterns |
+| [✅ SCIM Compliance](docs/reference/scim-compliance.md) | RFC 7644 implementation details |
+| [🏢 Multi-Tenancy](docs/api/multi-tenancy.md) | Multi-tenant setup and usage |
+| [🔐 Compile-Time Authentication](docs/COMPILE_TIME_AUTHENTICATION.md) | Type-safe authentication system |
 
 ## 🛠️ Development
 

@@ -225,8 +225,8 @@ This document outlines the current state of the SCIM Server library, future deve
 
 ---
 
-**Last Updated:** December 2024  
-**Next Review:** March 2025  
-**Current Version:** 0.2.0 (ETag Concurrency Control Complete)
+**Last Updated:** August 2025  
+**Next Review:** November 2025  
+**Current Version:** 0.2.1 (Compile-Time Authentication Complete)
 
 For questions about the roadmap, create a [GitHub Discussion](https://github.com/pukeko37/scim-server/discussions) or reach out to the maintainers.
