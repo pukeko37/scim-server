@@ -325,3 +325,58 @@ pub async fn handle_delete<P: ResourceProvider + Sync>(
         })
     }
 }
+
+/// Handle patch operations.
+pub async fn handle_patch<P: ResourceProvider + Sync>(
+    handler: &ScimOperationHandler<P>,
+    request: ScimOperationRequest,
+    context: &RequestContext,
+) -> ScimResult<ScimOperationResponse> {
+    let resource_id = request.resource_id.ok_or_else(|| {
+        ScimError::invalid_request("Missing resource_id for patch operation".to_string())
+    })?;
+
+    let data = request.data.ok_or_else(|| {
+        ScimError::invalid_request("Missing data for patch operation".to_string())
+    })?;
+
+    let resource = handler
+        .server()
+        .patch_resource(&request.resource_type, &resource_id, &data, context)
+        .await?;
+
+    // Include version information in response
+    let versioned_resource = VersionedResource::new(resource.clone());
+    let mut additional = HashMap::new();
+    additional.insert(
+        "version".to_string(),
+        serde_json::Value::String(versioned_resource.version().as_str().to_string()),
+    );
+    additional.insert(
+        "etag".to_string(),
+        serde_json::Value::String(versioned_resource.version().to_http_header()),
+    );
+
+    Ok(ScimOperationResponse {
+        success: true,
+        data: Some(resource.to_json()?),
+        error: None,
+        error_code: None,
+        metadata: OperationMetadata {
+            resource_type: Some(request.resource_type),
+            resource_id: Some(resource_id),
+            resource_count: Some(1),
+            total_results: None,
+            request_id: context.request_id.clone(),
+            tenant_id: context.tenant_context.as_ref().map(|t| t.tenant_id.clone()),
+            schemas: Some(
+                resource
+                    .schemas
+                    .iter()
+                    .map(|s| s.as_str().to_string())
+                    .collect(),
+            ),
+            additional,
+        },
+    })
+}

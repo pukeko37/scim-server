@@ -222,6 +222,8 @@ pub enum ScimOperation {
     Read,
     /// Update existing resources
     Update,
+    /// Patch existing resources with partial updates
+    Patch,
     /// Delete resources
     Delete,
     /// List resources with pagination

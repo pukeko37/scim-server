@@ -246,6 +246,11 @@ impl CapabilityDiscovery {
         // Ensure ETag support is always enabled (conditional operations are mandatory)
         extended_capabilities.etag_supported = true;
 
+        // Detect patch support from registered operations
+        extended_capabilities.patch_supported = supported_operations
+            .values()
+            .any(|ops| ops.contains(&ScimOperation::Patch));
+
         Ok(ProviderCapabilities {
             supported_operations: supported_operations_map,
             supported_schemas,

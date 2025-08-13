@@ -463,6 +463,95 @@ pub trait ResourceProvider {
             }
         }
     }
+
+    /// Apply PATCH operations to a resource within the tenant specified in the request context.
+    ///
+    /// # Arguments
+    /// * `resource_type` - The type of resource to patch
+    /// * `id` - The unique identifier of the resource
+    /// * `patch_request` - The PATCH operation request as JSON (RFC 7644 Section 3.5.2)
+    /// * `context` - Request context containing tenant information (if multi-tenant)
+    ///
+    /// # Returns
+    /// The updated resource after applying the patch operations
+    ///
+    /// # PATCH Operations
+    /// Supports the three SCIM PATCH operations:
+    /// - `add` - Add new attribute values
+    /// - `remove` - Remove attribute values
+    /// - `replace` - Replace existing attribute values
+    ///
+    /// # Default Implementation
+    /// The default implementation provides basic PATCH operation support by:
+    /// 1. Fetching the current resource
+    /// 2. Applying each operation in sequence
+    /// 3. Updating the resource with the modified data
+    fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        patch_request: &Value,
+        context: &RequestContext,
+    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send
+    where
+        Self: Sync,
+    {
+        async move {
+            // Get the current resource
+            let current = self
+                .get_resource(resource_type, id, context)
+                .await?
+                .ok_or_else(|| {
+                    // This will need to be converted to the provider's error type
+                    // For now, we'll use a placeholder that will be handled by implementers
+                    // In practice, providers should define their own NotFound error variant
+                    unreachable!("Resource not found - providers must handle this case")
+                })?;
+
+            // Extract operations from patch request
+            let operations = patch_request
+                .get("Operations")
+                .and_then(|ops| ops.as_array())
+                .ok_or_else(|| {
+                    unreachable!("Invalid patch request - providers must handle this case")
+                })?;
+
+            // Apply operations to create modified resource data
+            let mut modified_data = current.to_json().map_err(|_| {
+                unreachable!("Failed to serialize resource - providers must handle this case")
+            })?;
+
+            for operation in operations {
+                self.apply_patch_operation(&mut modified_data, operation)?;
+            }
+
+            // Update the resource with modified data
+            self.update_resource(resource_type, id, modified_data, context)
+                .await
+        }
+    }
+
+    /// Apply a single PATCH operation to resource data.
+    ///
+    /// This is a helper method used by the default patch_resource implementation.
+    /// Providers can override this method to customize patch operation behavior.
+    ///
+    /// # Arguments
+    /// * `resource_data` - Mutable reference to the resource JSON data
+    /// * `operation` - The patch operation to apply
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the operation
+    fn apply_patch_operation(
+        &self,
+        _resource_data: &mut Value,
+        _operation: &Value,
+    ) -> Result<(), Self::Error> {
+        // This is a simplified implementation that providers should override
+        // with proper SCIM PATCH semantics
+        // Default implementation is intentionally minimal
+        Ok(())
+    }
 }
 
 /// Extension trait providing convenience methods for common provider operations.

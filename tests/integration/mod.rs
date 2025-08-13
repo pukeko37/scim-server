@@ -58,6 +58,7 @@ pub mod conditional_operations;
 pub mod etag_comprehensive;
 
 pub mod multi_tenant;
+pub mod patch;
 pub mod permission_enforcement;
 pub mod providers;
 pub mod scim_multi_tenant;
@@ -86,7 +87,8 @@ mod integration_suite_meta {
         println!("  Stage 2: Provider Trait Multi-Tenancy ✅");
         println!("  Stage 3: Provider Implementations ✅");
         println!("  Stage 4: Advanced Multi-Tenant Features ✅");
-        println!("  Stage 5: Configuration Management 🚧\n");
+        println!("  Stage 5: SCIM PATCH Operations 🚧");
+        println!("  Stage 6: Configuration Management 🚧\n");
 
         println!("🔒 Security Focus:");
         println!("  • Cross-tenant data isolation");
@@ -94,7 +96,9 @@ mod integration_suite_meta {
         println!("  • Tenant context validation");
         println!("  • Resource scoping verification\n");
 
-        println!("🎯 Current Status: Testing configuration management system");
+        println!(
+            "🎯 Current Status: Implementing SCIM PATCH operations with comprehensive test coverage"
+        );
     }
 
     /// Verify test fixtures are available

@@ -55,6 +55,8 @@ pub enum ScimOperationType {
     Get,
     /// Update an existing resource
     Update,
+    /// Patch an existing resource with partial updates
+    Patch,
     /// Delete a resource
     Delete,
     /// List resources with optional pagination and filtering
@@ -162,6 +164,9 @@ impl<P: ResourceProvider + Sync> ScimOperationHandler<P> {
             }
             ScimOperationType::Update => {
                 super::handlers::crud::handle_update(self, request, &context).await
+            }
+            ScimOperationType::Patch => {
+                super::handlers::crud::handle_patch(self, request, &context).await
             }
             ScimOperationType::Delete => {
                 super::handlers::crud::handle_delete(self, request, &context).await

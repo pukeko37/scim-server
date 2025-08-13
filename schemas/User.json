@@ -44,6 +44,76 @@
       "uniqueness": "none"
     },
     {
+      "name": "nickName",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "profileUrl",
+      "type": "reference",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "userType",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "preferredLanguage",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "locale",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
+      "name": "timezone",
+      "type": "string",
+      "multiValued": false,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none"
+    },
+    {
       "name": "name",
       "type": "complex",
       "multiValued": false,
@@ -212,6 +282,99 @@
         {
           "name": "display",
           "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        }
+      ]
+    },
+    {
+      "name": "addresses",
+      "type": "complex",
+      "multiValued": true,
+      "required": false,
+      "caseExact": false,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "none",
+      "subAttributes": [
+        {
+          "name": "formatted",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "streetAddress",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "locality",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "postalCode",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "multiValued": false,
+          "required": false,
+          "caseExact": false,
+          "mutability": "readWrite",
+          "returned": "default",
+          "uniqueness": "none",
+          "canonicalValues": ["work", "home", "other"]
+        },
+        {
+          "name": "primary",
+          "type": "boolean",
           "multiValued": false,
           "required": false,
           "caseExact": false,

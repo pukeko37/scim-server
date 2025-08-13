@@ -10,7 +10,7 @@ use crate::resource::{RequestContext, Resource, ResourceProvider, ScimOperation}
 use log::{debug, info, warn};
 use serde_json::Value;
 
-impl<P: ResourceProvider> ScimServer<P> {
+impl<P: ResourceProvider + Sync> ScimServer<P> {
     /// Generic create operation for any resource type
     pub async fn create_resource(
         &self,
@@ -292,5 +292,59 @@ impl<P: ResourceProvider> ScimServer<P> {
             .resource_exists(resource_type, id, context)
             .await
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()))
+    }
+
+    /// Generic patch operation for any resource type
+    pub async fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        patch_request: &Value,
+        context: &RequestContext,
+    ) -> ScimResult<Resource> {
+        info!(
+            "SCIM patch {} operation initiated for ID '{}' (request: '{}')",
+            resource_type, id, context.request_id
+        );
+
+        // Check if resource type is supported for patch operations
+        self.ensure_operation_supported(resource_type, &ScimOperation::Patch)?;
+
+        // Validate patch request structure
+        if !patch_request
+            .get("Operations")
+            .and_then(|ops| ops.as_array())
+            .is_some()
+        {
+            return Err(crate::error::ScimError::invalid_request(
+                "PATCH request must contain Operations array".to_string(),
+            ));
+        }
+
+        // Delegate to provider
+        let result = self
+            .provider
+            .patch_resource(resource_type, id, patch_request, context)
+            .await
+            .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
+
+        match &result {
+            Ok(resource) => {
+                info!(
+                    "SCIM patch {} operation completed successfully: ID '{}' (request: '{}')",
+                    resource_type,
+                    resource.get_id().unwrap_or("unknown"),
+                    context.request_id
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "SCIM patch {} operation failed for ID '{}': {} (request: '{}')",
+                    resource_type, id, e, context.request_id
+                );
+            }
+        }
+
+        result
     }
 }

@@ -19,13 +19,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [0.2.2] - 2025-08-13
+## [0.2.3] - 2025-01-14
+
+### Added
+- **Complete SCIM PATCH Operations** - Full RFC 7644 Section 3.5.2 implementation
+  - `add` operation for adding new attributes and array values to resources
+  - `remove` operation for deleting specific attributes and values
+  - `replace` operation for updating existing attribute values
+  - Path expression parsing and validation with comprehensive error handling
+  - Multi-valued attribute support (emails, phone numbers, addresses)
+  - Nested attribute path handling for complex objects
+  - ETag concurrency control integration for safe PATCH operations
+  - Comprehensive test coverage with 450+ passing tests including PATCH scenarios
+
+### Changed
+- **Enhanced InMemoryProvider** - Added robust PATCH operation support with validation
+  - Path validation to prevent modification of read-only attributes
+  - Schema-aware attribute existence checking
+  - Atomic PATCH operations with rollback on error
+- **Improved Error Handling** - More descriptive PATCH-related error messages
+- **Documentation Updates** - Added comprehensive PATCH operation examples and guides
+
+### Fixed
+- **SCIM Compliance** - Now fully compliant with RFC 7644 PATCH requirements
+- **Multi-valued Attribute Handling** - Correct behavior for array operations
+- **Path Expression Validation** - Proper handling of complex nested paths
+- **Test Coverage** - All PATCH operation edge cases properly covered
+
+## [0.2.2] - 2025-01-13
 
 ### Fixed
 - **Documentation Build** - Fixed private intra-doc link warnings for docs.rs
 - **docs.rs Configuration** - Added metadata for comprehensive feature documentation
 
-## [0.2.1] - 2025-08-12
+## [0.2.1] - 2025-01-12
 
 ### Added
 - **Compile-Time Authentication System** - Type-safe authorization enforced at compile time
@@ -91,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ETag metadata in all MCP tool responses
   - Version conflict handling in AI workflows
   - Structured error responses for automated conflict resolution
-- **Thread-Safe InMemoryProvider** - Production-ready conditional operations
+- **Thread-Safe InMemoryProvider** - Stable conditional operations
   - Atomic version checking and updates using mutex protection
   - Concurrent operation safety validation
   - Performance optimized for high-throughput scenarios

@@ -1,6 +1,6 @@
 [package]
 name = "scim-server"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 authors = ["Andrew Bowers <abowers37@gmail.com>"]
 license = "MIT"
@@ -44,6 +44,9 @@ mcp = ["rust-mcp-sdk", "async-trait"]
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.10"
+proptest = "1.4"
+futures = "0.3"
+tokio-test = "0.4"
 
 # Schema validation utility for SCIM schema files
 # Validates JSON structure, required fields, and SCIM compliance

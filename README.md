@@ -6,7 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-blue.svg)](https://www.rust-lang.org)
 
-A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisioning simple, type-safe, and production-ready.
+A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisioning simple, type-safe, and stable.
+
+> **⚠️ DEVELOPMENT WARNING:** This library is under active development and subject to breaking changes until version 0.9.0. Breaking changes will be signaled by semver minor version increments (0.3.0, 0.4.0, etc.), with patch releases (0.3.1, 0.3.2) being non-breaking. Please pin to exact minor versions in production deployments.
 
 > **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications. Think automatic user onboarding/offboarding across your entire tech stack.
 
@@ -20,7 +22,7 @@ Connect any type of client through standardized interfaces:
 
 - **🌐 Web Applications** - REST APIs for admin portals, user dashboards, and sync tools
 - **🤖 AI Assistants** - Natural language provisioning via Model Context Protocol (Claude, ChatGPT, custom bots)
-- **⚡ Automation Tools** - CLI scripts for bulk imports, migrations, and DevOps pipelines  
+- **⚡ Automation Tools** - CLI scripts for bulk imports, migrations, and DevOps pipelines
 - **🔧 Custom Integrations** - GraphQL, gRPC, message queues, webhooks, or any protocol you need
 
 ### **The Intelligence Layer**
@@ -38,7 +40,7 @@ The SCIM Server core provides enterprise-grade capabilities that would take mont
 Choose your data storage strategy without changing your application code:
 
 - **🚀 Development** - In-memory providers for testing and prototyping
-- **🏢 Production** - Database providers with full ACID compliance
+- **🏢 Enterprise** - Database providers with full ACID compliance
 - **☁️ Cloud-Native** - Custom providers for S3, DynamoDB, or any storage system
 - **🔄 Multi-Tenant** - Automatic tenant isolation with shared or dedicated infrastructure
 - **🏷️ ETag Concurrency Control** - Built-in optimistic locking prevents lost updates
@@ -58,7 +60,7 @@ Instead of building provisioning logic into every Rust application:
 | ❌ Custom error handling per resource | ✅ **Consistent error semantics with conflict resolution** |
 | ❌ Lost updates in concurrent scenarios | ✅ **Version conflict detection and prevention** |
 
-**Result**: Your SaaS applications focus on business logic while the SCIM server handles all provisioning complexity with enterprise-grade reliability.
+**Result**: Your SaaS applications focus on business logic while the SCIM server handles all provisioning complexity with enterprise-grade capabilities.
 
 ## ✨ Why Choose This Library?
 
@@ -72,7 +74,7 @@ Instead of building provisioning logic into every Rust application:
 - 🎯 **Beyond Users & Groups** - Extensible schema system for any resource type
 - 🔄 **ETag Concurrency Control** - Optimistic locking prevents lost updates in multi-client scenarios
 - 🧵 **Thread-Safe Operations** - Concurrent access safety with atomic version checking
-- 📖 **Production Ready** - Extensive testing (827 tests), logging, and error handling
+- 📖 **Stable & Complete** - Extensive testing (863 tests), logging, and comprehensive error handling
 
 ## 🚀 Quick Start
 
@@ -80,10 +82,17 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "0.2.1"
+# Pin to exact version for stability during active development
+scim-server = "=0.2.3"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
+
+> **Version Pinning Recommended**: Use `=0.2.3` (exact version) instead of `0.2.3` (compatible) to avoid breaking changes during active development.
+</newtext>
+
+<old_text>
+**Timeline:** Q2 2025 - This will be a breaking change requiring migration
 
 ### Minimal Example
 
@@ -96,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a SCIM server with in-memory storage
     let provider = InMemoryProvider::new();
     let server = ScimServer::new(provider)?;
-    
+
     // Create a user with automatic ETag versioning
     let context = RequestContext::with_generated_id();
     let user_data = json!({
@@ -104,11 +113,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "userName": "john.doe@example.com",
         "active": true
     });
-    
+
     let versioned_user = server.provider()
         .create_versioned_resource("User", user_data, &context)
         .await?;
-    
+
     println!("Created user with ETag: {}", versioned_user.version().to_http_header());
     Ok(())
 }
@@ -155,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - ✅ **Schema Validation** - Automatic validation against SCIM schemas
 - ✅ **Filtering & Pagination** - Efficient queries with SCIM filter syntax
 - ✅ **Bulk Operations** - Handle multiple operations in a single request
-- ✅ **Patch Operations** - Granular updates with RFC 6902 JSON Patch
+- ✅ **PATCH Operations** - Complete RFC 7644 PATCH implementation with add/remove/replace operations
 
 ### Advanced Capabilities
 - 🏗️ **Multi-Tenant Architecture** - Isolate data between organizations
@@ -166,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 🔄 ETag Concurrency Control
 
-**Production-Grade Optimistic Locking** - Prevent lost updates in multi-client environments:
+**Enterprise-Grade Optimistic Locking** - Prevent lost updates in multi-client environments:
 
 ```rust
 use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
@@ -184,21 +193,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "userName": "alice@example.com",
         "active": true
     });
-    
+
     let versioned_user = server.provider()
         .create_versioned_resource("User", user_data, &context)
         .await?;
-    
+
     println!("User ETag: {}", versioned_user.version().to_http_header());
     // Output: User ETag: W/"abc123def456"
 
     // Conditional update - only succeeds if version matches
     let update_data = json!({"active": false});
     let current_version = versioned_user.version();
-    
+
     match server.provider()
         .conditional_update("User", "123", update_data, current_version, &context)
-        .await? 
+        .await?
     {
         ConditionalResult::Success(updated) => {
             println!("Update successful! New ETag: {}", updated.version().to_http_header());
@@ -212,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Resource no longer exists");
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -237,25 +246,25 @@ use scim_server::auth::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start with unauthenticated state - compile-time enforced
-    let mut credentials: LinearCredentials<Unauthenticated> = 
+    let mut credentials: LinearCredentials<Unauthenticated> =
         LinearCredentials::new("user123", "tenant456");
-    
+
     // Authentication consumes credentials (can only happen once)
-    let auth_witness: AuthenticationWitness<Authenticated> = 
+    let auth_witness: AuthenticationWitness<Authenticated> =
         credentials.authenticate("valid_token").await?;
-    
+
     // Tenant authority proves compile-time tenant access rights
-    let tenant_authority: TenantAuthority = 
+    let tenant_authority: TenantAuthority =
         auth_witness.verify_tenant_access("tenant456")?;
-    
+
     // Operations require authentication witness - impossible to bypass
     let protected_data = server
         .get_protected_resource(&auth_witness, &tenant_authority)
         .await?;
-    
+
     // ❌ This would be a compile error:
     // let data = server.get_protected_resource(); // Missing auth witness
-    
+
     Ok(())
 }
 ```
@@ -272,6 +281,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 🔌 **Operation Handler Foundation** - Clean abstraction for SCIM operations
 - 🤖 **MCP Integration** - Model Context Protocol support for AI tools
 
+### 🔧 PATCH Operations (NEW in 0.2.3)
+
+**Complete RFC 7644 PATCH Implementation** - Granular resource updates with full SCIM compliance:
+
+```rust
+use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let provider = InMemoryProvider::new();
+    let server = ScimServer::new(provider)?;
+    let context = RequestContext::with_generated_id();
+
+    // Create a user first
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com",
+        "active": true,
+        "emails": [{"value": "alice@example.com", "primary": true}]
+    });
+
+    let user = server.provider()
+        .create_resource("User", user_data, &context)
+        .await?;
+
+    // PATCH operations: add, remove, replace
+    let patch_request = json!({
+        "Operations": [
+            {
+                "op": "replace",
+                "path": "active",
+                "value": false
+            },
+            {
+                "op": "add",
+                "path": "emails",
+                "value": {"value": "alice.work@example.com", "type": "work"}
+            },
+            {
+                "op": "remove",
+                "path": "emails[type eq \"work\"]"
+            }
+        ]
+    });
+
+    let patched_user = server.provider()
+        .patch_resource("User", &user.id, patch_request, &context)
+        .await?;
+
+    println!("User updated via PATCH: {}", patched_user.id);
+    Ok(())
+}
+```
+
+**PATCH Features:**
+- ✅ **Three Operations** - `add`, `remove`, and `replace` operations per RFC 7644
+- ✅ **Path Expressions** - Complex path syntax for nested attributes and arrays
+- ✅ **Multi-valued Attributes** - Safe operations on emails, phone numbers, addresses
+- ✅ **Schema Validation** - Automatic validation against SCIM schemas
+- ✅ **ETag Integration** - Works seamlessly with concurrency control
+- ✅ **Atomic Operations** - All-or-nothing PATCH application with rollback
+
 ### 🤖 AI-Powered Identity Management
 
 **Built-in MCP (Model Context Protocol) Support** - Connect AI assistants directly to your identity data:
@@ -283,17 +355,17 @@ use scim_server::{McpServer, ScimServer, InMemoryProvider};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = InMemoryProvider::new();
     let scim_server = ScimServer::new(provider);
-    
+
     // Enable MCP for AI tool integration
     let mcp_server = McpServer::new(scim_server);
     mcp_server.start("stdio").await?;
-    
+
     // Now AI assistants can:
     // - Query users: "Find all users in the engineering department"
-    // - Manage groups: "Add Alice to the admin group" 
+    // - Manage groups: "Add Alice to the admin group"
     // - Audit access: "Who has access to the finance system?"
     // - Automate onboarding: "Create accounts for new hire John Doe"
-    
+
     Ok(())
 }
 ```
@@ -360,7 +432,7 @@ let device = server.create_resource("devices", json!({
 
 **Why SCIM for Custom Resources?**
 - ✅ **Standardized API** - Consistent CRUD, filtering, and bulk operations
-- ✅ **Schema Validation** - Type safety and data integrity out of the box  
+- ✅ **Schema Validation** - Type safety and data integrity out of the box
 - ✅ **Multi-Tenant Ready** - Isolate resources by organization/tenant
 - ✅ **Audit & Compliance** - Built-in change tracking and versioning
 - ✅ **AI Integration** - Custom resources become AI-queryable via MCP
@@ -386,10 +458,10 @@ let device = server.create_resource("devices", json!({
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   HTTP Layer    │    │   SCIM Server    │    │   Provider      │
 │                 │    │                  │    │                 │
-│  • Axum        │───▶│  • Validation    │───▶│  • In-Memory    │
-│  • Warp        │    │  • Operations    │    │  • Database     │
-│  • Actix       │    │  • Multi-tenant  │    │  • Custom       │
-│  • Custom      │    │  • Type Safety   │    │                 │
+│  • Axum         │───▶│  • Validation    │───▶│  • In-Memory    │
+│  • Warp         │    │  • Operations    │    │  • Database     │
+│  • Actix        │    │  • Multi-tenant  │    │  • Custom       │
+│  • Custom       │    │  • Type Safety   │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -404,10 +476,44 @@ The library provides a clean separation between:
 |----------|-------------|
 | [📚 API Documentation](https://docs.rs/scim-server) | Complete API reference with examples |
 | [🚀 Quick Start](docs/guides/quick-start.md) | Get running in 5 minutes |
-| [🗺️ Roadmap](ROADMAP.md) | Feature roadmap and future releases |
+| [🔧 PATCH Operations](docs/guides/patch-operations.md) | Complete guide to PATCH operations |
 | [📖 User Guide](docs/guides/user-guide.md) | Step-by-step tutorials |
 | [🏗️ Architecture Guide](docs/guides/architecture.md) | Design decisions and patterns |
 | [✅ SCIM Compliance](docs/reference/scim-compliance.md) | RFC 7644 implementation details |
+| [📌 Versioning Strategy](VERSIONING.md) | Version pinning and stability guide |
+
+## 🗺️ What's Coming Next
+
+### Version 0.3.0: Storage Provider Architecture (Breaking Changes)
+
+The next major release will introduce architecture improvement that separates storage concerns from SCIM logic:
+
+```rust
+// Current: Complex provider implementation (1000+ lines)
+impl ResourceProvider for CustomProvider {
+    // Implement all SCIM operations + storage + validation
+}
+
+// Future: Simple storage provider (50 lines)
+impl StorageProvider for CustomStorageProvider {
+    // Just basic CRUD operations
+}
+
+// SCIM logic handled by StandardResourceProvider
+type CustomProvider = StandardResourceProvider<CustomStorageProvider>;
+```
+
+**Benefits:**
+- 🎯 **Reduced Complexity** - Custom providers need only ~50 lines vs 1000+
+- 🏗️ **Better Architecture** - Clear separation between storage and SCIM logic
+- 🔄 **Consistent Behavior** - All providers get same SCIM compliance automatically
+- ⚡ **Easier Optimization** - Storage providers can focus purely on performance
+- 🧪 **Improved Testing** - Storage and SCIM logic tested independently
+
+**Timeline:** August 2025 - This will be a breaking change requiring migration
+
+| Resource | Description |
+|----------|-------------|
 | [🏢 Multi-Tenancy](docs/api/multi-tenancy.md) | Multi-tenant setup and usage |
 | [🔐 Compile-Time Authentication](docs/COMPILE_TIME_AUTHENTICATION.md) | Type-safe authentication system |
 
@@ -451,7 +557,7 @@ See the repository's contributing guidelines for detailed information on how to 
 - **Functional patterns** - Immutable data and pure functions
 - **Comprehensive testing** - Every feature thoroughly tested
 
-## 🏆 Production Ready
+### 🏆 Stable & Enterprise-Ready
 
 This library is designed for production use with:
 
