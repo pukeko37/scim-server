@@ -790,6 +790,7 @@ pub mod resource_handlers;
 pub mod schema;
 pub mod schema_discovery;
 pub mod scim_server;
+pub mod storage;
 
 // Core re-exports for library users
 pub use error::{BuildError, ScimError, ValidationError};
@@ -809,6 +810,11 @@ pub use multi_tenant::{
 
 // Standard provider implementations
 pub use providers::{InMemoryError, InMemoryProvider, InMemoryStats};
+
+// Storage layer - pluggable backend implementations
+pub use storage::{
+    InMemoryStorage, InMemoryStorageStats, StorageError, StorageKey, StoragePrefix, StorageProvider,
+};
 
 // Multi-tenant provider and resolver components
 pub use multi_tenant::{

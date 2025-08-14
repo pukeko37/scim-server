@@ -1,353 +1,76 @@
-//! # Basic Usage Example
+//! Basic SCIM Server Usage Example
 //!
-//! This example demonstrates the core functionality of the SCIM server
-//! with an in-memory resource provider implementation.
+//! This example demonstrates the basic functionality of a SCIM server
+//! using the StandardResourceProvider with in-memory storage.
 
-use scim_server::resource::value_objects::{EmailAddress, ValueObject};
 use scim_server::{
-    RequestContext, Resource, ResourceProvider, ScimServer, create_user_resource_handler,
+    RequestContext,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    resource::provider::ResourceProvider,
 };
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
-/// In-memory implementation of ResourceProvider
-struct InMemoryProvider {
-    resources: Arc<RwLock<HashMap<String, HashMap<String, Resource>>>>, // resource_type -> id -> resource
-    next_id: Arc<RwLock<u64>>,
-}
-
-impl InMemoryProvider {
-    fn new() -> Self {
-        Self {
-            resources: Arc::new(RwLock::new(HashMap::new())),
-            next_id: Arc::new(RwLock::new(1)),
-        }
-    }
-}
-
-/// Custom error type for the provider
-#[derive(Debug, thiserror::Error)]
-pub enum ProviderError {
-    #[error("Resource not found: {resource_type} with id {id}")]
-    ResourceNotFound { resource_type: String, id: String },
-    #[error("Duplicate attribute {attribute} with value {value} for {resource_type}")]
-    DuplicateAttribute {
-        resource_type: String,
-        attribute: String,
-        value: String,
-    },
-    #[error("Invalid data: {message}")]
-    InvalidData { message: String },
-    #[error("Internal error: {message}")]
-    Internal { message: String },
-}
-
-impl ResourceProvider for InMemoryProvider {
-    type Error = ProviderError;
-
-    fn create_resource(
-        &self,
-        resource_type: &str,
-        mut data: Value,
-        context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let request_id = context.request_id.clone();
-        let resources = self.resources.clone();
-        let next_id = self.next_id.clone();
-
-        async move {
-            println!(
-                "Creating {} resource with request ID: {}",
-                resource_type, request_id
-            );
-
-            // Generate a unique ID for the new resource
-            let mut counter = next_id.write().await;
-            let id = counter.to_string();
-            *counter += 1;
-
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("id".to_string(), json!(id.clone()));
-            }
-
-            // Create resource using new API
-            let resource = Resource::from_json(resource_type.clone(), data).map_err(|e| {
-                ProviderError::InvalidData {
-                    message: format!("Failed to create resource: {}", e),
-                }
-            })?;
-
-            // Check for duplicate userName for User resources
-            if resource_type == "User" {
-                if let Some(username) = resource.get_username() {
-                    let resources_guard = resources.read().await;
-                    if let Some(users) = resources_guard.get("User") {
-                        for existing_user in users.values() {
-                            if let Some(existing_username) = existing_user.get_username() {
-                                if existing_username == username {
-                                    return Err(ProviderError::DuplicateAttribute {
-                                        resource_type: resource_type.clone(),
-                                        attribute: "userName".to_string(),
-                                        value: username.to_string(),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Add SCIM metadata
-            let now = chrono::Utc::now().to_rfc3339();
-            let mut resource_with_meta = resource;
-            resource_with_meta.add_metadata("/scim/v2", &now, &now);
-
-            // Store resource
-            let mut resources_guard = resources.write().await;
-            resources_guard
-                .entry(resource_type)
-                .or_insert_with(HashMap::new)
-                .insert(id, resource_with_meta.clone());
-
-            println!(
-                "Resource created successfully with ID: {}",
-                resource_with_meta.get_id().unwrap_or("unknown")
-            );
-            Ok(resource_with_meta)
-        }
-    }
-
-    fn get_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let id = id.to_string();
-        let resources = self.resources.clone();
-
-        async move {
-            println!("Getting {} resource with ID: {}", resource_type, id);
-
-            let resources_guard = resources.read().await;
-            if let Some(type_resources) = resources_guard.get(&resource_type) {
-                Ok(type_resources.get(&id).cloned())
-            } else {
-                Ok(None)
-            }
-        }
-    }
-
-    fn update_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        mut data: Value,
-        context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let id = id.to_string();
-        let request_id = context.request_id.clone();
-        let resources = self.resources.clone();
-
-        async move {
-            println!(
-                "Updating {} resource with ID: {} (request: {})",
-                resource_type, id, request_id
-            );
-
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("id".to_string(), json!(id.clone()));
-            }
-
-            // Create updated resource using new API
-            let resource = Resource::from_json(resource_type.clone(), data).map_err(|e| {
-                ProviderError::InvalidData {
-                    message: format!("Failed to update resource: {}", e),
-                }
-            })?;
-
-            // Add SCIM metadata
-            let now = chrono::Utc::now().to_rfc3339();
-            let mut resource_with_meta = resource;
-            resource_with_meta.add_metadata("/scim/v2", &now, &now);
-
-            // Update resource
-            let mut resources_guard = resources.write().await;
-            if let Some(type_resources) = resources_guard.get_mut(&resource_type) {
-                if type_resources.contains_key(&id) {
-                    type_resources.insert(id.clone(), resource_with_meta.clone());
-                    println!("Resource updated successfully");
-                    Ok(resource_with_meta)
-                } else {
-                    Err(ProviderError::ResourceNotFound { resource_type, id })
-                }
-            } else {
-                Err(ProviderError::ResourceNotFound { resource_type, id })
-            }
-        }
-    }
-
-    fn delete_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        context: &RequestContext,
-    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let id = id.to_string();
-        let request_id = context.request_id.clone();
-        let resources = self.resources.clone();
-
-        async move {
-            println!(
-                "Deleting {} resource with ID: {} (request: {})",
-                resource_type, id, request_id
-            );
-
-            let mut resources_guard = resources.write().await;
-            if let Some(type_resources) = resources_guard.get_mut(&resource_type) {
-                if type_resources.remove(&id).is_some() {
-                    println!("Resource deleted successfully");
-                    Ok(())
-                } else {
-                    Err(ProviderError::ResourceNotFound { resource_type, id })
-                }
-            } else {
-                Err(ProviderError::ResourceNotFound { resource_type, id })
-            }
-        }
-    }
-
-    fn list_resources(
-        &self,
-        resource_type: &str,
-        _query: Option<&scim_server::ListQuery>,
-        _context: &RequestContext,
-    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let resources = self.resources.clone();
-
-        async move {
-            println!("Listing {} resources", resource_type);
-
-            let resources_guard = resources.read().await;
-            if let Some(type_resources) = resources_guard.get(&resource_type) {
-                let resources: Vec<Resource> = type_resources.values().cloned().collect();
-                println!("Found {} resources", resources.len());
-                Ok(resources)
-            } else {
-                Ok(vec![])
-            }
-        }
-    }
-
-    fn find_resource_by_attribute(
-        &self,
-        resource_type: &str,
-        attribute: &str,
-        value: &Value,
-        _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let attribute = attribute.to_string();
-        let value = value.clone();
-        let resources = self.resources.clone();
-
-        async move {
-            println!(
-                "Finding {} resource by {}={}",
-                resource_type, attribute, value
-            );
-
-            let resources_guard = resources.read().await;
-            if let Some(type_resources) = resources_guard.get(&resource_type) {
-                for resource in type_resources.values() {
-                    if let Some(attr_value) = resource.get_attribute(&attribute) {
-                        if attr_value == &value {
-                            return Ok(Some(resource.clone()));
-                        }
-                    }
-                }
-            }
-            Ok(None)
-        }
-    }
-
-    fn resource_exists(
-        &self,
-        resource_type: &str,
-        id: &str,
-        _context: &RequestContext,
-    ) -> impl Future<Output = Result<bool, Self::Error>> + Send {
-        let resource_type = resource_type.to_string();
-        let id = id.to_string();
-        let resources = self.resources.clone();
-
-        async move {
-            let resources_guard = resources.read().await;
-            if let Some(type_resources) = resources_guard.get(&resource_type) {
-                Ok(type_resources.contains_key(&id))
-            } else {
-                Ok(false)
-            }
-        }
-    }
-}
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Starting SCIM Server Basic Usage Example");
 
-    // Create the in-memory provider
-    let provider = InMemoryProvider::new();
+    // Create the StandardResourceProvider with in-memory storage
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
-    // Create the SCIM server
-    let mut server = ScimServer::new(provider)?;
+    println!("✅ StandardResourceProvider initialized with in-memory storage");
 
-    // Get the User schema from the server's registry
-    let user_schema = server
-        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
-        .expect("User schema should be available")
-        .clone();
-
-    // Register User resource handler
-    let user_handler = create_user_resource_handler(user_schema);
-    server.register_resource_type(
-        "User",
-        user_handler,
-        vec![
-            scim_server::ScimOperation::Create,
-            scim_server::ScimOperation::Read,
-            scim_server::ScimOperation::Update,
-            scim_server::ScimOperation::Delete,
-            scim_server::ScimOperation::List,
-        ],
-    )?;
-
-    println!("✅ SCIM Server initialized with User resource handler");
-
-    // Demonstrate basic operations
+    // Create a request context for our operations
     let context = RequestContext::new("example-request-1".to_string());
 
-    // 1. Create a user
-    println!("\n📝 Creating a new user...");
-    let user_data = json!({
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "jdoe",
+    println!("\n📝 Creating users...");
+
+    // Create first user
+    let user1_data = json!({
+        "userName": "john.doe@example.com",
         "name": {
+            "formatted": "John Doe",
             "familyName": "Doe",
-            "givenName": "John",
-            "formatted": "John Doe"
+            "givenName": "John"
         },
         "emails": [
             {
                 "value": "john.doe@example.com",
+                "type": "work",
+                "primary": true
+            },
+            {
+                "value": "john.personal@example.com",
+                "type": "home",
+                "primary": false
+            }
+        ],
+        "phoneNumbers": [
+            {
+                "value": "+1-555-555-1234",
+                "type": "work"
+            }
+        ],
+        "active": true
+    });
+
+    let user1 = provider.create_resource("User", user1_data, &context).await?;
+    println!("✅ Created user: {} (ID: {})",
+             user1.get_username().unwrap_or("unknown"),
+             user1.get_id().unwrap_or("unknown"));
+
+    // Create second user
+    let user2_data = json!({
+        "userName": "jane.smith@example.com",
+        "name": {
+            "formatted": "Jane Smith",
+            "familyName": "Smith",
+            "givenName": "Jane"
+        },
+        "emails": [
+            {
+                "value": "jane.smith@example.com",
                 "type": "work",
                 "primary": true
             }
@@ -355,139 +78,181 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let created_user = server.create_resource("User", user_data, &context).await?;
-    println!(
-        "✅ User created with ID: {}",
-        created_user.get_id().unwrap()
-    );
-    println!("   Username: {}", created_user.get_username().unwrap());
+    let user2 = provider.create_resource("User", user2_data, &context).await?;
+    println!("✅ Created user: {} (ID: {})",
+             user2.get_username().unwrap_or("unknown"),
+             user2.get_id().unwrap_or("unknown"));
 
-    // Display emails using the new API
-    if let Some(emails) = created_user.get_emails() {
-        for email in emails.values() {
-            // Access the underlying EmailAddress value object
-            if let Some(email_obj) = email.as_any().downcast_ref::<EmailAddress>() {
-                println!("   Email: {}", email_obj.value);
-            }
+    println!("\n📋 Listing all users...");
+
+    // List all users
+    let users = provider.list_resources("User", None, &context).await?;
+    println!("📊 Found {} users:", users.len());
+    for user in &users {
+        println!("   - {} ({})",
+                 user.get_username().unwrap_or("unknown"),
+                 user.get_id().unwrap_or("unknown"));
+    }
+
+    println!("\n🔍 Finding users by attributes...");
+
+    // Find user by username
+    let found_user = provider
+        .find_resource_by_attribute(
+            "User",
+            "userName",
+            &json!("john.doe@example.com"),
+            &context
+        )
+        .await?;
+
+    match found_user {
+        Some(user) => {
+            println!("✅ Found user by username: {} (ID: {})",
+                     user.get_username().unwrap_or("unknown"),
+                     user.get_id().unwrap_or("unknown"));
         }
+        None => println!("❌ User not found by username"),
     }
 
-    // 2. Get the user
-    println!("\n🔍 Retrieving the user...");
-    let user_id = created_user.get_id().unwrap();
-    if let Some(retrieved_user) = server.get_resource("User", &user_id, &context).await? {
-        println!(
-            "✅ User retrieved: {}",
-            retrieved_user.get_username().unwrap()
-        );
-        println!("   Active: {}", retrieved_user.is_active());
+    // Find user by email
+    let found_by_email = provider
+        .find_resource_by_attribute(
+            "User",
+            "emails.value",
+            &json!("jane.smith@example.com"),
+            &context
+        )
+        .await?;
+
+    match found_by_email {
+        Some(user) => {
+            println!("✅ Found user by email: {} (ID: {})",
+                     user.get_username().unwrap_or("unknown"),
+                     user.get_id().unwrap_or("unknown"));
+        }
+        None => println!("❌ User not found by email"),
     }
 
-    // 3. Update the user
-    println!("\n📝 Updating the user...");
-    let update_data = json!({
-        "id": user_id,
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "jdoe",
+    println!("\n✏️  Updating user...");
+
+    // Update the first user
+    let user1_id = user1.get_id().unwrap();
+    let updated_data = json!({
+        "id": user1_id,
+        "userName": "john.doe@example.com",
         "name": {
+            "formatted": "John Updated Doe",
             "familyName": "Doe",
-            "givenName": "Jane",
-            "formatted": "Jane Doe"
+            "givenName": "John",
+            "middleName": "Updated"
         },
         "emails": [
             {
-                "value": "jane.doe@example.com",
+                "value": "john.doe@example.com",
                 "type": "work",
                 "primary": true
+            },
+            {
+                "value": "john.personal@example.com",
+                "type": "home",
+                "primary": false
             }
         ],
-        "active": false
+        "phoneNumbers": [
+            {
+                "value": "+1-555-555-1234",
+                "type": "work"
+            },
+            {
+                "value": "+1-555-555-5678",
+                "type": "mobile"
+            }
+        ],
+        "active": true
     });
 
-    let updated_user = server
-        .update_resource("User", &user_id, update_data, &context)
-        .await?;
-    println!("✅ User updated");
-    println!("   New given name: Jane");
-    println!("   Active: {}", updated_user.is_active());
+    let updated_user = provider.update_resource("User", user1_id, updated_data, &context).await?;
+    println!("✅ Updated user: {} (ID: {})",
+             updated_user.get_username().unwrap_or("unknown"),
+             updated_user.get_id().unwrap_or("unknown"));
 
-    // 4. List users
-    println!("\n📋 Listing all users...");
-    let users = server.list_resources("User", &context).await?;
-    println!("✅ Found {} users", users.len());
-    for user in &users {
-        println!(
-            "   - {} ({})",
-            user.get_username().unwrap(),
-            user.get_id().unwrap()
-        );
-    }
-
-    // 5. Create another user to demonstrate uniqueness validation
-    println!("\n📝 Attempting to create duplicate user...");
-    let duplicate_user_data = json!({
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "jdoe",  // Same username
-        "name": {
-            "familyName": "Smith",
-            "givenName": "Bob"
+    // Show the updated name
+    if let Some(name) = updated_user.get_name() {
+        if let Some(formatted) = name.formatted.as_ref() {
+            println!("   📝 New formatted name: {}", formatted);
         }
-    });
-
-    match server
-        .create_resource("User", duplicate_user_data, &context)
-        .await
-    {
-        Ok(_) => println!("❌ Duplicate user creation should have failed!"),
-        Err(e) => println!("✅ Correctly rejected duplicate: {}", e),
     }
 
-    // 6. Find user by attribute
-    println!("\n🔍 Finding user by userName...");
-    if let Some(found_user) = server
-        .find_resource_by_attribute("User", "userName", &json!("jdoe"), &context)
-        .await?
-    {
-        println!("✅ Found user: {}", found_user.get_username().unwrap());
+    println!("\n📞 Working with phone numbers...");
+
+    // Demonstrate working with phone numbers
+    if let Some(phone_numbers) = updated_user.get_phone_numbers() {
+        println!("📱 User has {} phone numbers:", phone_numbers.len());
+        for phone in phone_numbers {
+            let phone_type = phone.phone_type.as_ref().map_or("unknown", |v| v);
+            println!("   - {}: {}", phone_type, phone.value);
+        }
     }
 
-    // 7. Check if user exists
-    println!("\n❓ Checking if user exists...");
-    let exists = server.resource_exists("User", &user_id, &context).await?;
-    println!("✅ User exists: {}", exists);
+    println!("\n📧 Working with email addresses...");
 
-    // 8. Delete the user
-    println!("\n🗑️ Deleting the user...");
-    server.delete_resource("User", &user_id, &context).await?;
-    println!("✅ User deleted");
-
-    // 9. Verify deletion
-    println!("\n🔍 Verifying deletion...");
-    if server
-        .get_resource("User", &user_id, &context)
-        .await?
-        .is_none()
-    {
-        println!("✅ User successfully deleted");
-    } else {
-        println!("❌ User still exists after deletion!");
+    // Demonstrate working with emails
+    if let Some(emails) = updated_user.get_emails() {
+        println!("📧 User has {} email addresses:", emails.len());
+        for email in emails {
+            let email_type = email.email_type.as_ref().map_or("unknown", |v| v);
+            let is_primary = email.primary.unwrap_or(false);
+            println!("   - {}: {} (primary: {})", email_type, email.value, is_primary);
+        }
     }
 
-    // 10. Final resource count
-    let final_users = server.list_resources("User", &context).await?;
-    println!("✅ Final user count: {}", final_users.len());
+    println!("\n🗑️  Testing resource existence and deletion...");
 
-    // 11. Show server capabilities
-    println!("\n🎯 Server capabilities:");
-    println!(
-        "Supported resource types: {:?}",
-        server.get_supported_resource_types()
-    );
+    // Check if user exists
+    let user2_id = user2.get_id().unwrap();
+    let exists = provider.resource_exists("User", user2_id, &context).await?;
+    println!("✅ User {} exists: {}", user2_id, exists);
 
-    if let Ok(user_schema) = server.get_resource_schema("User") {
-        println!("User schema attributes: {}", user_schema.attributes.len());
-    }
+    // Delete the second user
+    provider.delete_resource("User", user2_id, &context).await?;
+    println!("✅ Deleted user");
 
-    println!("\n🎉 Basic usage example completed successfully!");
+    // Check if user still exists
+    let exists_after = provider.resource_exists("User", user2_id, &context).await?;
+    println!("✅ User {} exists after deletion: {}", user2_id, exists_after);
+
+    // List users again to confirm deletion
+    let users_after = provider.list_resources("User", None, &context).await?;
+    println!("📊 Users remaining after deletion: {}", users_after.len());
+
+    println!("\n📊 Provider statistics...");
+
+    // Get provider statistics
+    let stats = provider.get_stats().await;
+    println!("📈 Provider Statistics:");
+    println!("   • Total tenants: {}", stats.tenant_count);
+    println!("   • Total resources: {}", stats.total_resources);
+    println!("   • Resource types: {:?}", stats.resource_types);
+    println!("   • Resource type count: {}", stats.resource_type_count);
+
+    println!("\n🧹 Testing clear functionality...");
+
+    // Test clear functionality
+    provider.clear().await;
+    let stats_after_clear = provider.get_stats().await;
+    println!("📈 Statistics after clear:");
+    println!("   • Total tenants: {}", stats_after_clear.tenant_count);
+    println!("   • Total resources: {}", stats_after_clear.total_resources);
+
+    println!("\n✅ Basic Usage Example Complete!");
+    println!("🎉 Successfully demonstrated:");
+    println!("   • Creating resources with StandardResourceProvider");
+    println!("   • Listing and searching resources");
+    println!("   • Updating and deleting resources");
+    println!("   • Working with complex attributes (emails, phone numbers)");
+    println!("   • Provider statistics and resource existence checks");
+    println!("   • Clear functionality for testing");
+
     Ok(())
 }

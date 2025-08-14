@@ -8,7 +8,8 @@
 
 use scim_server::{
     auth::{AuthenticatedRequestContext, AuthenticationValidator, LinearCredential},
-    providers::{InMemoryError, InMemoryProvider},
+    providers::{StandardResourceProvider, InMemoryError},
+    storage::InMemoryStorage,
     resource::{IsolationLevel, Resource, ResourceProvider, TenantContext, TenantPermissions},
 };
 use serde_json::json;
@@ -292,7 +293,7 @@ trait SecureRbacProvider {
 }
 
 /// Implementation showing compile-time RBAC enforcement
-impl SecureRbacProvider for InMemoryProvider {
+impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
     type Error = InMemoryError;
 
     async fn secure_create_user(
@@ -459,7 +460,8 @@ async fn demo_admin_operations(
     validator: &AuthenticationValidator,
     role_validator: &rbac::RoleValidator,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Authenticate admin
     let admin_cred = LinearCredential::new("admin-key-secure");
@@ -527,7 +529,8 @@ async fn demo_manager_operations(
     validator: &AuthenticationValidator,
     role_validator: &rbac::RoleValidator,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Authenticate manager
     let manager_cred = LinearCredential::new("manager-key-123");
@@ -584,7 +587,8 @@ async fn demo_readonly_operations(
     validator: &AuthenticationValidator,
     role_validator: &rbac::RoleValidator,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Authenticate read-only user
     let readonly_cred = LinearCredential::new("readonly-key-xyz");

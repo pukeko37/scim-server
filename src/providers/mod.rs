@@ -13,5 +13,7 @@
 //! RequestContext interface.
 
 pub mod in_memory;
+pub mod standard;
 
 pub use in_memory::{InMemoryError, InMemoryProvider, InMemoryStats};
+pub use standard::StandardResourceProvider;

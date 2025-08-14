@@ -97,13 +97,14 @@ serde_json = "1.0"
 ### Minimal Example
 
 ```rust
-use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage, resource::RequestContext};
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a SCIM server with in-memory storage
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider)?;
 
     // Create a user with automatic ETag versioning
@@ -126,12 +127,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Complete HTTP Server Example
 
 ```rust
-use scim_server::{ScimServer, InMemoryProvider, ScimUser};
+use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage, ScimUser};
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider);
 
     // Create a user
@@ -178,12 +180,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Enterprise-Grade Optimistic Locking** - Prevent lost updates in multi-client environments:
 
 ```rust
-use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage, resource::RequestContext};
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider)?;
     let context = RequestContext::with_generated_id();
 
@@ -286,12 +289,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Complete RFC 7644 PATCH Implementation** - Granular resource updates with full SCIM compliance:
 
 ```rust
-use scim_server::{ScimServer, providers::InMemoryProvider, resource::RequestContext};
+use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage, resource::RequestContext};
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider)?;
     let context = RequestContext::with_generated_id();
 
@@ -349,11 +353,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Built-in MCP (Model Context Protocol) Support** - Connect AI assistants directly to your identity data:
 
 ```rust
-use scim_server::{McpServer, ScimServer, InMemoryProvider};
+use scim_server::{McpServer, ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let scim_server = ScimServer::new(provider);
 
     // Enable MCP for AI tool integration
@@ -484,33 +489,31 @@ The library provides a clean separation between:
 
 ## 🗺️ What's Coming Next
 
-### Version 0.3.0: Storage Provider Architecture (Breaking Changes)
+### Version 0.4.0: Additional Storage Backends (Planned)
 
-The next major release will introduce architecture improvement that separates storage concerns from SCIM logic:
+The next major release will add concrete storage implementations:
 
 ```rust
-// Current: Complex provider implementation (1000+ lines)
-impl ResourceProvider for CustomProvider {
-    // Implement all SCIM operations + storage + validation
-}
+// SQLite storage for local persistence
+let storage = SqliteStorage::new("scim.db").await?;
+let provider = StandardResourceProvider::new(storage);
 
-// Future: Simple storage provider (50 lines)
-impl StorageProvider for CustomStorageProvider {
-    // Just basic CRUD operations
-}
+// PostgreSQL for enterprise deployments
+let storage = PostgresStorage::new("postgresql://...").await?;
+let provider = StandardResourceProvider::new(storage);
 
-// SCIM logic handled by StandardResourceProvider
-type CustomProvider = StandardResourceProvider<CustomStorageProvider>;
+// Redis for high-performance scenarios
+let storage = RedisStorage::new("redis://...").await?;
+let provider = StandardResourceProvider::new(storage);
 ```
 
-**Benefits:**
-- 🎯 **Reduced Complexity** - Custom providers need only ~50 lines vs 1000+
-- 🏗️ **Better Architecture** - Clear separation between storage and SCIM logic
-- 🔄 **Consistent Behavior** - All providers get same SCIM compliance automatically
-- ⚡ **Easier Optimization** - Storage providers can focus purely on performance
-- 🧪 **Improved Testing** - Storage and SCIM logic tested independently
+**Planned Features:**
+- 🗄️ **SQLite Storage** - Local file-based persistence with migrations
+- 🐘 **PostgreSQL Storage** - Enterprise database with connection pooling
+- 🔴 **Redis Storage** - High-performance caching and distributed scenarios
+- 📄 **MongoDB Storage** - Document-based storage with flexible schemas
 
-**Timeline:** August 2025 - This will be a breaking change requiring migration
+**Timeline:** Q4 2025
 
 | Resource | Description |
 |----------|-------------|

@@ -8,7 +8,8 @@
 use scim_server::{
     RequestContext, TenantContext,
     multi_tenant::resolver::{StaticTenantResolver, TenantResolver},
-    providers::InMemoryProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource::{
         core::{IsolationLevel, TenantPermissions},
         provider::ResourceProvider,
@@ -25,9 +26,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📋 Step 1: Setting up tenant resolver");
     let resolver = setup_tenant_resolver().await;
 
-    // Step 2: Create multi-tenant in-memory provider
-    println!("\n🗄️  Step 2: Creating in-memory provider");
-    let provider = InMemoryProvider::new();
+    // Step 2: Create multi-tenant provider with in-memory storage
+    println!("\n🗄️  Step 2: Creating provider with in-memory storage");
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Step 3: Demonstrate multi-tenant operations
     println!("\n👥 Step 3: Multi-tenant operations");
@@ -118,7 +120,7 @@ async fn setup_tenant_resolver() -> StaticTenantResolver {
 /// Demonstrate basic multi-tenant operations
 async fn demo_multi_tenant_operations(
     resolver: &StaticTenantResolver,
-    provider: &InMemoryProvider,
+    provider: &StandardResourceProvider<InMemoryStorage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Resolve enterprise tenant
     let enterprise_context = resolver.resolve_tenant("ent-api-key-secure-123").await?;
@@ -204,7 +206,7 @@ async fn demo_multi_tenant_operations(
 /// Demonstrate tenant isolation - tenants cannot access each other's data
 async fn demo_tenant_isolation(
     resolver: &StaticTenantResolver,
-    provider: &InMemoryProvider,
+    provider: &StandardResourceProvider<InMemoryStorage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let enterprise_context = resolver.resolve_tenant("ent-api-key-secure-123").await?;
     let ent_context = RequestContext::with_tenant_generated_id(enterprise_context);
@@ -263,7 +265,7 @@ async fn demo_tenant_isolation(
 /// Demonstrate permission system and limits
 async fn demo_permission_system(
     resolver: &StaticTenantResolver,
-    provider: &InMemoryProvider,
+    provider: &StandardResourceProvider<InMemoryStorage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let startup_context = resolver.resolve_tenant("startup-api-key-789").await?;
     let startup_ctx = RequestContext::with_tenant_generated_id(startup_context);
@@ -351,7 +353,7 @@ async fn demo_backward_compatibility() -> Result<(), Box<dyn std::error::Error>>
 }
 
 /// Demonstrate performance with multiple tenants and resources
-async fn demo_performance(provider: &InMemoryProvider) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_performance(provider: &StandardResourceProvider<InMemoryStorage>) -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ Performance demonstration with multiple tenants...");
 
     let tenant_count = 3;

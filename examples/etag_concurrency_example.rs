@@ -8,7 +8,8 @@ use scim_server::{
     ScimServer,
     multi_tenant::ScimOperation,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
-    providers::InMemoryProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource::{
         RequestContext, ResourceProvider,
         conditional_provider::VersionedResource,
@@ -28,8 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏷️  SCIM ETag Concurrency Control Example");
     println!("=========================================\n");
 
-    // 1. Setup server with InMemoryProvider
-    let provider = InMemoryProvider::new();
+    // 1. Setup server with StandardResourceProvider
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider)?;
 
     // Register User resource type
@@ -205,7 +207,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=========================================");
 
     // Create a new provider instance to demonstrate provider-level operations
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut provider_server = ScimServer::new(provider.clone())?;
 
     // Register User resource type for the provider demo

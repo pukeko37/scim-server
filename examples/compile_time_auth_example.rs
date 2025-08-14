@@ -11,7 +11,8 @@ use scim_server::{
         AuthenticatedRequestContext, AuthenticationValidator, Credential, LinearCredential,
         Unauthenticated,
     },
-    providers::InMemoryProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource::{IsolationLevel, ResourceProvider, TenantContext, TenantPermissions},
 };
 use serde_json::json;
@@ -173,7 +174,8 @@ async fn demonstrate_authenticated_operations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Testing type-safe provider operations...");
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // 1. Authenticate enterprise client
     let enterprise_cred = LinearCredential::new("ent-secure-key-456");
@@ -297,7 +299,8 @@ fn demonstrate_impossible_states() {
 /// ```rust,no_run
 /// use scim_server::{
 ///     auth::AuthenticatedRequestContext,
-///     providers::{InMemoryError, InMemoryProvider},
+///     providers::{StandardResourceProvider, InMemoryError},
+///     storage::InMemoryStorage,
 ///     resource::Resource,
 /// };
 /// use serde_json::Value;
@@ -323,7 +326,7 @@ fn demonstrate_impossible_states() {
 /// }
 ///
 /// /// Example implementation showing compile-time enforcement
-/// impl SecureScimProvider for InMemoryProvider {
+/// impl SecureScimProvider for StandardResourceProvider<InMemoryStorage> {
 ///     type Error = InMemoryError;
 ///
 ///     async fn secure_list_users(

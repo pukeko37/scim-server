@@ -1,11 +1,13 @@
 //! Provider Modes Example
 //!
-//! This example demonstrates how the InMemoryProvider works
+//! This example demonstrates how the StandardResourceProvider works
 //! for both single-tenant and multi-tenant scenarios through the RequestContext.
 //! This shows how a single provider implementation supports multiple operational modes.
 
 use scim_server::{
-    RequestContext, TenantContext, providers::InMemoryProvider,
+    RequestContext, TenantContext,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource::provider::ResourceProvider,
 };
 use serde_json::json;
@@ -13,9 +15,10 @@ use serde_json::json;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Provider Modes Example");
-    println!("Using the InMemoryProvider for both single and multi-tenant scenarios\n");
+    println!("Using the StandardResourceProvider for both single and multi-tenant scenarios\n");
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // ===== SINGLE-TENANT OPERATIONS =====
     println!("📋 SINGLE-TENANT OPERATIONS");
