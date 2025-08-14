@@ -19,7 +19,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.1] - 2025-08-14
+
+### Added
+- **MAJOR**: New `StorageProvider` trait for pluggable storage backends
+- **MAJOR**: `StandardResourceProvider<S>` generic provider with pluggable storage
+- `InMemoryStorage` implementation of the new storage interface
+- Provider statistics API (`get_stats()` method)
+- Clear functionality for testing (`clear()` method)
+- Conditional operations support (version-aware updates, deletes, patches)
+- Enhanced versioning system with `VersionedResource` support
+- Migration guide for upgrading from `InMemoryProvider`
+- Updated examples demonstrating new provider architecture
+
+### Changed
+- **BREAKING**: Provider architecture now uses generic storage backends
+- **BREAKING**: `InMemoryProvider` moved to legacy status (still functional)
+- Updated examples to use `StandardResourceProvider` by default
+- Improved error handling and type safety in provider operations
+- Enhanced documentation for provider patterns and best practices
+
+### Deprecated
+- **IMPORTANT**: `InMemoryProvider` is now deprecated in favor of `StandardResourceProvider<InMemoryStorage>`
+- Old provider pattern will be removed in v0.4.0
+- See migration guide in `docs/migration-v0.4.md` for upgrade instructions
+
+### Security
+- Improved tenant isolation in multi-tenant scenarios
+- Enhanced validation in conditional operations to prevent race conditions
+
+### Migration Notes
+- See `docs/migration-v0.4.md` for detailed migration instructions
+- Examples updated to demonstrate new provider patterns
+- Backward compatibility maintained for existing `InMemoryProvider` users
+- All existing ResourceProvider APIs remain unchanged
+
+### Deprecated
+- `InMemoryProvider` - Use `StandardResourceProvider<InMemoryStorage>` instead
+- Direct usage of provider implementations - Use the new generic provider pattern
+
+### Migration Guide
+To migrate from v0.2.x to v0.3.1:
+
+1. Replace `InMemoryProvider::new()` with:
+   ```rust
+   let storage = InMemoryStorage::new();
+   let provider = StandardResourceProvider::new(storage);
+   ```
+
+2. Update imports:
+   ```rust
+   // Old
+   use scim_server::providers::InMemoryProvider;
+   
+   // New
+   use scim_server::storage::InMemoryStorage;
+   use scim_server::providers::StandardResourceProvider;
+   ```
+
+3. The API remains the same - only the construction changes
+
 ## [0.3.0] - 2025-08-14
+
+### Note
+This version was published as a patch update before the complete storage provider architecture was ready. Please use v0.3.1 for the full storage provider implementation.
 
 ### Added
 - **MAJOR**: New `StorageProvider` trait for pluggable storage backends
