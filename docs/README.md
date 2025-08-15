@@ -5,11 +5,11 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 ## 📚 Documentation Index
 
 ### Getting Started
-- **[Quick Start Guide](guides/quick-start.md)** - Get up and running in 5 minutes
-- **[Installation Guide](guides/installation.md)** - Installation and setup instructions
-- **[Basic Usage](guides/basic-usage.md)** - Core concepts and simple examples
-- **[Configuration](guides/configuration.md)** - Server configuration options
-- **[ETag Concurrency Control](guides/etag-concurrency-control.md)** - Prevent lost updates with automatic versioning
+- **[User Guide](guide/book/)** - Complete tutorials and getting started guide
+- **[Installation](guide/book/getting-started/installation.html)** - Installation and setup instructions
+- **[Your First Server](guide/book/getting-started/first-server.html)** - Build your first SCIM server
+- **[Basic Operations](guide/book/getting-started/basic-operations.html)** - Core concepts and simple examples
+- **[Multi-Tenancy](guide/book/concepts/multi-tenancy.html)** - Multi-tenant architecture guide
 
 ### API Documentation
 - **[API Reference](api/README.md)** - Complete API documentation
@@ -19,22 +19,25 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 - **[Error Handling](api/error-handling.md)** - Error types and handling patterns
 - **[Version Control](api/version-control.md)** - ETag implementation and conditional operations
 
-### Guides
-- **[User Guide](guides/user-guide.md)** - Comprehensive user documentation
-- **[Developer Guide](guides/developer-guide.md)** - Development and contribution guide
-- **[Architecture Guide](guides/architecture.md)** - System architecture and design
-- **[Testing Guide](guides/testing.md)** - Testing strategies and best practices
-
-### Examples
-- **[Basic Server](examples/basic-server.md)** - Simple SCIM server implementation
-- **[Multi-tenant Server](examples/multi-tenant-server.md)** - Multi-tenant setup
-- **[Custom Providers](examples/custom-providers.md)** - Building custom storage backends
-- **[Advanced Features](examples/advanced-features.md)** - Schema validation, logging, etc.
+### Core Concepts
+- **[SCIM Protocol](guide/book/concepts/scim-protocol.html)** - Understanding SCIM 2.0
+- **[Architecture](guide/book/concepts/architecture.html)** - System architecture and design
+- **[Resource Model](guide/book/concepts/resource-model.html)** - SCIM resource structure
+- **[Storage Providers](guide/book/concepts/providers.html)** - Provider system overview
 
 ### Tutorials
-- **[Building Your First SCIM Server](guides/tutorial-first-server.md)** - Step-by-step tutorial
-- **[Implementing Custom Resources](guides/tutorial-custom-resources.md)** - Extending the server
-- **[Production Deployment](guides/tutorial-production.md)** - Production deployment guide
+- **[Custom Resources](guide/book/tutorials/custom-resources.html)** - Implementing custom resource types
+- **[Framework Integration](guide/book/tutorials/framework-integration.html)** - Web framework integration
+- **[Multi-Tenant Deployment](guide/book/tutorials/multi-tenant-deployment.html)** - Production multi-tenancy
+- **[Production Deployment](guide/book/advanced/production-deployment.html)** - Production setup guide
+
+### Working Code Examples
+- **[Code Examples](../examples/)** - Complete working Rust examples
+- **[Basic Usage](../examples/basic_usage.rs)** - Simple SCIM server implementation  
+- **[Multi-tenant Example](../examples/multi_tenant_example.rs)** - Multi-tenant setup
+- **[Group Management](../examples/group_example.rs)** - Group operations example
+- **[ETag Concurrency](../examples/etag_concurrency_example.rs)** - Concurrency control
+- **[MCP Integration](../examples/mcp_server_example.rs)** - AI agent integration
 
 ### Reference
 - **[SCIM 2.0 Compliance](reference/scim-compliance.md)** - RFC compliance status
@@ -45,13 +48,14 @@ Welcome to the comprehensive documentation for the SCIM Server crate, a high-per
 ## 🚀 Quick Navigation
 
 ### I want to...
-- **Build a basic SCIM server** → [Quick Start Guide](guides/quick-start.md)
-- **Understand the architecture** → [Architecture Guide](guides/architecture.md)
-- **Implement a custom provider** → [Custom Providers](examples/custom-providers.md)
-- **Deploy to production** → [Production Deployment](guides/tutorial-production.md)
-- **Check SCIM compliance** → [SCIM 2.0 Compliance](reference/scim-compliance.md)
+- **Build a basic SCIM server** → [Your First Server](guide/book/getting-started/first-server.html)
+- **See working code examples** → [Code Examples](../examples/)
+- **Understand the architecture** → [Architecture Guide](guide/book/concepts/architecture.html)
+- **Implement a custom provider** → [Storage Providers](guide/book/concepts/providers.html)
+- **Deploy to production** → [Production Deployment](guide/book/advanced/production-deployment.html)
+- **Check SCIM compliance** → [SCIM 2.0 Compliance](reference/scim-compliance-actual.md)
 - **Browse API documentation** → [API Reference](api/README.md)
-- **Prevent lost updates** → [ETag Concurrency Control](guides/etag-concurrency-control.md)
+- **Prevent lost updates** → [ETag Concurrency](guide/book/concepts/etag-concurrency.html)
 
 ## 📋 Documentation Status
 
@@ -78,7 +82,8 @@ The SCIM Server crate provides:
 - **📊 Comprehensive validation** following SCIM 2.0 specifications
 - **🔍 Rich logging and observability** for production monitoring
 - **🏷️ Built-in ETag concurrency control** preventing lost updates automatically
-- **🧪 Extensive test coverage** with 57 passing documentation tests
+- **🧪 Extensive test coverage** with working code examples
+- **💻 Ready-to-run examples** for common use cases
 
 ## 📊 Project Statistics
 

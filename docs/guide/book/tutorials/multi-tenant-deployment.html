@@ -1,0 +1,1737 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Multi-Tenant Deployment - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="multi-tenant-deployment"><a class="header" href="#multi-tenant-deployment">Multi-Tenant Deployment</a></h1>
+<p>This tutorial shows how to deploy and configure SCIM Server for multi-tenant environments, where you need to isolate data and operations between different organizations or customers.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>Multi-tenancy in SCIM Server provides complete isolation between different organizations while sharing the same infrastructure. Each tenant gets:</p>
+<ul>
+<li><strong>Complete data isolation</strong> - No tenant can access another's data</li>
+<li><strong>Independent configuration</strong> - Per-tenant authentication and settings</li>
+<li><strong>Separate namespaces</strong> - Tenant-specific resource URLs</li>
+<li><strong>Isolated operations</strong> - All SCIM operations are tenant-scoped</li>
+</ul>
+<h2 id="basic-multi-tenant-setup"><a class="header" href="#basic-multi-tenant-setup">Basic Multi-Tenant Setup</a></h2>
+<h3 id="single-instance-multiple-tenants"><a class="header" href="#single-instance-multiple-tenants">Single Instance, Multiple Tenants</a></h3>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+};
+use axum::{
+    extract::{Path, State},
+    response::Json,
+    routing::{get, post, put, delete},
+    Router,
+};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::Arc;
+use uuid::Uuid;
+
+// Multi-tenant configuration
+#[derive(Debug, Clone)]
+struct TenantConfig {
+    name: String,
+    max_users: Option&lt;usize&gt;,
+    features: Vec&lt;String&gt;,
+    auth_config: AuthConfig,
+}
+
+#[derive(Debug, Clone)]
+enum AuthConfig {
+    OAuth { jwks_url: String, audience: String },
+    ApiKey { keys: Vec&lt;String&gt; },
+    Basic { username: String, password: String },
+}
+
+#[derive(Clone)]
+struct MultiTenantApp {
+    provider: Arc&lt;StandardResourceProvider&lt;InMemoryStorage&gt;&gt;,
+    tenant_configs: HashMap&lt;String, TenantConfig&gt;,
+}
+
+impl MultiTenantApp {
+    fn new() -&gt; Self {
+        // Single storage provider with tenant isolation via RequestContext
+        let storage = InMemoryStorage::new();
+        let provider = Arc::new(StandardResourceProvider::new(storage));
+
+        // Configure tenants
+        let mut tenant_configs = HashMap::new();
+        
+        tenant_configs.insert("company-a".to_string(), TenantConfig {
+            name: "Company A".to_string(),
+            auth_config: AuthConfig::OAuth {
+                jwks_url: "https://company-a.auth0.com/.well-known/jwks.json".to_string(),
+                audience: "scim-api".to_string(),
+            },
+            max_users: Some(1000),
+            features: vec!["bulk_operations".to_string(), "custom_schemas".to_string()],
+        });
+
+        tenant_configs.insert("company-b".to_string(), TenantConfig {
+            name: "Company B".to_string(),
+            auth_config: AuthConfig::ApiKey {
+                keys: vec!["sk_live_abc123".to_string()],
+            },
+            max_users: Some(500),
+            features: vec!["basic_operations".to_string()],
+        });
+
+        Self {
+            provider,
+            tenant_configs,
+        }
+    }
+
+    // Create tenant-aware RequestContext
+    fn create_context(&amp;self, tenant_id: &amp;str, operation: &amp;str) -&gt; RequestContext {
+        RequestContext::new(format!("tenant-{}-{}-{}", tenant_id, operation, Uuid::new_v4()))
+    }
+
+    // Validate tenant exists and is authorized
+    fn validate_tenant(&amp;self, tenant_id: &amp;str) -&gt; Result&lt;&amp;TenantConfig, String&gt; {
+        self.tenant_configs
+            .get(tenant_id)
+            .ok_or_else(|| format!("Tenant '{}' not found", tenant_id))
+    }
+}
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let app = MultiTenantApp::new();
+
+    let router = Router::new()
+        // Multi-tenant endpoints: /tenants/{tenant_id}/scim/v2/*
+        .route("/tenants/:tenant_id/scim/v2/Users", 
+               post(create_user).get(list_users))
+        .route("/tenants/:tenant_id/scim/v2/Users/:user_id", 
+               get(get_user).put(update_user).delete(delete_user))
+        .route("/tenants/:tenant_id/scim/v2/Groups", 
+               post(create_group).get(list_groups))
+        .route("/tenants/:tenant_id/scim/v2/Groups/:group_id", 
+               get(get_group).put(update_group).delete(delete_group))
+        // Tenant management endpoints
+        .route("/tenants", get(list_tenants))
+        .route("/tenants/:tenant_id", get(get_tenant_info))
+        .with_state(app);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    println!("Multi-tenant SCIM server running on http://localhost:3000");
+    println!("Example endpoints:");
+    println!("  POST http://localhost:3000/tenants/company-a/scim/v2/Users");
+    println!("  GET  http://localhost:3000/tenants/company-b/scim/v2/Users");
+    axum::serve(listener, router).await?;
+    
+    Ok(())
+}</code></pre></pre>
+<h3 id="tenant-specific-endpoints"><a class="header" href="#tenant-specific-endpoints">Tenant-Specific Endpoints</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::http::StatusCode;
+
+// Error type for multi-tenant operations
+#[derive(Debug)]
+enum MultiTenantError {
+    TenantNotFound(String),
+    TenantLimitExceeded(String),
+    FeatureNotEnabled(String),
+    InternalError(String),
+}
+
+impl axum::response::IntoResponse for MultiTenantError {
+    fn into_response(self) -&gt; axum::response::Response {
+        let (status, message) = match self {
+            MultiTenantError::TenantNotFound(tenant) =&gt; 
+                (StatusCode::NOT_FOUND, format!("Tenant '{}' not found", tenant)),
+            MultiTenantError::TenantLimitExceeded(limit) =&gt; 
+                (StatusCode::FORBIDDEN, format!("Tenant limit exceeded: {}", limit)),
+            MultiTenantError::FeatureNotEnabled(feature) =&gt; 
+                (StatusCode::FORBIDDEN, format!("Feature '{}' not enabled for tenant", feature)),
+            MultiTenantError::InternalError(msg) =&gt; 
+                (StatusCode::INTERNAL_SERVER_ERROR, msg),
+        };
+
+        let body = json!({
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            "status": status.as_u16().to_string(),
+            "detail": message
+        });
+
+        (status, Json(body)).into_response()
+    }
+}
+
+// Create user with tenant isolation
+async fn create_user(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path(tenant_id): Path&lt;String&gt;,
+    Json(user_data): Json&lt;Value&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    // Validate tenant exists and get config
+    let tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Check tenant limits
+    if let Some(max_users) = tenant_config.max_users {
+        let context = app.create_context(&amp;tenant_id, "count-users");
+        let current_users = app.provider.list_resources("User", None, &amp;context).await
+            .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+        
+        if current_users.len() &gt;= max_users {
+            return Err(MultiTenantError::TenantLimitExceeded(max_users.to_string()));
+        }
+    }
+
+    // Create tenant-scoped context
+    let context = app.create_context(&amp;tenant_id, "create-user");
+    
+    // Create user with tenant isolation
+    let user = app.provider.create_resource("User", user_data, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(Json(user.data))
+}
+
+// Get user with tenant isolation
+async fn get_user(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path((tenant_id, user_id)): Path&lt;(String, String)&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    // Validate tenant
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Create tenant-scoped context
+    let context = app.create_context(&amp;tenant_id, "get-user");
+    
+    // Get user (automatically isolated by tenant context)
+    let user = app.provider.get_resource("User", &amp;user_id, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(Json(user.data))
+}
+
+// List users with tenant isolation
+async fn list_users(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path(tenant_id): Path&lt;String&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    // Validate tenant
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Create tenant-scoped context
+    let context = app.create_context(&amp;tenant_id, "list-users");
+    
+    // List users (automatically isolated by tenant context)
+    let users = app.provider.list_resources("User", None, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    let response = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+        "totalResults": users.len(),
+        "startIndex": 1,
+        "itemsPerPage": users.len(),
+        "Resources": users.iter().map(|u| &amp;u.data).collect::&lt;Vec&lt;_&gt;&gt;()
+    });
+
+    Ok(Json(response))
+}
+
+// Update user with tenant isolation
+async fn update_user(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path((tenant_id, user_id)): Path&lt;(String, String)&gt;,
+    Json(user_data): Json&lt;Value&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    // Validate tenant
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Create tenant-scoped context
+    let context = app.create_context(&amp;tenant_id, "update-user");
+    
+    // Update user (automatically isolated by tenant context)
+    let user = app.provider.update_resource("User", &amp;user_id, user_data, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(Json(user.data))
+}
+
+// Delete user with tenant isolation
+async fn delete_user(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path((tenant_id, user_id)): Path&lt;(String, String)&gt;,
+) -&gt; Result&lt;StatusCode, MultiTenantError&gt; {
+    // Validate tenant
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Create tenant-scoped context
+    let context = app.create_context(&amp;tenant_id, "delete-user");
+    
+    // Delete user (automatically isolated by tenant context)
+    app.provider.delete_resource("User", &amp;user_id, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Example tenant-scoped URLs:
+// POST /tenants/company-a/scim/v2/Users
+// GET  /tenants/company-a/scim/v2/Users/123
+// POST /tenants/company-b/scim/v2/Users
+// GET  /tenants/company-b/scim/v2/Users/456
+<span class="boring">}</span></code></pre></pre>
+<h3 id="group-operations"><a class="header" href="#group-operations">Group Operations</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Group operations follow the same patterns
+async fn create_group(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path(tenant_id): Path&lt;String&gt;,
+    Json(group_data): Json&lt;Value&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    let context = app.create_context(&amp;tenant_id, "create-group");
+    let group = app.provider.create_resource("Group", group_data, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(Json(group.data))
+}
+
+async fn list_groups(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path(tenant_id): Path&lt;String&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    let _tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    let context = app.create_context(&amp;tenant_id, "list-groups");
+    let groups = app.provider.list_resources("Group", None, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    let response = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+        "totalResults": groups.len(),
+        "startIndex": 1,
+        "itemsPerPage": groups.len(),
+        "Resources": groups.iter().map(|g| &amp;g.data).collect::&lt;Vec&lt;_&gt;&gt;()
+    });
+
+    Ok(Json(response))
+}
+
+// Additional group operations (get_group, update_group, delete_group) follow same pattern...
+<span class="boring">}</span></code></pre></pre>
+<h3 id="tenant-management-endpoints"><a class="header" href="#tenant-management-endpoints">Tenant Management Endpoints</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// List all tenants
+async fn list_tenants(
+    State(app): State&lt;MultiTenantApp&gt;,
+) -&gt; Json&lt;Value&gt; {
+    let tenants: Vec&lt;_&gt; = app.tenant_configs.iter()
+        .map(|(id, config)| json!({
+            "id": id,
+            "name": config.name,
+            "maxUsers": config.max_users,
+            "features": config.features
+        }))
+        .collect();
+
+    Json(json!({
+        "tenants": tenants,
+        "total": tenants.len()
+    }))
+}
+
+// Get tenant information
+async fn get_tenant_info(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Path(tenant_id): Path&lt;String&gt;,
+) -&gt; Result&lt;Json&lt;Value&gt;, MultiTenantError&gt; {
+    let tenant_config = app.validate_tenant(&amp;tenant_id)
+        .map_err(|_| MultiTenantError::TenantNotFound(tenant_id.clone()))?;
+
+    // Get usage statistics
+    let context = app.create_context(&amp;tenant_id, "get-stats");
+    let users = app.provider.list_resources("User", None, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+    let groups = app.provider.list_resources("Group", None, &amp;context).await
+        .map_err(|e| MultiTenantError::InternalError(e.to_string()))?;
+
+    Ok(Json(json!({
+        "id": tenant_id,
+        "name": tenant_config.name,
+        "maxUsers": tenant_config.max_users,
+        "features": tenant_config.features,
+        "usage": {
+            "users": users.len(),
+            "groups": groups.len()
+        }
+    })))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="data-isolation-strategies"><a class="header" href="#data-isolation-strategies">Data Isolation Strategies</a></h2>
+<h3 id="application-level-isolation-current-implementation"><a class="header" href="#application-level-isolation-current-implementation">Application-Level Isolation (Current Implementation)</a></h3>
+<p>The StandardResourceProvider provides tenant isolation through the RequestContext:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::storage::StorageKey;
+
+// The storage layer automatically handles tenant isolation
+impl MultiTenantApp {
+    fn create_context(&amp;self, tenant_id: &amp;str, operation: &amp;str) -&gt; RequestContext {
+        // The tenant ID becomes part of the request context
+        // This ensures all storage operations are tenant-scoped
+        RequestContext::new(format!("tenant-{}-{}-{}", tenant_id, operation, Uuid::new_v4()))
+    }
+}
+
+// Example: How storage keys work with tenants
+// For tenant "company-a" creating user "123":
+let storage_key = StorageKey::new("company-a", "User", "123");
+// Results in storage path: "company-a/User/123"
+
+// This provides automatic isolation:
+// - company-a can only access "company-a/User/*" 
+// - company-b can only access "company-b/User/*"
+// - No cross-tenant data access possible
+<span class="boring">}</span></code></pre></pre>
+<h3 id="database-level-isolation-advanced"><a class="header" href="#database-level-isolation-advanced">Database-Level Isolation (Advanced)</a></h3>
+<p>For production deployments with database storage, implement row-level security:</p>
+<pre><code class="language-sql">-- Example PostgreSQL schema with tenant isolation
+CREATE TABLE scim_resources (
+    tenant_id VARCHAR(255) NOT NULL,
+    resource_type VARCHAR(50) NOT NULL,
+    resource_id VARCHAR(255) NOT NULL,
+    data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    version VARCHAR(255) NOT NULL,
+    PRIMARY KEY (tenant_id, resource_type, resource_id)
+);
+
+-- Enable Row-Level Security
+ALTER TABLE scim_resources ENABLE ROW LEVEL SECURITY;
+
+-- Create tenant isolation policy
+CREATE POLICY tenant_isolation ON scim_resources
+    USING (tenant_id = current_setting('app.current_tenant_id'));
+
+-- Function to set tenant context
+CREATE OR REPLACE FUNCTION set_tenant_context(p_tenant_id text)
+RETURNS void AS $$
+BEGIN
+    PERFORM set_config('app.current_tenant_id', p_tenant_id, true);
+END;
+$$ LANGUAGE plpgsql;
+</code></pre>
+<h3 id="custom-storage-provider-for-database"><a class="header" href="#custom-storage-provider-for-database">Custom Storage Provider for Database</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::storage::{StorageProvider, StorageKey, StoragePrefix};
+use sqlx::PgPool;
+use serde_json::Value;
+
+#[derive(Clone)]
+pub struct PostgresStorageProvider {
+    pool: PgPool,
+}
+
+#[async_trait]
+impl StorageProvider for PostgresStorageProvider {
+    type Error = sqlx::Error;
+
+    async fn put(&amp;self, key: StorageKey, data: Value) -&gt; Result&lt;Value, Self::Error&gt; {
+        // Extract tenant from storage key
+        let tenant_id = key.tenant_id();
+        
+        // Set tenant context for RLS
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(tenant_id)
+            .execute(&amp;self.pool)
+            .await?;
+
+        // Insert with automatic tenant filtering
+        let stored_data = sqlx::query_scalar!(
+            "INSERT INTO scim_resources (tenant_id, resource_type, resource_id, data, version)
+             VALUES ($1, $2, $3, $4, gen_random_uuid()::text)
+             RETURNING data",
+            tenant_id,
+            key.resource_type(),
+            key.resource_id(),
+            data
+        )
+        .fetch_one(&amp;self.pool)
+        .await?;
+
+        Ok(stored_data)
+    }
+
+    async fn get(&amp;self, key: StorageKey) -&gt; Result&lt;Option&lt;Value&gt;, Self::Error&gt; {
+        // Set tenant context
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(key.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        // Query with automatic tenant filtering
+        let data = sqlx::query_scalar!(
+            "SELECT data FROM scim_resources 
+             WHERE resource_type = $1 AND resource_id = $2",
+            key.resource_type(),
+            key.resource_id()
+        )
+        .fetch_optional(&amp;self.pool)
+        .await?;
+
+        Ok(data)
+    }
+
+    async fn delete(&amp;self, key: StorageKey) -&gt; Result&lt;bool, Self::Error&gt; {
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(key.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        let result = sqlx::query!(
+            "DELETE FROM scim_resources 
+             WHERE resource_type = $1 AND resource_id = $2",
+            key.resource_type(),
+            key.resource_id()
+        )
+        .execute(&amp;self.pool)
+        .await?;
+
+        Ok(result.rows_affected() &gt; 0)
+    }
+
+    async fn list(
+        &amp;self,
+        prefix: StoragePrefix,
+        offset: usize,
+        limit: usize,
+    ) -&gt; Result&lt;Vec&lt;(StorageKey, Value)&gt;, Self::Error&gt; {
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(prefix.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        let rows = sqlx::query!(
+            "SELECT resource_id, data FROM scim_resources 
+             WHERE resource_type = $1 
+             ORDER BY resource_id 
+             LIMIT $2 OFFSET $3",
+            prefix.resource_type(),
+            limit as i64,
+            offset as i64
+        )
+        .fetch_all(&amp;self.pool)
+        .await?;
+
+        let results = rows.into_iter()
+            .map(|row| {
+                let key = StorageKey::new(
+                    prefix.tenant_id(),
+                    prefix.resource_type(),
+                    &amp;row.resource_id
+                );
+                (key, row.data)
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    async fn find_by_attribute(
+        &amp;self,
+        prefix: StoragePrefix,
+        attribute: &amp;str,
+        value: &amp;str,
+    ) -&gt; Result&lt;Vec&lt;(StorageKey, Value)&gt;, Self::Error&gt; {
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(prefix.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        // Use JSONB operators for efficient attribute search
+        let rows = sqlx::query!(
+            "SELECT resource_id, data FROM scim_resources 
+             WHERE resource_type = $1 AND data -&gt;&gt; $2 = $3",
+            prefix.resource_type(),
+            attribute,
+            value
+        )
+        .fetch_all(&amp;self.pool)
+        .await?;
+
+        let results = rows.into_iter()
+            .map(|row| {
+                let key = StorageKey::new(
+                    prefix.tenant_id(),
+                    prefix.resource_type(),
+                    &amp;row.resource_id
+                );
+                (key, row.data)
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    async fn exists(&amp;self, key: StorageKey) -&gt; Result&lt;bool, Self::Error&gt; {
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(key.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        let exists = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM scim_resources 
+             WHERE resource_type = $1 AND resource_id = $2)",
+            key.resource_type(),
+            key.resource_id()
+        )
+        .fetch_one(&amp;self.pool)
+        .await?;
+
+        Ok(exists.unwrap_or(false))
+    }
+
+    async fn count(&amp;self, prefix: StoragePrefix) -&gt; Result&lt;usize, Self::Error&gt; {
+        sqlx::query("SELECT set_tenant_context($1)")
+            .bind(prefix.tenant_id())
+            .execute(&amp;self.pool)
+            .await?;
+
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM scim_resources WHERE resource_type = $1",
+            prefix.resource_type()
+        )
+        .fetch_one(&amp;self.pool)
+        .await?;
+
+        Ok(count.unwrap_or(0) as usize)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="deployment-patterns"><a class="header" href="#deployment-patterns">Deployment Patterns</a></h2>
+<h3 id="single-instance-multiple-tenants-1"><a class="header" href="#single-instance-multiple-tenants-1">Single Instance, Multiple Tenants</a></h3>
+<p>The most common pattern for multi-tenant SCIM deployments:</p>
+<pre><pre class="playground"><code class="language-rust">// Production multi-tenant setup
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Load tenant configurations from environment/config file
+    let tenant_configs = load_tenant_configs_from_env()?;
+    
+    // Create storage provider (could be database, Redis, etc.)
+    let storage = create_storage_provider().await?;
+    let provider = Arc::new(StandardResourceProvider::new(storage));
+    
+    let app = MultiTenantApp {
+        provider,
+        tenant_configs,
+    };
+
+    // Production server with proper middleware
+    let router = Router::new()
+        .route("/tenants/:tenant_id/scim/v2/Users", 
+               post(create_user).get(list_users))
+        .route("/tenants/:tenant_id/scim/v2/Users/:user_id", 
+               get(get_user).put(update_user).delete(delete_user))
+        .route("/tenants/:tenant_id/scim/v2/Groups", 
+               post(create_group).get(list_groups))
+        .route("/tenants/:tenant_id/scim/v2/Groups/:group_id", 
+               get(get_group).put(update_group).delete(delete_group))
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(TimeoutLayer::new(Duration::from_secs(30)))
+                .layer(CompressionLayer::new())
+                .layer(cors_layer())
+        )
+        .with_state(app);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    println!("Multi-tenant SCIM server running on port 3000");
+    axum::serve(listener, router).await?;
+    
+    Ok(())
+}
+
+fn load_tenant_configs_from_env() -&gt; Result&lt;HashMap&lt;String, TenantConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut configs = HashMap::new();
+    
+    // Load from environment variables or config files
+    for tenant_id in std::env::var("TENANT_IDS")?.split(',') {
+        let config = TenantConfig {
+            name: std::env::var(format!("TENANT_{}_NAME", tenant_id.to_uppercase()))?,
+            max_users: std::env::var(format!("TENANT_{}_MAX_USERS", tenant_id.to_uppercase()))
+                .ok().and_then(|s| s.parse().ok()),
+            features: std::env::var(format!("TENANT_{}_FEATURES", tenant_id.to_uppercase()))
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.to_string())
+                .collect(),
+            auth_config: load_auth_config_for_tenant(tenant_id)?,
+        };
+        configs.insert(tenant_id.to_string(), config);
+    }
+    
+    Ok(configs)
+}</code></pre></pre>
+<h3 id="separate-instances-per-tenant"><a class="header" href="#separate-instances-per-tenant">Separate Instances Per Tenant</a></h3>
+<p>For high-isolation requirements:</p>
+<pre><pre class="playground"><code class="language-rust">// Per-tenant instance deployment
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let tenant_id = std::env::var("TENANT_ID")
+        .expect("TENANT_ID environment variable required");
+    
+    // Dedicated storage for this tenant
+    let storage_url = format!("postgresql://user:pass@localhost/scim_{}", tenant_id);
+    let storage = PostgresStorageProvider::new(&amp;storage_url).await?;
+    let provider = StandardResourceProvider::new(storage);
+    
+    // Single-tenant routes (no tenant_id in path)
+    let router = Router::new()
+        .route("/scim/v2/Users", post(create_user).get(list_users))
+        .route("/scim/v2/Users/:user_id", 
+               get(get_user).put(update_user).delete(delete_user))
+        .route("/scim/v2/Groups", post(create_group).get(list_groups))
+        .with_state(SingleTenantApp { provider, tenant_id });
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, router).await?;
+    
+    Ok(())
+}
+
+#[derive(Clone)]
+struct SingleTenantApp {
+    provider: StandardResourceProvider&lt;PostgresStorageProvider&gt;,
+    tenant_id: String,
+}
+
+impl SingleTenantApp {
+    fn create_context(&amp;self, operation: &amp;str) -&gt; RequestContext {
+        RequestContext::new(format!("{}-{}-{}", self.tenant_id, operation, Uuid::new_v4()))
+    }
+}</code></pre></pre>
+<h2 id="configuration-management"><a class="header" href="#configuration-management">Configuration Management</a></h2>
+<h3 id="environment-based-configuration"><a class="header" href="#environment-based-configuration">Environment-Based Configuration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TenantConfig {
+    pub name: String,
+    pub max_users: Option&lt;usize&gt;,
+    pub features: Vec&lt;String&gt;,
+    pub auth_config: AuthConfig,
+}
+
+// Load from environment variables
+fn load_tenant_config(tenant_id: &amp;str) -&gt; Result&lt;TenantConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+    let prefix = format!("TENANT_{}", tenant_id.to_uppercase());
+    
+    Ok(TenantConfig {
+        name: std::env::var(format!("{}_NAME", prefix))?,
+        max_users: std::env::var(format!("{}_MAX_USERS", prefix))
+            .ok().and_then(|s| s.parse().ok()),
+        features: std::env::var(format!("{}_FEATURES", prefix))
+            .unwrap_or_default()
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect(),
+        auth_config: AuthConfig::OAuth {
+            jwks_url: std::env::var(format!("{}_JWKS_URL", prefix))?,
+            audience: std::env::var(format!("{}_AUDIENCE", prefix))?,
+        },
+    })
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="file-based-configuration"><a class="header" href="#file-based-configuration">File-Based Configuration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// config/tenants.yaml
+use serde_yaml;
+
+#[derive(Debug, Deserialize)]
+struct TenantsConfig {
+    tenants: HashMap&lt;String, TenantConfig&gt;,
+}
+
+async fn load_tenant_configs_from_file() -&gt; Result&lt;HashMap&lt;String, TenantConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_content = tokio::fs::read_to_string("config/tenants.yaml").await?;
+    let config: TenantsConfig = serde_yaml::from_str(&amp;config_content)?;
+    Ok(config.tenants)
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Example <code>config/tenants.yaml</code>:</p>
+<pre><code class="language-yaml">tenants:
+  company-a:
+    name: "Company A"
+    max_users: 1000
+    features: ["bulk_operations", "custom_schemas"]
+    auth_config:
+      OAuth:
+        jwks_url: "https://company-a.auth0.com/.well-known/jwks.json"
+        audience: "scim-api"
+  
+  company-b:
+    name: "Company B"
+    max_users: 500
+    features: ["basic_operations"]
+    auth_config:
+      ApiKey:
+        keys: ["sk_live_abc123"]
+</code></pre>
+<h2 id="security-considerations"><a class="header" href="#security-considerations">Security Considerations</a></h2>
+<h3 id="authentication-per-tenant"><a class="header" href="#authentication-per-tenant">Authentication Per Tenant</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::http::HeaderMap;
+
+async fn authenticate_tenant_request(
+    headers: &amp;HeaderMap,
+    tenant_id: &amp;str,
+    tenant_configs: &amp;HashMap&lt;String, TenantConfig&gt;,
+) -&gt; Result&lt;(), MultiTenantError&gt; {
+    let tenant_config = tenant_configs.get(tenant_id)
+        .ok_or_else(|| MultiTenantError::TenantNotFound(tenant_id.to_string()))?;
+
+    match &amp;tenant_config.auth_config {
+        AuthConfig::OAuth { jwks_url, audience } =&gt; {
+            // Validate JWT token
+            let auth_header = headers.get("authorization")
+                .and_then(|h| h.to_str().ok())
+                .ok_or_else(|| MultiTenantError::InternalError("Missing authorization header".to_string()))?;
+                
+            if !auth_header.starts_with("Bearer ") {
+                return Err(MultiTenantError::InternalError("Invalid authorization format".to_string()));
+            }
+            
+            let token = &amp;auth_header[7..];
+            validate_jwt_token(token, jwks_url, audience).await?;
+        },
+        
+        AuthConfig::ApiKey { keys } =&gt; {
+            // Validate API key
+            let api_key = headers.get("x-api-key")
+                .and_then(|h| h.to_str().ok())
+                .ok_or_else(|| MultiTenantError::InternalError("Missing API key".to_string()))?;
+                
+            if !keys.contains(&amp;api_key.to_string()) {
+                return Err(MultiTenantError::InternalError("Invalid API key".to_string()));
+            }
+        },
+        
+        AuthConfig::Basic { username, password } =&gt; {
+            // Validate basic auth
+            let auth_header = headers.get("authorization")
+                .and_then(|h| h.to_str().ok())
+                .ok_or_else(|| MultiTenantError::InternalError("Missing authorization header".to_string()))?;
+                
+            // Decode and validate basic auth credentials
+            validate_basic_auth(auth_header, username, password)?;
+        },
+    }
+
+    Ok(())
+}
+
+async fn validate_jwt_token(token: &amp;str, jwks_url: &amp;str, audience: &amp;str) -&gt; Result&lt;(), MultiTenantError&gt; {
+    // JWT validation implementation
+    // This would use a JWT library to validate the token
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="rate-limiting-per-tenant"><a class="header" href="#rate-limiting-per-tenant">Rate Limiting Per Tenant</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+#[derive(Debug, Clone)]
+struct RateLimiter {
+    requests: Arc&lt;Mutex&lt;HashMap&lt;String, Vec&lt;Instant&gt;&gt;&gt;&gt;,
+}
+
+impl RateLimiter {
+    fn new() -&gt; Self {
+        Self {
+            requests: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn check_rate_limit(&amp;self, tenant_id: &amp;str, limit_per_minute: usize) -&gt; bool {
+        let mut requests = self.requests.lock().unwrap();
+        let now = Instant::now();
+        let minute_ago = now - Duration::from_secs(60);
+        
+        let tenant_requests = requests.entry(tenant_id.to_string()).or_insert_with(Vec::new);
+        
+        // Remove old requests
+        tenant_requests.retain(|&amp;request_time| request_time &gt; minute_ago);
+        
+        if tenant_requests.len() &gt;= limit_per_minute {
+            false
+        } else {
+            tenant_requests.push(now);
+            true
+        }
+    }
+}
+
+// Usage in middleware
+async fn rate_limit_middleware(
+    tenant_id: &amp;str,
+    tenant_config: &amp;TenantConfig,
+    rate_limiter: &amp;RateLimiter,
+) -&gt; Result&lt;(), MultiTenantError&gt; {
+    if let Some(limit) = tenant_config.max_requests_per_minute {
+        if !rate_limiter.check_rate_limit(tenant_id, limit) {
+            return Err(MultiTenantError::TenantLimitExceeded(
+                format!("Rate limit of {} requests per minute exceeded", limit)
+            ));
+        }
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="monitoring-and-observability"><a class="header" href="#monitoring-and-observability">Monitoring and Observability</a></h2>
+<h3 id="per-tenant-metrics"><a class="header" href="#per-tenant-metrics">Per-Tenant Metrics</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use prometheus::{Counter, Histogram, Gauge, Registry};
+use std::collections::HashMap;
+
+#[derive(Clone)]
+struct TenantMetrics {
+    request_counter: Counter,
+    response_time: Histogram,
+    active_users: Gauge,
+    active_groups: Gauge,
+}
+
+struct MultiTenantMetrics {
+    registry: Registry,
+    tenant_metrics: HashMap&lt;String, TenantMetrics&gt;,
+}
+
+impl MultiTenantMetrics {
+    fn new() -&gt; Self {
+        Self {
+            registry: Registry::new(),
+            tenant_metrics: HashMap::new(),
+        }
+    }
+
+    fn get_or_create_tenant_metrics(&amp;mut self, tenant_id: &amp;str) -&gt; &amp;TenantMetrics {
+        self.tenant_metrics.entry(tenant_id.to_string()).or_insert_with(|| {
+            let request_counter = Counter::new(
+                "scim_requests_total",
+                "Total number of SCIM requests per tenant"
+            ).unwrap();
+            
+            let response_time = Histogram::new(
+                "scim_request_duration_seconds",
+                "SCIM request duration in seconds"
+            ).unwrap();
+            
+            let active_users = Gauge::new(
+                "scim_active_users",
+                "Number of active users per tenant"
+            ).unwrap();
+            
+            let active_groups = Gauge::new(
+                "scim_active_groups", 
+                "Number of active groups per tenant"
+            ).unwrap();
+
+            TenantMetrics {
+                request_counter,
+                response_time,
+                active_users,
+                active_groups,
+            }
+        })
+    }
+
+    fn record_request(&amp;mut self, tenant_id: &amp;str, duration: Duration) {
+        let metrics = self.get_or_create_tenant_metrics(tenant_id);
+        metrics.request_counter.inc();
+        metrics.response_time.observe(duration.as_secs_f64());
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="1-tenant-validation"><a class="header" href="#1-tenant-validation">1. Tenant Validation</a></h3>
+<ul>
+<li>Always validate tenant existence before processing requests</li>
+<li>Implement consistent error responses for invalid tenants</li>
+<li>Use meaningful tenant identifiers (avoid sequential IDs)</li>
+</ul>
+<h3 id="2-data-isolation"><a class="header" href="#2-data-isolation">2. Data Isolation</a></h3>
+<ul>
+<li>Use tenant-aware RequestContext for all operations</li>
+<li>Implement database-level isolation for sensitive deployments</li>
+<li>Audit cross-tenant access attempts</li>
+</ul>
+<h3 id="3-configuration-management"><a class="header" href="#3-configuration-management">3. Configuration Management</a></h3>
+<ul>
+<li>Store tenant configs securely (encrypted secrets)</li>
+<li>Implement hot-reloading for configuration changes</li>
+<li>Version configuration changes for rollback capability</li>
+</ul>
+<h3 id="4-performance"><a class="header" href="#4-performance">4. Performance</a></h3>
+<ul>
+<li>Implement per-tenant rate limiting</li>
+<li>Monitor tenant resource usage</li>
+<li>Scale storage based on tenant data growth</li>
+</ul>
+<h3 id="5-security"><a class="header" href="#5-security">5. Security</a></h3>
+<ul>
+<li>Use different authentication schemes per tenant as needed</li>
+<li>Implement audit logging for all tenant operations</li>
+<li>Regular security reviews of tenant isolation</li>
+</ul>
+<h2 id="testing-multi-tenant-deployments"><a class="header" href="#testing-multi-tenant-deployments">Testing Multi-Tenant Deployments</a></h2>
+<h3 id="integration-tests"><a class="header" href="#integration-tests">Integration Tests</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_tenant_isolation() {
+        let app = MultiTenantApp::new();
+        
+        // Create users in different tenants
+        let tenant_a_context = app.create_context("tenant-a", "test");
+        let tenant_b_context = app.create_context("tenant-b", "test");
+        
+        let user_data = json!({"userName": "test@example.com"});
+        
+        let user_a = app.provider.create_resource("User", user_data.clone(), &amp;tenant_a_context).await.unwrap();
+        let user_b = app.provider.create_resource("User", user_data, &amp;tenant_b_context).await.unwrap();
+        
+        // Verify isolation - tenant A cannot see tenant B's user
+        let tenant_a_users = app.provider.list_resources("User", None, &amp;tenant_a_context).await.unwrap();
+        let tenant_b_users = app.provider.list_resources("User", None, &amp;tenant_b_context).await.unwrap();
+        
+        assert_eq!(tenant_a_users.len(), 1);
+        assert_eq!(tenant_b_users.len(), 1);
+        assert_ne!(user_a.get_id(), user_b.get_id());
+    }
+
+    #[tokio::test]
+    async fn test_tenant_limits() {
+        let mut tenant_configs = HashMap::new();
+        tenant_configs.insert("limited-tenant".to_string(), TenantConfig {
+            name: "Limited Tenant".to_string(),
+            max_users: Some(1),
+            features: vec![],
+            auth_config: AuthConfig::ApiKey { keys: vec!["test".to_string()] },
+        });
+        
+        let app = MultiTenantApp {
+            provider: Arc::new(StandardResourceProvider::new(InMemoryStorage::new())),
+            tenant_configs,
+        };
+        
+        // Create first user (should succeed)
+        let context = app.create_context("limited-tenant", "test");
+        let user_data = json!({"userName": "user1@example.com"});
+        let result1 = app.provider.create_resource("User", user_data, &amp;context).await;
+        assert!(result1.is_ok());
+        
+        // Try to create second user (should fail due to limit)
+        let user_data2 = json!({"userName": "user2@example.com"});
+        let context2 = app.create_context("limited-tenant", "test");
+        
+        // In a real implementation, this would be checked in the handler
+        let users = app.provider.list_resources("User", None, &amp;context2).await.unwrap();
+        assert_eq!(users.len(), 1); // At limit
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>This tutorial demonstrated comprehensive multi-tenant SCIM deployments:</p>
+<p>✅ <strong>Multi-Tenant Architecture</strong>:</p>
+<ul>
+<li>Application-level isolation via RequestContext</li>
+<li>Database-level isolation with Row-Level Security</li>
+<li>Flexible deployment patterns (single vs. separate instances)</li>
+</ul>
+<p>✅ <strong>Configuration Management</strong>:</p>
+<ul>
+<li>Environment and file-based tenant configuration</li>
+<li>Per-tenant authentication schemes</li>
+<li>Feature flags and limits per tenant</li>
+</ul>
+<p>✅ <strong>Security &amp; Isolation</strong>:</p>
+<ul>
+<li>Complete data isolation between tenants</li>
+<li>Per-tenant authentication and authorization</li>
+<li>Rate limiting and resource controls</li>
+</ul>
+<p>✅ <strong>Production Considerations</strong>:</p>
+<ul>
+<li>Monitoring and metrics per tenant</li>
+<li>Performance optimization strategies</li>
+<li>Comprehensive testing approaches</li>
+</ul>
+<p><strong>Next Steps</strong>:</p>
+<ul>
+<li>
+<p><a href="./authentication-setup.html">Authentication Setup</a> - Secure your multi-tenant endpoints</p>
+</li>
+<li>
+<p><a href="./custom-resources.html">Custom Resources</a> - Extend SCIM for tenant-specific needs</p>
+</li>
+<li>
+<p><a href="./performance-optimization.html">Performance Optimization</a> - Scale for multiple tenants
+let mut configs = HashMap::new();</p>
+<p>// Load from database
+let rows = sqlx::query("SELECT tenant_id, config FROM tenant_configs")
+.fetch_all(&amp;pool)
+.await?;</p>
+<p>for row in rows {
+let tenant_id: String = row.get("tenant_id");
+let config_json: serde_json::Value = row.get("config");
+let config: TenantConfig = serde_json::from_value(config_json)?;
+configs.insert(tenant_id, config);
+}</p>
+<p>Ok(configs)
+}</p>
+</li>
+</ul>
+<pre><code>
+### Tenant Registration
+
+```rust
+async fn register_tenant(
+    State(app): State&lt;MultiTenantApp&gt;,
+    Json(registration): Json&lt;TenantRegistration&gt;,
+) -&gt; Result&lt;Json&lt;TenantInfo&gt;, (StatusCode, Json&lt;ScimError&gt;)&gt; {
+    // Validate registration
+    if registration.tenant_id.is_empty() || registration.name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, Json(ScimError::invalid_value("Missing required fields"))));
+    }
+
+    // Check if tenant already exists
+    if app.tenant_configs.contains_key(&amp;registration.tenant_id) {
+        return Err((StatusCode::CONFLICT, Json(ScimError::uniqueness("Tenant ID already exists"))));
+    }
+
+    // Create tenant configuration
+    let config = TenantConfig {
+        name: registration.name,
+        display_name: registration.display_name,
+        auth_scheme: registration.auth_scheme,
+        limits: TenantLimits {
+            max_users: Some(1000),
+            max_groups: Some(100),
+            max_requests_per_minute: Some(1000),
+            max_bulk_operations: Some(100),
+        },
+        features: vec!["basic_operations".to_string()],
+        custom_schemas: vec![],
+        webhook_endpoints: vec![],
+    };
+
+    // Save to database
+    sqlx::query(
+        "INSERT INTO tenant_configs (tenant_id, config) VALUES ($1, $2)"
+    )
+    .bind(&amp;registration.tenant_id)
+    .bind(serde_json::to_value(&amp;config)?)
+    .execute(&amp;app.pool)
+    .await?;
+
+    // Generate API key for the tenant
+    let api_key = generate_api_key(&amp;registration.tenant_id);
+
+    Ok(Json(TenantInfo {
+        tenant_id: registration.tenant_id,
+        name: config.name,
+        api_key,
+        endpoints: TenantEndpoints {
+            base_url: format!("https://api.example.com/scim/v2/{}", registration.tenant_id),
+            users: format!("https://api.example.com/scim/v2/{}/Users", registration.tenant_id),
+            groups: format!("https://api.example.com/scim/v2/{}/Groups", registration.tenant_id),
+        },
+    }))
+}
+</code></pre>
+<h2 id="advanced-multi-tenant-patterns"><a class="header" href="#advanced-multi-tenant-patterns">Advanced Multi-Tenant Patterns</a></h2>
+<h3 id="tenant-middleware"><a class="header" href="#tenant-middleware">Tenant Middleware</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{extract::Request, middleware::Next, response::Response};
+
+async fn tenant_middleware(
+    mut request: Request,
+    next: Next,
+) -&gt; Result&lt;Response, StatusCode&gt; {
+    // Extract tenant ID from path
+    let tenant_id = request
+        .uri()
+        .path()
+        .split('/')
+        .nth(3) // /scim/v2/:tenant_id/...
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    // Validate tenant exists
+    let tenant_config = TENANT_CONFIGS
+        .get(tenant_id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Add tenant context to request
+    request.extensions_mut().insert(TenantContext {
+        tenant_id: tenant_id.to_string(),
+        config: tenant_config.clone(),
+    });
+
+    // Check tenant limits
+    if let Err(status) = check_tenant_limits(&amp;tenant_config, &amp;request).await {
+        return Err(status);
+    }
+
+    Ok(next.run(request).await)
+}
+
+async fn check_tenant_limits(
+    config: &amp;TenantConfig,
+    request: &amp;Request,
+) -&gt; Result&lt;(), StatusCode&gt; {
+    // Check rate limits
+    if let Some(limit) = config.limits.max_requests_per_minute {
+        let current_rate = get_current_request_rate(&amp;config.name).await;
+        if current_rate &gt; limit {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
+
+    // Check feature availability
+    let requested_feature = extract_feature_from_request(request);
+    if let Some(feature) = requested_feature {
+        if !config.features.contains(&amp;feature) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="tenant-isolation-testing"><a class="header" href="#tenant-isolation-testing">Tenant Isolation Testing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum_test::TestServer;
+
+    #[tokio::test]
+    async fn test_tenant_isolation() {
+        let app = create_test_app().await;
+        let server = TestServer::new(app).unwrap();
+
+        // Create user in tenant A
+        let user_a = create_test_user("alice@company-a.com");
+        let response = server
+            .post("/scim/v2/company-a/Users")
+            .json(&amp;user_a)
+            .await;
+        assert_eq!(response.status_code(), 201);
+        let created_user_a: ScimUser = response.json();
+
+        // Create user in tenant B
+        let user_b = create_test_user("bob@company-b.com");
+        let response = server
+            .post("/scim/v2/company-b/Users")
+            .json(&amp;user_b)
+            .await;
+        assert_eq!(response.status_code(), 201);
+        let created_user_b: ScimUser = response.json();
+
+        // Verify tenant A cannot see tenant B's users
+        let response = server
+            .get(&amp;format!("/scim/v2/company-a/Users/{}", created_user_b.id()))
+            .await;
+        assert_eq!(response.status_code(), 404);
+
+        // Verify tenant B cannot see tenant A's users
+        let response = server
+            .get(&amp;format!("/scim/v2/company-b/Users/{}", created_user_a.id()))
+            .await;
+        assert_eq!(response.status_code(), 404);
+
+        // Verify each tenant can see their own users
+        let response = server
+            .get(&amp;format!("/scim/v2/company-a/Users/{}", created_user_a.id()))
+            .await;
+        assert_eq!(response.status_code(), 200);
+
+        let response = server
+            .get(&amp;format!("/scim/v2/company-b/Users/{}", created_user_b.id()))
+            .await;
+        assert_eq!(response.status_code(), 200);
+    }
+
+    #[tokio::test]
+    async fn test_tenant_limits() {
+        let app = create_test_app().await;
+        let server = TestServer::new(app).unwrap();
+
+        // Create users up to the limit
+        for i in 0..1000 {
+            let user = create_test_user(&amp;format!("user{}@company-a.com", i));
+            let response = server
+                .post("/scim/v2/company-a/Users")
+                .json(&amp;user)
+                .await;
+            assert_eq!(response.status_code(), 201);
+        }
+
+        // Try to create one more user (should fail)
+        let user = create_test_user("overflow@company-a.com");
+        let response = server
+            .post("/scim/v2/company-a/Users")
+            .json(&amp;user)
+            .await;
+        assert_eq!(response.status_code(), 403);
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="deployment-strategies"><a class="header" href="#deployment-strategies">Deployment Strategies</a></h2>
+<h3 id="shared-infrastructure"><a class="header" href="#shared-infrastructure">Shared Infrastructure</a></h3>
+<pre><code class="language-yaml"># docker-compose.yml for shared infrastructure
+version: '3.8'
+
+services:
+  scim-server:
+    image: scim-server:latest
+    environment:
+      - DATABASE_URL=postgresql://scim:password@postgres:5432/scim
+      - REDIS_URL=redis://redis:6379
+      - TENANT_CONFIG_URL=file:///config/tenants.json
+    volumes:
+      - ./tenant-configs:/config
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=scim
+      - POSTGRES_USER=scim
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+</code></pre>
+<h3 id="kubernetes-multi-tenant-deployment"><a class="header" href="#kubernetes-multi-tenant-deployment">Kubernetes Multi-Tenant Deployment</a></h3>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scim-server-multitenant
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: scim-server
+  template:
+    metadata:
+      labels:
+        app: scim-server
+    spec:
+      containers:
+      - name: scim-server
+        image: scim-server:latest
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        - name: TENANT_CONFIGS
+          valueFrom:
+            configMapKeyRef:
+              name: tenant-configs
+              key: config.json
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-configs
+data:
+  config.json: |
+    {
+      "company-a": {
+        "name": "Company A",
+        "auth_scheme": {
+          "OAuth": {
+            "jwks_url": "https://company-a.auth0.com/.well-known/jwks.json",
+            "audience": "scim-api"
+          }
+        },
+        "limits": {
+          "max_users": 1000,
+          "max_requests_per_minute": 1000
+        }
+      },
+      "company-b": {
+        "name": "Company B",
+        "auth_scheme": {
+          "ApiKey": {
+            "keys": ["sk_live_abc123"]
+          }
+        },
+        "limits": {
+          "max_users": 500,
+          "max_requests_per_minute": 500
+        }
+      }
+    }
+</code></pre>
+<h2 id="monitoring-and-observability-1"><a class="header" href="#monitoring-and-observability-1">Monitoring and Observability</a></h2>
+<h3 id="per-tenant-metrics-1"><a class="header" href="#per-tenant-metrics-1">Per-Tenant Metrics</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use prometheus::{Counter, Histogram, register_counter_vec, register_histogram_vec};
+
+lazy_static! {
+    static ref REQUESTS_TOTAL: Counter = register_counter_vec!(
+        "scim_requests_total",
+        "Total number of SCIM requests",
+        &amp;["tenant_id", "method", "status"]
+    ).unwrap();
+    
+    static ref REQUEST_DURATION: Histogram = register_histogram_vec!(
+        "scim_request_duration_seconds",
+        "Duration of SCIM requests",
+        &amp;["tenant_id", "method"]
+    ).unwrap();
+}
+
+async fn metrics_middleware(
+    Extension(tenant_context): Extension&lt;TenantContext&gt;,
+    request: Request,
+    next: Next,
+) -&gt; Response {
+    let method = request.method().to_string();
+    let start = std::time::Instant::now();
+    
+    let response = next.run(request).await;
+    
+    let duration = start.elapsed().as_secs_f64();
+    let status = response.status().as_u16().to_string();
+    
+    REQUESTS_TOTAL
+        .with_label_values(&amp;[&amp;tenant_context.tenant_id, &amp;method, &amp;status])
+        .inc();
+    
+    REQUEST_DURATION
+        .with_label_values(&amp;[&amp;tenant_context.tenant_id, &amp;method])
+        .observe(duration);
+    
+    response
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="tenant-health-dashboard"><a class="header" href="#tenant-health-dashboard">Tenant Health Dashboard</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>async fn tenant_health_endpoint(
+    State(app): State&lt;MultiTenantApp&gt;,
+) -&gt; Json&lt;serde_json::Value&gt; {
+    let mut tenant_health = serde_json::Map::new();
+    
+    for (tenant_id, config) in &amp;app.tenant_configs {
+        let user_count = app.scim_server
+            .count_users(tenant_id)
+            .await
+            .unwrap_or(0);
+        
+        let group_count = app.scim_server
+            .count_groups(tenant_id)
+            .await
+            .unwrap_or(0);
+        
+        tenant_health.insert(tenant_id.clone(), json!({
+            "name": config.name,
+            "status": "healthy",
+            "user_count": user_count,
+            "group_count": group_count,
+            "limits": {
+                "max_users": config.limits.max_users,
+                "user_utilization": config.limits.max_users.map(|max| (user_count as f64 / max as f64) * 100.0)
+            }
+        }));
+    }
+    
+    Json(json!({
+        "tenant_count": tenant_health.len(),
+        "tenants": tenant_health
+    }))
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This comprehensive guide covers all aspects of deploying SCIM Server in multi-tenant environments, from basic setup to advanced production patterns with complete isolation and monitoring.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorials/authentication-setup.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorials/framework-integration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorials/authentication-setup.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorials/framework-integration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

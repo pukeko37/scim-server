@@ -1,0 +1,1027 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>AI Integration with MCP - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="ai-integration-with-mcp"><a class="header" href="#ai-integration-with-mcp">AI Integration with MCP</a></h1>
+<p>This tutorial shows you how to integrate your SCIM Server with AI assistants using the Model Context Protocol (MCP). You'll learn to expose SCIM operations as MCP tools, enabling AI assistants to manage identity resources through natural language.</p>
+<h2 id="what-is-mcp"><a class="header" href="#what-is-mcp">What is MCP?</a></h2>
+<p>The Model Context Protocol (MCP) is a standardized way for AI applications to connect to external data sources and tools. It enables AI assistants like Claude, ChatGPT, and custom bots to:</p>
+<ul>
+<li><strong>Execute operations</strong> through defined tools</li>
+<li><strong>Access real-time data</strong> from external systems</li>
+<li><strong>Maintain context</strong> across conversations</li>
+<li><strong>Provide structured responses</strong> based on live data</li>
+</ul>
+<p>For SCIM servers, MCP integration means AI assistants can:</p>
+<ul>
+<li>Create, read, update, and delete users and groups</li>
+<li>Query identity data with natural language</li>
+<li>Automate complex provisioning workflows</li>
+<li>Generate reports and insights from identity data</li>
+</ul>
+<h2 id="quick-start-example"><a class="header" href="#quick-start-example">Quick Start Example</a></h2>
+<p>Here's a simple MCP server that exposes SCIM operations:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{ScimServer, InMemoryProvider, ScimUser, ScimGroup};
+use mcp_server::{McpServer, Tool, ToolResult, McpError};
+use serde_json::{json, Value};
+use tokio::net::TcpListener;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create SCIM server
+    let provider = InMemoryProvider::new();
+    let scim_server = ScimServer::builder()
+        .provider(provider)
+        .build();
+    
+    // Create MCP server with SCIM tools
+    let mcp_server = McpServer::builder()
+        .name("SCIM Identity Manager")
+        .version("1.0.0")
+        .tool(create_user_tool(scim_server.clone()))
+        .tool(get_user_tool(scim_server.clone()))
+        .tool(list_users_tool(scim_server.clone()))
+        .tool(create_group_tool(scim_server.clone()))
+        .build();
+    
+    // Start MCP server
+    let listener = TcpListener::bind("127.0.0.1:3001").await?;
+    println!("MCP Server running on localhost:3001");
+    mcp_server.serve(listener).await?;
+    
+    Ok(())
+}</code></pre></pre>
+<p>With this setup, an AI assistant can perform operations like:</p>
+<ul>
+<li>"Create a new user named Alice Johnson with email alice@company.com"</li>
+<li>"Show me all users in the Engineering department"</li>
+<li>"Add Alice to the Administrators group"</li>
+</ul>
+<h2 id="step-1-define-mcp-tools"><a class="header" href="#step-1-define-mcp-tools">Step 1: Define MCP Tools</a></h2>
+<p>MCP tools are functions that AI assistants can call. Let's define tools for common SCIM operations:</p>
+<h3 id="create-user-tool"><a class="header" href="#create-user-tool">Create User Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use mcp_server::{Tool, ToolInput, ToolResult};
+use serde_json::{json, Value};
+
+fn create_user_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("create_user")
+        .description("Create a new user in the SCIM system")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "username": {
+                    "type": "string",
+                    "description": "User's username/email"
+                },
+                "given_name": {
+                    "type": "string",
+                    "description": "User's first name"
+                },
+                "family_name": {
+                    "type": "string",
+                    "description": "User's last name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "User's email address"
+                },
+                "active": {
+                    "type": "boolean",
+                    "description": "Whether the user is active",
+                    "default": true
+                },
+                "department": {
+                    "type": "string",
+                    "description": "User's department"
+                }
+            },
+            "required": ["tenant_id", "username", "given_name", "family_name", "email"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let username = input.get_string("username")?;
+                let given_name = input.get_string("given_name")?;
+                let family_name = input.get_string("family_name")?;
+                let email = input.get_string("email")?;
+                let active = input.get_bool("active").unwrap_or(true);
+                let department = input.get_optional_string("department");
+                
+                // Build the user
+                let mut user_builder = ScimUser::builder()
+                    .username(&amp;username)
+                    .given_name(&amp;given_name)
+                    .family_name(&amp;family_name)
+                    .email(&amp;email)
+                    .active(active);
+                
+                if let Some(dept) = department {
+                    user_builder = user_builder.department(&amp;dept);
+                }
+                
+                let user = user_builder.build()?;
+                
+                // Create the user
+                let created_user = scim_server.create_user(&amp;tenant_id, user).await?;
+                
+                ToolResult::success(json!({
+                    "message": format!("Successfully created user {} ({})", created_user.username(), created_user.id()),
+                    "user": {
+                        "id": created_user.id(),
+                        "username": created_user.username(),
+                        "name": {
+                            "givenName": created_user.given_name(),
+                            "familyName": created_user.family_name()
+                        },
+                        "email": created_user.primary_email(),
+                        "active": created_user.active(),
+                        "department": created_user.department()
+                    }
+                }))
+            }
+        })
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="get-user-tool"><a class="header" href="#get-user-tool">Get User Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn get_user_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("get_user")
+        .description("Retrieve a user by ID or username")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "identifier": {
+                    "type": "string",
+                    "description": "User ID or username"
+                }
+            },
+            "required": ["tenant_id", "identifier"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let identifier = input.get_string("identifier")?;
+                
+                // Try to get user by ID first, then by username
+                let user = if identifier.contains('@') {
+                    scim_server.find_user_by_username(&amp;tenant_id, &amp;identifier).await?
+                } else {
+                    scim_server.get_user(&amp;tenant_id, &amp;identifier).await?
+                };
+                
+                match user {
+                    Some(user) =&gt; ToolResult::success(json!({
+                        "user": {
+                            "id": user.id(),
+                            "username": user.username(),
+                            "name": {
+                                "formatted": user.formatted_name(),
+                                "givenName": user.given_name(),
+                                "familyName": user.family_name()
+                            },
+                            "emails": user.emails(),
+                            "active": user.active(),
+                            "department": user.department(),
+                            "title": user.title(),
+                            "manager": user.manager().map(|m| m.display_name()),
+                            "meta": {
+                                "created": user.meta().created,
+                                "lastModified": user.meta().last_modified,
+                                "version": user.meta().version
+                            }
+                        }
+                    })),
+                    None =&gt; ToolResult::error(format!("User '{}' not found", identifier))
+                }
+            }
+        })
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="list-users-tool"><a class="header" href="#list-users-tool">List Users Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn list_users_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("list_users")
+        .description("List users with optional filtering")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "SCIM filter expression (e.g., 'department eq \"Engineering\"')"
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "Maximum number of results",
+                    "default": 50,
+                    "maximum": 200
+                },
+                "sort_by": {
+                    "type": "string",
+                    "description": "Attribute to sort by",
+                    "default": "meta.lastModified"
+                }
+            },
+            "required": ["tenant_id"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let filter = input.get_optional_string("filter");
+                let count = input.get_optional_int("count").unwrap_or(50).min(200);
+                let sort_by = input.get_optional_string("sort_by").unwrap_or_else(|| "meta.lastModified".to_string());
+                
+                let mut options = ListOptions::builder()
+                    .count(count as usize)
+                    .sort_by(&amp;sort_by);
+                
+                // Note: Filter expressions are not yet implemented
+                // For now, we'll load all users and filter in memory if needed
+                
+                let response = scim_server.list_users(&amp;tenant_id, &amp;options.build()).await?;
+                
+                let users: Vec&lt;Value&gt; = response.resources.into_iter().map(|user| {
+                    json!({
+                        "id": user.id(),
+                        "username": user.username(),
+                        "name": {
+                            "formatted": user.formatted_name(),
+                            "givenName": user.given_name(),
+                            "familyName": user.family_name()
+                        },
+                        "email": user.primary_email(),
+                        "active": user.active(),
+                        "department": user.department(),
+                        "title": user.title(),
+                        "lastModified": user.meta().last_modified
+                    })
+                }).collect();
+                
+                ToolResult::success(json!({
+                    "totalResults": response.total_results,
+                    "startIndex": response.start_index,
+                    "itemsPerPage": response.items_per_page,
+                    "users": users
+                }))
+            }
+        })
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="step-2-group-management-tools"><a class="header" href="#step-2-group-management-tools">Step 2: Group Management Tools</a></h2>
+<p>Add tools for group operations:</p>
+<h3 id="create-group-tool"><a class="header" href="#create-group-tool">Create Group Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn create_group_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("create_group")
+        .description("Create a new group")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "display_name": {
+                    "type": "string",
+                    "description": "Group display name"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Group description"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Array of user IDs or usernames to add as members"
+                }
+            },
+            "required": ["tenant_id", "display_name"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let display_name = input.get_string("display_name")?;
+                let description = input.get_optional_string("description");
+                let member_identifiers = input.get_optional_array("members").unwrap_or_default();
+                
+                // Resolve member identifiers to user IDs
+                let mut members = Vec::new();
+                for identifier_value in member_identifiers {
+                    if let Some(identifier) = identifier_value.as_str() {
+                        let user = if identifier.contains('@') {
+                            scim_server.find_user_by_username(&amp;tenant_id, identifier).await?
+                        } else {
+                            scim_server.get_user(&amp;tenant_id, identifier).await?
+                        };
+                        
+                        if let Some(user) = user {
+                            members.push(GroupMember {
+                                value: user.id().to_string(),
+                                ref_: Some(format!("../Users/{}", user.id())),
+                                type_: Some("User".to_string()),
+                                display: user.formatted_name(),
+                            });
+                        } else {
+                            return ToolResult::error(format!("User '{}' not found", identifier));
+                        }
+                    }
+                }
+                
+                // Build the group
+                let mut group_builder = ScimGroup::builder()
+                    .display_name(&amp;display_name)
+                    .members(members);
+                
+                if let Some(desc) = description {
+                    group_builder = group_builder.description(&amp;desc);
+                }
+                
+                let group = group_builder.build()?;
+                
+                // Create the group
+                let created_group = scim_server.create_group(&amp;tenant_id, group).await?;
+                
+                ToolResult::success(json!({
+                    "message": format!("Successfully created group '{}' with {} members", 
+                                     created_group.display_name(), 
+                                     created_group.members().len()),
+                    "group": {
+                        "id": created_group.id(),
+                        "displayName": created_group.display_name(),
+                        "description": created_group.description(),
+                        "memberCount": created_group.members().len(),
+                        "members": created_group.members().iter().map(|m| json!({
+                            "id": m.value,
+                            "display": m.display
+                        })).collect::&lt;Vec&lt;_&gt;&gt;()
+                    }
+                }))
+            }
+        })
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="add-user-to-group-tool"><a class="header" href="#add-user-to-group-tool">Add User to Group Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn add_user_to_group_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("add_user_to_group")
+        .description("Add a user to a group")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "group_identifier": {
+                    "type": "string", 
+                    "description": "Group ID or display name"
+                },
+                "user_identifier": {
+                    "type": "string",
+                    "description": "User ID or username"
+                }
+            },
+            "required": ["tenant_id", "group_identifier", "user_identifier"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let group_identifier = input.get_string("group_identifier")?;
+                let user_identifier = input.get_string("user_identifier")?;
+                
+                // Find the group
+                let group = scim_server.find_group(&amp;tenant_id, &amp;group_identifier).await?
+                    .ok_or_else(|| format!("Group '{}' not found", group_identifier))?;
+                
+                // Find the user
+                let user = if user_identifier.contains('@') {
+                    scim_server.find_user_by_username(&amp;tenant_id, &amp;user_identifier).await?
+                } else {
+                    scim_server.get_user(&amp;tenant_id, &amp;user_identifier).await?
+                }.ok_or_else(|| format!("User '{}' not found", user_identifier))?;
+                
+                // Add user to group using PATCH operation
+                let patch_op = PatchOperation {
+                    op: PatchOp::Add,
+                    path: Some("members".to_string()),
+                    value: Some(json!([{
+                        "value": user.id(),
+                        "$ref": format!("../Users/{}", user.id()),
+                        "type": "User",
+                        "display": user.formatted_name()
+                    }])),
+                };
+                
+                let updated_group = scim_server.patch_group(&amp;tenant_id, group.id(), vec![patch_op]).await?;
+                
+                ToolResult::success(json!({
+                    "message": format!("Successfully added {} to group '{}'", 
+                                     user.formatted_name(), 
+                                     updated_group.display_name()),
+                    "group": {
+                        "id": updated_group.id(),
+                        "displayName": updated_group.display_name(),
+                        "memberCount": updated_group.members().len()
+                    },
+                    "user": {
+                        "id": user.id(),
+                        "username": user.username(),
+                        "name": user.formatted_name()
+                    }
+                }))
+            }
+        })
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="step-3-advanced-query-tools"><a class="header" href="#step-3-advanced-query-tools">Step 3: Advanced Query Tools</a></h2>
+<p>Create intelligent tools that can understand natural language queries:</p>
+<h3 id="search-tool"><a class="header" href="#search-tool">Search Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn search_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("search")
+        .description("Search for users or groups using natural language")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Natural language search query"
+                },
+                "resource_type": {
+                    "type": "string",
+                    "enum": ["users", "groups", "both"],
+                    "default": "both",
+                    "description": "Type of resources to search"
+                }
+            },
+            "required": ["tenant_id", "query"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let query = input.get_string("query")?;
+                let resource_type = input.get_optional_string("resource_type").unwrap_or_else(|| "both".to_string());
+                
+                let mut results = json!({
+                    "query": query,
+                    "results": {}
+                });
+                
+                // Load users and apply in-memory filtering based on query
+                let options = ListOptions::builder()
+                    .count(200)  // Load more to filter in memory
+                    .build();
+                
+                // Search users
+                if resource_type == "users" || resource_type == "both" {
+                    let user_response = scim_server.list_users(&amp;tenant_id, &amp;options).await?;
+                    
+                    // Filter users in memory based on query
+                    let filtered_users: Vec&lt;_&gt; = user_response.resources.into_iter()
+                        .filter(|user| matches_query(user, &amp;query))
+                        .collect();
+                    
+                    let users: Vec&lt;Value&gt; = filtered_users.into_iter().map(|user| {
+                        json!({
+                            "id": user.id(),
+                            "username": user.username(),
+                            "name": user.formatted_name(),
+                            "email": user.primary_email(),
+                            "department": user.department(),
+                            "active": user.active()
+                        })
+                    }).collect();
+                    
+                    results["results"]["users"] = json!({
+                        "count": users.len(),
+                        "items": users
+                    });
+                }
+                
+                // Search groups
+                if resource_type == "groups" || resource_type == "both" {
+                    let group_response = scim_server.list_groups(&amp;tenant_id, &amp;options).await?;
+                    let groups: Vec&lt;Value&gt; = group_response.resources.into_iter().map(|group| {
+                        json!({
+                            "id": group.id(),
+                            "displayName": group.display_name(),
+                            "description": group.description(),
+                            "memberCount": group.members().len()
+                        })
+                    }).collect();
+                    
+                    results["results"]["groups"] = json!({
+                        "count": groups.len(),
+                        "items": groups
+                    });
+                }
+                
+                ToolResult::success(results)
+            }
+        })
+        .build()
+}
+
+// Helper function to match users against natural language queries
+fn matches_query(user: &amp;ScimUser, query: &amp;str) -&gt; bool {
+    let query_lower = query.to_lowercase();
+    
+    // Check various user fields for matches
+    if let Some(username) = user.username() {
+        if username.to_lowercase().contains(&amp;query_lower) {
+            return true;
+        }
+    }
+    
+    if let Some(email) = user.primary_email() {
+        if email.to_lowercase().contains(&amp;query_lower) {
+            return true;
+        }
+    }
+    
+    if let Some(name) = user.formatted_name() {
+        if name.to_lowercase().contains(&amp;query_lower) {
+            return true;
+        }
+    }
+    
+    if let Some(department) = user.department() {
+        if department.to_lowercase().contains(&amp;query_lower) {
+            return true;
+        }
+    }
+    
+    // Specific keyword matching
+    if query_lower.contains("engineer") || query_lower.contains("engineering") {
+        return user.department().map_or(false, |d| d.to_lowercase().contains("engineer"));
+    }
+    
+    if query_lower.contains("active") {
+        return user.active();
+    }
+    
+    if query_lower.contains("inactive") || query_lower.contains("disabled") {
+        return !user.active();
+    }
+    
+    false
+}
+
+fn extract_email(query: &amp;str) -&gt; Option&lt;String&gt; {
+    // Simple email extraction
+    let email_regex = regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").ok()?;
+    email_regex.find(query).map(|m| m.as_str().to_string())
+}
+
+fn extract_name(query: &amp;str) -&gt; Option&lt;String&gt; {
+    // Extract quoted names or capitalize first word
+    if let Some(start) = query.find('"') {
+        if let Some(end) = query[start + 1..].find('"') {
+            return Some(query[start + 1..start + 1 + end].to_string());
+        }
+    }
+    
+    // Take first word as potential name
+    query.split_whitespace().next().map(|s| s.to_string())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="step-4-analytics-and-reporting-tools"><a class="header" href="#step-4-analytics-and-reporting-tools">Step 4: Analytics and Reporting Tools</a></h2>
+<p>Add tools for generating insights:</p>
+<h3 id="user-analytics-tool"><a class="header" href="#user-analytics-tool">User Analytics Tool</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn user_analytics_tool(scim_server: ScimServer) -&gt; Tool {
+    Tool::builder()
+        .name("user_analytics")
+        .description("Generate analytics and insights about users")
+        .input_schema(json!({
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant identifier"
+                },
+                "report_type": {
+                    "type": "string",
+                    "enum": ["summary", "department_breakdown", "activity_report", "growth_trends"],
+                    "default": "summary",
+                    "description": "Type of analytics report to generate"
+                },
+                "date_range": {
+                    "type": "string",
+                    "description": "Date range for the report (e.g., 'last_30_days', 'last_quarter')",
+                    "default": "last_30_days"
+                }
+            },
+            "required": ["tenant_id"]
+        }))
+        .handler(move |input: ToolInput| {
+            let scim_server = scim_server.clone();
+            async move {
+                let tenant_id = input.get_string("tenant_id")?;
+                let report_type = input.get_optional_string("report_type").unwrap_or_else(|| "summary".to_string());
+                let date_range = input.get_optional_string("date_range").unwrap_or_else(|| "last_30_days".to_string());
+                
+                match report_type.as_str() {
+                    "summary" =&gt; generate_user_summary(&amp;scim_server, &amp;tenant_id).await,
+                    "department_breakdown" =&gt; generate_department_breakdown(&amp;scim_server, &amp;tenant_id).await,
+                    "activity_report" =&gt; generate_activity_report(&amp;scim_server, &amp;tenant_id, &amp;date_range).await,
+                    "growth_trends" =&gt; generate_growth_trends(&amp;scim_server, &amp;tenant_id, &amp;date_range).await,
+                    _ =&gt; ToolResult::error("Unknown report type".to_string())
+                }
+            }
+        })
+        .build()
+}
+
+async fn generate_user_summary(scim_server: &amp;ScimServer, tenant_id: &amp;str) -&gt; ToolResult {
+    let all_users = scim_server.list_users(tenant_id, &amp;ListOptions::default()).await?;
+    
+    let total_users = all_users.total_results;
+    let active_users = all_users.resources.iter().filter(|u| u.active()).count();
+    let inactive_users = total_users - active_users;
+    
+    // Department breakdown
+    let mut departments = std::collections::HashMap::new();
+    for user in &amp;all_users.resources {
+        if let Some(dept) = user.department() {
+            *departments.entry(dept.to_string()).or_insert(0) += 1;
+        } else {
+            *departments.entry("Unassigned".to_string()).or_insert(0) += 1;
+        }
+    }
+    
+    // Recent activity (last 7 days)
+    let week_ago = chrono::Utc::now() - chrono::Duration::days(7);
+    let recent_users = all_users.resources.iter()
+        .filter(|u| u.meta().created &gt; week_ago)
+        .count();
+    
+    ToolResult::success(json!({
+        "report": "User Summary",
+        "generated_at": chrono::Utc::now(),
+        "total_users": total_users,
+        "active_users": active_users,
+        "inactive_users": inactive_users,
+        "activity_rate": format!("{:.1}%", (active_users as f64 / total_users as f64) * 100.0),
+        "new_users_last_7_days": recent_users,
+        "department_breakdown": departments,
+        "top_departments": {
+            let mut dept_vec: Vec&lt;_&gt; = departments.iter().collect();
+            dept_vec.sort_by(|a, b| b.1.cmp(a.1));
+            dept_vec.into_iter().take(5).map(|(k, v)| json!({"department": k, "count": v})).collect::&lt;Vec&lt;_&gt;&gt;()
+        }
+    }))
+}
+
+async fn generate_department_breakdown(scim_server: &amp;ScimServer, tenant_id: &amp;str) -&gt; ToolResult {
+    let all_users = scim_server.list_users(tenant_id, &amp;ListOptions::default()).await?;
+    
+    let mut department_stats = std::collections::HashMap::new();
+    
+    for user in &amp;all_users.resources {
+        let dept = user.department().unwrap_or("Unassigned");
+        let entry = department_stats.entry(dept.to_string()).or_insert_with(|| json!({
+            "name": dept,
+            "total_users": 0,
+            "active_users": 0,
+            "managers": 0,
+            "recent_additions": 0
+        }));
+        
+        entry["total_users"] = json!(entry["total_users"].as_u64().unwrap() + 1);
+        
+        if user.active() {
+            entry["active_users"] = json!(entry["active_users"].as_u64().unwrap() + 1);
+        }
+        
+        if user.title().map_or(false, |t| t.to_lowercase().contains("manager")) {
+            entry["managers"] = json!(entry["managers"].as_u64().unwrap() + 1);
+        }
+        
+        let week_ago = chrono::Utc::now() - chrono::Duration::days(7);
+        if user.meta().created &gt; week_ago {
+            entry["recent_additions"] = json!(entry["recent_additions"].as_u64().unwrap() + 1);
+        }
+    }
+    
+    let departments: Vec&lt;_&gt; = department_stats.into_values().collect();
+    
+    ToolResult::success(json!({
+        "report": "Department Breakdown",
+        "generated_at": chrono::Utc::now(),
+        "total_departments": departments.len(),
+        "departments": departments
+    }))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="step-5-complete-mcp-server-setup"><a class="header" href="#step-5-complete-mcp-server-setup">Step 5: Complete MCP Server Setup</a></h2>
+<p>Put it all together in a complete MCP server:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{ScimServer, InMemoryProvider, DatabaseProvider};
+use mcp_server::{McpServer, ServerInfo};
+use serde_json::json;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Initialize logging
+    tracing_subscriber::init();
+    
+    // Create SCIM server with your choice of provider
+    let provider = if std::env::var("DATABASE_URL").is_ok() {
+        let db_url = std::env::var("DATABASE_URL")?;
+        Box::new(DatabaseProvider::new(&amp;db_url).await?) as Box&lt;dyn Provider&gt;
+    } else {
+        Box::new(InMemoryProvider::new()) as Box&lt;dyn Provider&gt;
+    };
+    
+    let scim_server = Arc::new(ScimServer::builder()
+        .provider(provider)
+        .build());
+    
+    // Create MCP server with comprehensive tool set
+    let mcp_server = McpServer::builder()
+        .server_info(ServerInfo {
+            name: "SCIM Identity Manager".to_string(),
+            version: "1.0.0".to_string(),
+            description: Some("AI-powered identity management through SCIM protocol".to_string()),
+            author: Some("Your Organization".to_string()),
+            license: Some("MIT".to_string()),
+        })
+        // User management tools
+        .tool(create_user_tool(scim_server.clone()))
+        .tool(get_user_tool(scim_server.clone()))
+        .tool(list_users_tool(scim_server.clone()))
+        .tool(update_user_tool(scim_server.clone()))
+        .tool(delete_user_tool(scim_server.clone()))
+        // Group management tools
+        .tool(create_group_tool(scim_server.clone()))
+        .tool(get_group_tool(scim_server.</code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorials/framework-integration.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorials/performance-optimization.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorials/framework-integration.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorials/performance-optimization.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

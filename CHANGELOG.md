@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.2] - 2025-01-27
+
+### Added
+- Comprehensive documentation strategy in `ReferenceNotes/documentation-strategy.md`
+- Structured approach for organizing documentation across multiple layers
+- Implementation plan for documentation refactoring
+
+### Changed
+- Prepared for major documentation restructuring following progressive disclosure principles
+- Enhanced documentation organization strategy to improve user experience
+
+### Documentation
+- Created six-layer documentation architecture (Entry Point, Quick Start, Examples, Learning, API Reference, Technical Reference)
+- Established clear homes for different types of documentation
+- Defined quality standards and maintenance processes for documentation
+
 ## [0.3.1] - 2025-08-14
 
 ### Added

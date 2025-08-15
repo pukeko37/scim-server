@@ -1,0 +1,313 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Introduction - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="scim-server-guide"><a class="header" href="#scim-server-guide">SCIM Server Guide</a></h1>
+<p>Welcome to the comprehensive guide for the SCIM Server library! This guide will take you from initial setup to advanced usage patterns, helping you build robust identity provisioning systems with Rust.</p>
+<h2 id="what-is-scim-server"><a class="header" href="#what-is-scim-server">What is SCIM Server?</a></h2>
+<p>SCIM Server is a comprehensive Rust library that implements the SCIM 2.0 (System for Cross-domain Identity Management) protocol. It provides a type-safe, high-performance foundation for building identity provisioning and management systems.</p>
+<h3 id="why-scim"><a class="header" href="#why-scim">Why SCIM?</a></h3>
+<p>SCIM is the industry standard for automating user provisioning between identity providers and applications. Instead of building custom APIs for user management, SCIM provides:</p>
+<ul>
+<li><strong>Standardized Operations</strong>: Consistent CRUD operations across all systems</li>
+<li><strong>Rich Filtering</strong>: Powerful query capabilities for finding users and groups</li>
+<li><strong>Bulk Operations</strong>: Efficient handling of large-scale provisioning tasks</li>
+<li><strong>Schema Validation</strong>: Automatic validation against well-defined schemas</li>
+<li><strong>Interoperability</strong>: Works with existing identity providers and applications</li>
+</ul>
+<h3 id="why-this-library"><a class="header" href="#why-this-library">Why This Library?</a></h3>
+<p>The SCIM Server library takes SCIM implementation to the next level with:</p>
+<ul>
+<li><strong>🛡️ Type Safety</strong>: Leverage Rust's type system to prevent runtime errors</li>
+<li><strong>🏢 Multi-Tenancy</strong>: Built-in support for multiple organizations</li>
+<li><strong>⚡ Performance</strong>: Async-first design with minimal overhead</li>
+<li><strong>🔌 Flexibility</strong>: Framework-agnostic with pluggable storage</li>
+<li><strong>🤖 AI Integration</strong>: Built-in Model Context Protocol support</li>
+<li><strong>🔄 Concurrency Control</strong>: ETag-based optimistic locking</li>
+</ul>
+<h2 id="architecture-overview"><a class="header" href="#architecture-overview">Architecture Overview</a></h2>
+<p>The SCIM Server follows a clean three-layer architecture:</p>
+<pre><code>┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   HTTP Layer    │    │   SCIM Server    │    │   Storage       │
+│                 │    │                  │    │                 │
+│  • Axum         │───▶│  • Validation    │───▶│  • In-Memory    │
+│  • Warp         │    │  • Operations    │    │  • Database     │
+│  • Actix        │    │  • Multi-tenant  │    │  • Custom       │
+│  • Custom       │    │  • Type Safety   │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+</code></pre>
+<p><strong>HTTP Layer</strong>: Your choice of web framework handles HTTP requests and responses.</p>
+<p><strong>SCIM Server</strong>: The core library handles SCIM protocol logic, validation, multi-tenancy, and type safety.</p>
+<p><strong>Storage</strong>: Pluggable storage providers handle data persistence, from simple in-memory stores to enterprise databases.</p>
+<h2 id="value-proposition"><a class="header" href="#value-proposition">Value Proposition</a></h2>
+<p>Instead of building provisioning logic into every application, the SCIM Server centralizes complexity:</p>
+<div class="table-wrapper"><table><thead><tr><th><strong>Without SCIM Server</strong></th><th><strong>With SCIM Server</strong></th></tr></thead><tbody>
+<tr><td>❌ Custom validation in each app</td><td>✅ Centralized validation engine</td></tr>
+<tr><td>❌ Manual concurrency control</td><td>✅ Automatic ETag versioning</td></tr>
+<tr><td>❌ Manual schema management</td><td>✅ Dynamic schema registry</td></tr>
+<tr><td>❌ Ad-hoc API endpoints</td><td>✅ Standardized SCIM protocol</td></tr>
+<tr><td>❌ Build multi-tenancy from scratch</td><td>✅ Built-in tenant isolation</td></tr>
+</tbody></table>
+</div>
+<p><strong>Result</strong>: Your applications focus on business logic while SCIM Server handles all provisioning complexity.</p>
+<h2 id="who-should-use-this-guide"><a class="header" href="#who-should-use-this-guide">Who Should Use This Guide?</a></h2>
+<p>This guide is designed for:</p>
+<ul>
+<li><strong>Rust Developers</strong> building identity-aware applications</li>
+<li><strong>System Architects</strong> designing multi-tenant SaaS platforms</li>
+<li><strong>DevOps Engineers</strong> automating user provisioning workflows</li>
+<li><strong>AI Engineers</strong> integrating identity management with AI tools</li>
+<li><strong>Security Engineers</strong> implementing enterprise identity solutions</li>
+</ul>
+<h2 id="how-to-use-this-guide"><a class="header" href="#how-to-use-this-guide">How to Use This Guide</a></h2>
+<p>The guide is organized into progressive sections:</p>
+<ol>
+<li><strong>Getting Started</strong>: Quick setup and basic usage</li>
+<li><strong>Core Concepts</strong>: Understanding the fundamental ideas</li>
+<li><strong>Tutorials</strong>: Step-by-step guides for common scenarios</li>
+<li><strong>How-To Guides</strong>: Solutions for specific problems</li>
+<li><strong>Advanced Topics</strong>: Deep dives into complex scenarios</li>
+<li><strong>Reference</strong>: Technical specifications and details</li>
+</ol>
+<h3 id="learning-path"><a class="header" href="#learning-path">Learning Path</a></h3>
+<p><strong>New to SCIM?</strong> Start with <a href="./concepts/scim-protocol.html">SCIM Protocol Overview</a> to understand the standard.</p>
+<p><strong>Ready to code?</strong> Jump to <a href="./getting-started/first-server.html">Your First SCIM Server</a> for hands-on experience.</p>
+<p><strong>Building production systems?</strong> Read through <a href="./concepts/architecture.html">Core Concepts</a> and <a href="./advanced/production-deployment.html">Advanced Topics</a>.</p>
+<p><strong>Solving specific problems?</strong> Use the <a href="./how-to/troubleshooting.html">How-To Guides</a> section.</p>
+<h2 id="what-youll-learn"><a class="header" href="#what-youll-learn">What You'll Learn</a></h2>
+<p>By the end of this guide, you'll be able to:</p>
+<ul>
+<li>Set up and configure SCIM Server for your use case</li>
+<li>Implement multi-tenant identity provisioning systems</li>
+<li>Handle complex scenarios like custom resources and authentication</li>
+<li>Integrate with web frameworks and AI tools</li>
+<li>Deploy production-ready SCIM services</li>
+<li>Troubleshoot common issues and optimize performance</li>
+</ul>
+<h2 id="getting-help"><a class="header" href="#getting-help">Getting Help</a></h2>
+<ul>
+<li><strong>Examples</strong>: Check the <a href="https://github.com/pukeko37/scim-server/tree/main/examples">examples directory</a> for working code</li>
+<li><strong>API Documentation</strong>: See <a href="https://docs.rs/scim-server">docs.rs</a> for detailed API reference</li>
+<li><strong>Issues</strong>: Report bugs or ask questions on <a href="https://github.com/pukeko37/scim-server/issues">GitHub Issues</a></li>
+</ul>
+<p>Let's get started! 🚀</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+                            <a rel="next prefetch" href="getting-started/installation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+                    <a rel="next prefetch" href="getting-started/installation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,1624 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Security Considerations - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="security-considerations"><a class="header" href="#security-considerations">Security Considerations</a></h1>
+<p>This guide provides comprehensive security guidance for deploying and operating SCIM servers in production environments. Security is paramount in identity management systems, and this document covers threats, mitigations, and best practices.</p>
+<h2 id="security-overview"><a class="header" href="#security-overview">Security Overview</a></h2>
+<p>SCIM servers handle sensitive identity data and must be secured against various attack vectors. This document addresses:</p>
+<ul>
+<li><strong>Authentication and Authorization</strong></li>
+<li><strong>Data Protection</strong></li>
+<li><strong>Network Security</strong></li>
+<li><strong>Input Validation</strong></li>
+<li><strong>Audit and Monitoring</strong></li>
+<li><strong>Deployment Security</strong></li>
+<li><strong>Compliance Considerations</strong></li>
+</ul>
+<h2 id="authentication-security"><a class="header" href="#authentication-security">Authentication Security</a></h2>
+<h3 id="token-based-authentication"><a class="header" href="#token-based-authentication">Token-Based Authentication</a></h3>
+<h4 id="jwt-token-validation"><a class="header" href="#jwt-token-validation">JWT Token Validation</a></h4>
+<p><strong>Best Practices</strong>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::auth::{AuthConfig, JwtConfig};
+
+let jwt_config = JwtConfig::builder()
+    .issuer("https://trusted-auth-provider.com")
+    .audience("scim-api")
+    .public_key_url("https://trusted-auth-provider.com/.well-known/jwks.json")
+    .algorithm("RS256") // Use asymmetric algorithms
+    .clock_skew_seconds(60) // Allow for clock drift
+    .cache_public_keys(true)
+    .key_refresh_interval_seconds(3600) // Refresh keys hourly
+    .validate_not_before(true)
+    .validate_expiration(true)
+    .build()?;
+
+let auth_config = AuthConfig::builder()
+    .jwt_config(jwt_config)
+    .require_scope("scim:write") // Require specific scopes
+    .build()?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Security Measures</strong>:</p>
+<ul>
+<li>Always validate JWT signatures using public keys</li>
+<li>Verify issuer, audience, and expiration claims</li>
+<li>Use short-lived tokens (15-60 minutes)</li>
+<li>Implement token refresh mechanisms</li>
+<li>Cache public keys with regular rotation</li>
+</ul>
+<h4 id="bearer-token-security"><a class="header" href="#bearer-token-security">Bearer Token Security</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::auth::{BearerTokenValidator, TokenValidationError};
+
+#[async_trait]
+impl BearerTokenValidator for CustomTokenValidator {
+    async fn validate_token(&amp;self, token: &amp;str) -&gt; Result&lt;AuthContext, TokenValidationError&gt; {
+        // Implement secure token validation
+        let validation_result = self.introspect_token(token).await?;
+        
+        if !validation_result.active {
+            return Err(TokenValidationError::TokenInactive);
+        }
+        
+        if validation_result.expires_at &lt; Utc::now() {
+            return Err(TokenValidationError::TokenExpired);
+        }
+        
+        // Validate required scopes
+        if !validation_result.scopes.contains(&amp;"scim:read".to_string()) {
+            return Err(TokenValidationError::InsufficientScope);
+        }
+        
+        Ok(AuthContext {
+            user_id: validation_result.user_id,
+            tenant_id: validation_result.tenant_id,
+            scopes: validation_result.scopes,
+            roles: validation_result.roles,
+        })
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="oauth-20-integration"><a class="header" href="#oauth-20-integration">OAuth 2.0 Integration</a></h3>
+<h4 id="scope-based-authorization"><a class="header" href="#scope-based-authorization">Scope-Based Authorization</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::auth::{AuthMiddleware, RequiredScope};
+
+// Define fine-grained scopes
+const SCIM_READ: &amp;str = "scim:read";
+const SCIM_WRITE: &amp;str = "scim:write";
+const SCIM_DELETE: &amp;str = "scim:delete";
+const SCIM_ADMIN: &amp;str = "scim:admin";
+
+// Apply scope requirements to endpoints
+app.route("/Users", get(list_users).with(RequiredScope::new(SCIM_READ)))
+   .route("/Users", post(create_user).with(RequiredScope::new(SCIM_WRITE)))
+   .route("/Users/:id", delete(delete_user).with(RequiredScope::new(SCIM_DELETE)));
+<span class="boring">}</span></code></pre></pre>
+<h4 id="token-introspection"><a class="header" href="#token-introspection">Token Introspection</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use oauth2::introspection::{IntrospectionRequest, IntrospectionResponse};
+
+async fn introspect_token(token: &amp;str) -&gt; Result&lt;IntrospectionResponse, AuthError&gt; {
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://auth-server.com/oauth2/introspect")
+        .form(&amp;[
+            ("token", token),
+            ("token_type_hint", "access_token"),
+        ])
+        .basic_auth(&amp;client_id, Some(&amp;client_secret))
+        .timeout(Duration::from_secs(5)) // Short timeout
+        .send()
+        .await?;
+    
+    let introspection: IntrospectionResponse = response.json().await?;
+    Ok(introspection)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="authorization-security"><a class="header" href="#authorization-security">Authorization Security</a></h2>
+<h3 id="role-based-access-control-rbac"><a class="header" href="#role-based-access-control-rbac">Role-Based Access Control (RBAC)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::auth::{Role, Permission, AuthContext};
+
+#[derive(Debug, Clone)]
+pub enum Permission {
+    ReadUsers,
+    WriteUsers,
+    DeleteUsers,
+    ReadGroups,
+    WriteGroups,
+    DeleteGroups,
+    ManageTenants,
+    ViewAuditLogs,
+}
+
+#[derive(Debug, Clone)]
+pub struct Role {
+    pub name: String,
+    pub permissions: Vec&lt;Permission&gt;,
+    pub tenant_scope: Option&lt;String&gt;, // None for global roles
+}
+
+// Define roles
+let user_reader = Role {
+    name: "user_reader".to_string(),
+    permissions: vec![Permission::ReadUsers],
+    tenant_scope: Some("tenant_123".to_string()),
+};
+
+let admin = Role {
+    name: "admin".to_string(),
+    permissions: vec![
+        Permission::ReadUsers,
+        Permission::WriteUsers,
+        Permission::DeleteUsers,
+        Permission::ReadGroups,
+        Permission::WriteGroups,
+        Permission::DeleteGroups,
+    ],
+    tenant_scope: None, // Global admin
+};
+
+// Authorization middleware
+async fn authorize_request(
+    auth_context: &amp;AuthContext,
+    required_permission: Permission,
+    resource_tenant: Option&lt;&amp;str&gt;,
+) -&gt; Result&lt;(), AuthError&gt; {
+    for role in &amp;auth_context.roles {
+        if role.permissions.contains(&amp;required_permission) {
+            // Check tenant scope
+            match (&amp;role.tenant_scope, resource_tenant) {
+                (None, _) =&gt; return Ok(()), // Global role
+                (Some(role_tenant), Some(resource_tenant)) if role_tenant == resource_tenant =&gt; {
+                    return Ok(());
+                }
+                _ =&gt; continue,
+            }
+        }
+    }
+    Err(AuthError::InsufficientPermissions)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="attribute-level-security"><a class="header" href="#attribute-level-security">Attribute-Level Security</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::security::{AttributeFilter, SecurityContext};
+
+#[derive(Debug)]
+pub struct AttributeFilter {
+    readable_attributes: HashSet&lt;String&gt;,
+    writable_attributes: HashSet&lt;String&gt;,
+    tenant_id: Option&lt;String&gt;,
+    user_roles: Vec&lt;String&gt;,
+}
+
+impl AttributeFilter {
+    pub fn filter_response(&amp;self, mut user: User) -&gt; User {
+        // Remove sensitive attributes based on permissions
+        if !self.user_roles.contains(&amp;"admin".to_string()) {
+            user.password = None;
+            user.security_question = None;
+        }
+        
+        // Remove PII for limited roles
+        if !self.user_roles.contains(&amp;"pii_reader".to_string()) {
+            user.social_security_number = None;
+            user.date_of_birth = None;
+        }
+        
+        user
+    }
+    
+    pub fn validate_write_permissions(&amp;self, patch_ops: &amp;[PatchOp]) -&gt; Result&lt;(), AuthError&gt; {
+        for op in patch_ops {
+            let attribute = extract_attribute_from_path(&amp;op.path);
+            if !self.writable_attributes.contains(attribute) {
+                return Err(AuthError::AttributeNotWritable(attribute.to_string()));
+            }
+        }
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="data-protection"><a class="header" href="#data-protection">Data Protection</a></h2>
+<h3 id="encryption-at-rest"><a class="header" href="#encryption-at-rest">Encryption at Rest</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::encryption::{EncryptionProvider, AesGcmProvider};
+
+// Configure encryption for sensitive fields
+let encryption_config = EncryptionConfig::builder()
+    .provider(AesGcmProvider::new(&amp;encryption_key)?)
+    .encrypt_fields(vec![
+        "password",
+        "socialSecurityNumber",
+        "bankAccountNumber",
+        "personalEmail",
+    ])
+    .encryption_algorithm("AES-256-GCM")
+    .key_rotation_days(90)
+    .build()?;
+
+// Automatic encryption/decryption
+#[derive(Serialize, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub user_name: String,
+    
+    #[serde(with = "encrypted_field")]
+    pub password: Option&lt;String&gt;,
+    
+    #[serde(with = "encrypted_field")]
+    pub social_security_number: Option&lt;String&gt;,
+    
+    pub meta: Meta,
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="encryption-in-transit"><a class="header" href="#encryption-in-transit">Encryption in Transit</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::tls::{TlsConfig, TlsVersion, CipherSuite};
+
+let tls_config = TlsConfig::builder()
+    .certificate_file("/etc/ssl/certs/server.crt")
+    .private_key_file("/etc/ssl/private/server.key")
+    .ca_certificate_file("/etc/ssl/certs/ca.crt")
+    .min_tls_version(TlsVersion::V1_2)
+    .max_tls_version(TlsVersion::V1_3)
+    .require_client_cert(false)
+    .cipher_suites(vec![
+        CipherSuite::TLS_AES_256_GCM_SHA384,
+        CipherSuite::TLS_CHACHA20_POLY1305_SHA256,
+        CipherSuite::TLS_AES_128_GCM_SHA256,
+    ])
+    .verify_hostname(true)
+    .build()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="data-masking-and-redaction"><a class="header" href="#data-masking-and-redaction">Data Masking and Redaction</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::privacy::{DataMasker, MaskingRule};
+
+#[derive(Debug)]
+pub struct DataMasker {
+    rules: Vec&lt;MaskingRule&gt;,
+}
+
+impl DataMasker {
+    pub fn mask_user_for_logging(&amp;self, user: &amp;User) -&gt; User {
+        let mut masked_user = user.clone();
+        
+        // Mask email
+        if let Some(email) = &amp;masked_user.user_name {
+            masked_user.user_name = Some(self.mask_email(email));
+        }
+        
+        // Remove sensitive fields entirely
+        masked_user.password = None;
+        masked_user.social_security_number = None;
+        
+        // Mask phone numbers
+        for phone in &amp;mut masked_user.phone_numbers {
+            phone.value = self.mask_phone(&amp;phone.value);
+        }
+        
+        masked_user
+    }
+    
+    fn mask_email(&amp;self, email: &amp;str) -&gt; String {
+        if let Some(at_pos) = email.find('@') {
+            let (local, domain) = email.split_at(at_pos);
+            if local.len() &gt; 2 {
+                format!("{}***@{}", &amp;local[..2], &amp;domain[1..])
+            } else {
+                format!("***@{}", &amp;domain[1..])
+            }
+        } else {
+            "***".to_string()
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="input-validation-security"><a class="header" href="#input-validation-security">Input Validation Security</a></h2>
+<h3 id="schema-validation"><a class="header" href="#schema-validation">Schema Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::validation::{SchemaValidator, ValidationError};
+
+#[derive(Debug)]
+pub struct SecureValidator {
+    max_string_length: usize,
+    max_array_size: usize,
+    allowed_schemas: HashSet&lt;String&gt;,
+    dangerous_patterns: Vec&lt;Regex&gt;,
+}
+
+impl SecureValidator {
+    pub fn validate_user_input(&amp;self, user: &amp;User) -&gt; Result&lt;(), ValidationError&gt; {
+        // Check schema allowlist
+        for schema in &amp;user.schemas {
+            if !self.allowed_schemas.contains(schema) {
+                return Err(ValidationError::UnknownSchema(schema.clone()));
+            }
+        }
+        
+        // Validate string lengths
+        if let Some(username) = &amp;user.user_name {
+            if username.len() &gt; self.max_string_length {
+                return Err(ValidationError::StringTooLong("userName".to_string()));
+            }
+            self.check_dangerous_patterns(username, "userName")?;
+        }
+        
+        // Validate array sizes
+        if user.emails.len() &gt; self.max_array_size {
+            return Err(ValidationError::ArrayTooLarge("emails".to_string()));
+        }
+        
+        // Validate email formats
+        for email in &amp;user.emails {
+            self.validate_email(&amp;email.value)?;
+        }
+        
+        Ok(())
+    }
+    
+    fn check_dangerous_patterns(&amp;self, input: &amp;str, field: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        for pattern in &amp;self.dangerous_patterns {
+            if pattern.is_match(input) {
+                warn!("Dangerous pattern detected in field {}: {}", field, input);
+                return Err(ValidationError::DangerousInput(field.to_string()));
+            }
+        }
+        Ok(())
+    }
+    
+    fn validate_email(&amp;self, email: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        // Strict email validation
+        let email_regex = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+        if !email_regex.is_match(email) {
+            return Err(ValidationError::InvalidEmail(email.to_string()));
+        }
+        
+        // Check for suspicious patterns
+        if email.contains("..") || email.starts_with('.') || email.ends_with('.') {
+            return Err(ValidationError::SuspiciousEmail(email.to_string()));
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="sql-injection-prevention"><a class="header" href="#sql-injection-prevention">SQL Injection Prevention</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::storage::{QueryBuilder, Parameter};
+
+// Always use parameterized queries for safe filtering
+pub async fn find_users_by_criteria(
+    &amp;self,
+    tenant_id: &amp;str,
+    department: Option&lt;&amp;str&gt;,
+    active: Option&lt;bool&gt;,
+) -&gt; Result&lt;Vec&lt;User&gt;, StorageError&gt; {
+    let mut query_builder = QueryBuilder::new();
+    let mut params = Vec::new();
+    
+    // Build parameterized query
+    query_builder.add("SELECT * FROM users WHERE tenant_id = ?");
+    params.push(Parameter::String(tenant_id.to_string()));
+    
+    // Add safe criteria parameters
+    if let Some(dept) = department {
+        query_builder.add(" AND department = ?");
+        params.push(Parameter::String(dept.to_string()));
+    }
+    
+    if let Some(is_active) = active {
+        query_builder.add(" AND active = ?");
+        params.push(Parameter::Bool(is_active));
+    }
+    
+    let query = query_builder.build();
+    self.execute_query(&amp;query, &amp;params).await
+}
+
+// Safe query building with attribute validation
+fn build_search_query(&amp;self, criteria: &amp;SearchCriteria) -&gt; Result&lt;(String, Vec&lt;Parameter&gt;), FilterError&gt; {
+    let mut query = String::from("SELECT * FROM users WHERE tenant_id = ?");
+    let mut params = vec![Parameter::String(criteria.tenant_id.clone())];
+    
+    // Validate and add safe search criteria
+    if let Some(username) = &amp;criteria.username {
+        if self.is_valid_attribute("userName") {
+            query.push_str(" AND username = ?");
+            params.push(Parameter::String(username.clone()));
+        } else {
+            return Err(FilterError::InvalidAttribute("userName"));
+        }
+    }
+    
+    if let Some(email) = &amp;criteria.email {
+        if self.is_valid_attribute("emails.value") {
+            query.push_str(" AND email = ?");
+            params.push(Parameter::String(email.clone()));
+        } else {
+            return Err(FilterError::InvalidAttribute("emails.value"));
+        }
+    }
+    
+    Ok((query, params))
+}
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="json-injection-prevention"><a class="header" href="#json-injection-prevention">JSON Injection Prevention</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::json::{SafeJsonParser, JsonValidationError};
+
+pub struct SafeJsonParser {
+    max_depth: usize,
+    max_object_size: usize,
+    max_string_length: usize,
+    forbidden_keys: HashSet&lt;String&gt;,
+}
+
+impl SafeJsonParser {
+    pub fn parse_user(&amp;self, json: &amp;str) -&gt; Result&lt;User, JsonValidationError&gt; {
+        // Parse with size limits
+        let value: serde_json::Value = serde_json::from_str(json)
+            .map_err(|e| JsonValidationError::ParseError(e.to_string()))?;
+        
+        // Validate structure
+        self.validate_json_structure(&amp;value, 0)?;
+        
+        // Convert to User struct with validation
+        let user: User = serde_json::from_value(value)
+            .map_err(|e| JsonValidationError::DeserializationError(e.to_string()))?;
+        
+        Ok(user)
+    }
+    
+    fn validate_json_structure(&amp;self, value: &amp;serde_json::Value, depth: usize) -&gt; Result&lt;(), JsonValidationError&gt; {
+        if depth &gt; self.max_depth {
+            return Err(JsonValidationError::TooDeep);
+        }
+        
+        match value {
+            serde_json::Value::Object(obj) =&gt; {
+                if obj.len() &gt; self.max_object_size {
+                    return Err(JsonValidationError::ObjectTooLarge);
+                }
+                
+                for (key, val) in obj {
+                    if self.forbidden_keys.contains(key) {
+                        return Err(JsonValidationError::ForbiddenKey(key.clone()));
+                    }
+                    self.validate_json_structure(val, depth + 1)?;
+                }
+            }
+            serde_json::Value::Array(arr) =&gt; {
+                for item in arr {
+                    self.validate_json_structure(item, depth + 1)?;
+                }
+            }
+            serde_json::Value::String(s) =&gt; {
+                if s.len() &gt; self.max_string_length {
+                    return Err(JsonValidationError::StringTooLong);
+                }
+            }
+            _ =&gt; {}
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="network-security"><a class="header" href="#network-security">Network Security</a></h2>
+<h3 id="rate-limiting"><a class="header" href="#rate-limiting">Rate Limiting</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::rate_limit::{RateLimiter, RateLimitConfig, RateLimitError};
+
+#[derive(Debug)]
+pub struct SecurityRateLimiter {
+    global_limiter: RateLimiter,
+    tenant_limiters: DashMap&lt;String, RateLimiter&gt;,
+    ip_limiters: DashMap&lt;IpAddr, RateLimiter&gt;,
+}
+
+impl SecurityRateLimiter {
+    pub async fn check_rate_limits(
+        &amp;self,
+        ip: IpAddr,
+        tenant_id: Option&lt;&amp;str&gt;,
+        endpoint: &amp;str,
+    ) -&gt; Result&lt;(), RateLimitError&gt; {
+        // Check global rate limit (most permissive)
+        self.global_limiter.check_rate_limit("global", 10000, 3600).await?;
+        
+        // Check IP-based rate limit (stricter)
+        let ip_key = ip.to_string();
+        if let Some(ip_limiter) = self.ip_limiters.get(&amp;ip) {
+            ip_limiter.check_rate_limit(&amp;ip_key, 1000, 3600).await?;
+        }
+        
+        // Check tenant-specific rate limit
+        if let Some(tenant_id) = tenant_id {
+            if let Some(tenant_limiter) = self.tenant_limiters.get(tenant_id) {
+                tenant_limiter.check_rate_limit(tenant_id, 5000, 3600).await?;
+            }
+        }
+        
+        // Check endpoint-specific limits
+        match endpoint {
+            "/Users" =&gt; self.check_user_endpoint_limits(ip, tenant_id).await?,
+            "/Bulk" =&gt; self.check_bulk_endpoint_limits(ip, tenant_id).await?,
+            _ =&gt; {}
+        }
+        
+        Ok(())
+    }
+    
+    async fn check_bulk_endpoint_limits(
+        &amp;self,
+        ip: IpAddr,
+        tenant_id: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;(), RateLimitError&gt; {
+        // Bulk operations are more expensive, so stricter limits
+        let bulk_limiter = self.ip_limiters.entry(ip).or_insert_with(|| {
+            RateLimiter::new(RateLimitConfig::new(10, 3600)) // 10 per hour
+        });
+        
+        bulk_limiter.check_rate_limit(&amp;format!("bulk:{}", ip), 10, 3600).await
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="cors-security"><a class="header" href="#cors-security">CORS Security</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::cors::{CorsConfig, CorsMiddleware};
+
+let cors_config = CorsConfig::builder()
+    .allowed_origins(vec![
+        "https://app.company.com".to_string(),
+        "https://admin.company.com".to_string(),
+    ]) // Never use "*" in production
+    .allowed_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE"])
+    .allowed_headers(vec![
+        "Authorization",
+        "Content-Type",
+        "X-Tenant-ID",
+        "If-Match",
+        "If-None-Match",
+    ])
+    .expose_headers(vec!["ETag", "Location"])
+    .allow_credentials(true)
+    .max_age(3600)
+    .vary_header(true) // Important for caching security
+    .build()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="ip-allowlisting"><a class="header" href="#ip-allowlisting">IP Allowlisting</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::network::{IpFilter, IpFilterConfig};
+
+let ip_filter_config = IpFilterConfig::builder()
+    .allowed_cidrs(vec![
+        "10.0.0.0/8".parse()?,      // Internal network
+        "172.16.0.0/12".parse()?,   // Private network
+        "203.0.113.0/24".parse()?,  // Specific public range
+    ])
+    .blocked_cidrs(vec![
+        "192.168.1.100/32".parse()?, // Known malicious IP
+    ])
+    .enable_geoblocking(true)
+    .allowed_countries(vec!["US", "CA", "GB"])
+    .build()?;
+
+// Apply IP filtering middleware
+async fn ip_filter_middleware(
+    ConnectInfo(addr): ConnectInfo&lt;SocketAddr&gt;,
+    req: Request&lt;Body&gt;,
+    next: Next&lt;Body&gt;,
+) -&gt; Result&lt;Response&lt;Body&gt;, StatusCode&gt; {
+    let ip = addr.ip();
+    
+    if !ip_filter_config.is_allowed(ip).await? {
+        warn!("Blocked request from IP: {}", ip);
+        return Err(StatusCode::FORBIDDEN);
+    }
+    
+    Ok(next.run(req).await)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="audit-and-monitoring"><a class="header" href="#audit-and-monitoring">Audit and Monitoring</a></h2>
+<h3 id="comprehensive-audit-logging"><a class="header" href="#comprehensive-audit-logging">Comprehensive Audit Logging</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::audit::{AuditLogger, AuditEvent, AuditLevel};
+
+#[derive(Debug, Serialize)]
+pub struct AuditEvent {
+    pub timestamp: DateTime&lt;Utc&gt;,
+    pub event_type: String,
+    pub actor: ActorInfo,
+    pub resource: ResourceInfo,
+    pub tenant_id: Option&lt;String&gt;,
+    pub ip_address: IpAddr,
+    pub user_agent: Option&lt;String&gt;,
+    pub result: OperationResult,
+    pub details: serde_json::Value,
+}
+
+impl AuditLogger {
+    pub async fn log_user_access(&amp;self, event: UserAccessEvent) {
+        let audit_event = AuditEvent {
+            timestamp: Utc::now(),
+            event_type: "user_access".to_string(),
+            actor: ActorInfo {
+                user_id: event.actor_id,
+                auth_method: event.auth_method,
+                scopes: event.scopes,
+            },
+            resource: ResourceInfo {
+                resource_type: "User".to_string(),
+                resource_id: event.user_id.clone(),
+                operation: event.operation,
+            },
+            tenant_id: event.tenant_id,
+            ip_address: event.ip_address,
+            user_agent: event.user_agent,
+            result: event.result,
+            details: json!({
+                "user_id": event.user_id,
+                "fields_accessed": event.fields_accessed,
+                "response_size": event.response_size,
+            }),
+        };
+        
+        // Log to multiple destinations
+        self.log_to_file(&amp;audit_event).await;
+        self.log_to_siem(&amp;audit_event).await;
+        self.log_to_database(&amp;audit_event).await;
+        
+        // Trigger alerts for sensitive operations
+        if event.operation == "delete" || event.fields_accessed.contains(&amp;"password".to_string()) {
+            self.trigger_security_alert(&amp;audit_event).await;
+        }
+    }
+    
+    pub async fn log_authentication_event(&amp;self, event: AuthEvent) {
+        let audit_event = AuditEvent {
+            timestamp: Utc::now(),
+            event_type: match event.result {
+                AuthResult::Success =&gt; "auth_success".to_string(),
+                AuthResult::Failure =&gt; "auth_failure".to_string(),
+            },
+            actor: ActorInfo {
+                user_id: event.user_id.clone(),
+                auth_method: event.auth_method,
+                scopes: vec![],
+            },
+            resource: ResourceInfo {
+                resource_type: "Authentication".to_string(),
+                resource_id: "system".to_string(),
+                operation: "authenticate".to_string(),
+            },
+            tenant_id: event.tenant_id,
+            ip_address: event.ip_address,
+            user_agent: event.user_agent,
+            result: match event.result {
+                AuthResult::Success =&gt; OperationResult::Success,
+                AuthResult::Failure =&gt; OperationResult::Failure,
+            },
+            details: json!({
+                "auth_method": event.auth_method,
+                "failure_reason": event.failure_reason,
+                "token_claims": event.token_claims,
+            }),
+        };
+        
+        self.log_to_security_log(&amp;audit_event).await;
+        
+        // Detect brute force attacks
+        if matches!(event.result, AuthResult::Failure) {
+            self.check_for_brute_force(event.ip_address, event.user_id).await;
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="security-monitoring"><a class="header" href="#security-monitoring">Security Monitoring</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::monitoring::{SecurityMonitor, ThreatDetector};
+
+pub struct SecurityMonitor {
+    threat_detector: ThreatDetector,
+    alert_manager: AlertManager,
+    metrics_collector: MetricsCollector,
+}
+
+impl SecurityMonitor {
+    pub async fn analyze_request_patterns(&amp;self) {
+        // Detect unusual access patterns
+        let patterns = self.threat_detector.analyze_recent_requests().await;
+        
+        for pattern in patterns {
+            match pattern.threat_level {
+                ThreatLevel::High =&gt; {
+                    self.alert_manager.send_immediate_alert(pattern).await;
+                    self.auto_block_suspicious_ips(pattern.source_ips).await;
+                }
+                ThreatLevel::Medium =&gt; {
+                    self.alert_manager.send_alert(pattern).await;
+                    self.increase_monitoring(pattern.source_ips).await;
+                }
+                ThreatLevel::Low =&gt; {
+                    self.log_suspicious_activity(pattern).await;
+                }
+            }
+        }
+    }
+    
+    pub async fn detect_data_exfiltration(&amp;self) {
+        // Monitor for unusual data access patterns
+        let access_patterns = self.metrics_collector
+            .get_recent_access_patterns(Duration::hours(1))
+            .await;
+        
+        for pattern in access_patterns {
+            // Large number of user records accessed by single user
+            if pattern.resources_accessed &gt; 1000 &amp;&amp; pattern.time_span &lt; Duration::minutes(10) {
+                self.alert_manager.send_data_exfiltration_alert(&amp;pattern).await;
+            }
+            
+            // Access to sensitive fields by non-admin users
+            if pattern.sensitive_fields_accessed &gt; 0 &amp;&amp; !pattern.is_admin_user {
+                self.alert_manager.send_privilege_escalation_alert(&amp;pattern).await;
+            }
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="deployment-security"><a class="header" href="#deployment-security">Deployment Security</a></h2>
+<h3 id="container-security"><a class="header" href="#container-security">Container Security</a></h3>
+<pre><code class="language-dockerfile"># Use minimal base image
+FROM gcr.io/distroless/cc-debian12:latest
+
+# Don't run as root
+USER 65534:65534
+
+# Copy only necessary files
+COPY --from=builder /app/target/release/scim-server /scim-server
+COPY --from=builder /app/config/ /config/
+
+# Set secure file permissions
+USER root
+RUN chmod 500 /scim-server &amp;&amp; \
+    chmod -R 400 /config/
+USER 65534:65534
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/scim-server", "health-check"]
+
+# Expose only necessary port
+EXPOSE 8080
+
+ENTRYPOINT ["/scim-server"]
+</code></pre>
+<h3 id="kubernetes-security"><a class="header" href="#kubernetes-security">Kubernetes Security</a></h3>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scim-server
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: scim-server
+        image: scim-server:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+        env:
+        - name: SCIM_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scim-secrets
+              key: db-password
+        - name: SCIM_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: scim-secrets
+              key: jwt-secret
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: scim-config
+          defaultMode: 0400
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: NetworkPolicy
+metadata:
+  name: scim-server-netpol
+spec:
+  podSelector:
+    matchLabels:
+      app: scim-server
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-system
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS only
+</code></pre>
+<h3 id="environment-hardening"><a class="header" href="#environment-hardening">Environment Hardening</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::config::SecurityConfig;
+
+fn load_secure_config() -&gt; Result&lt;SecurityConfig, ConfigError&gt; {
+    let config = SecurityConfig::builder()
+        // Disable debug features in production
+        .debug_mode(false)
+        .detailed_errors(false)
+        
+        // Enable all security features
+        .require_https(true)
+        .strict_transport_security(true)
+        .content_security_policy(true)
+        .x_frame_options("DENY")
+        .x_content_type_options(true)
+        .referrer_policy("strict-origin-when-cross-origin")
+        
+        // Security headers
+        .hsts_max_age(31536000) // 1 year
+        .hsts_include_subdomains(true)
+        .hsts_preload(true)
+        
+        // Rate limiting
+        .enable_rate_limiting(true)
+        .default_rate_limit(1000) // per hour
+        .burst_rate_limit(100)
+        
+        // Input validation
+        .max_request_size(1048576) // 1MB
+        .max_json_depth(10)
+        .enable_strict_validation(true)
+        
+        // Audit logging
+        .enable_audit_logging(true)
+        .audit_log_level("INFO")
+        .audit_destinations(vec!["file", "syslog", "webhook"])
+        
+        .build()
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="compliance-and-standards"><a class="header" href="#compliance-and-standards">Compliance and Standards</a></h2>
+<h3 id="gdpr-compliance"><a class="header" href="#gdpr-compliance">GDPR Compliance</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::privacy::{GdprCompliance, DataSubjectRequest, LegalBasis};
+
+#[derive(Debug)]
+pub struct GdprCompliance {
+    data_controller: String,
+    data_processor: Option&lt;String&gt;,
+    legal_basis: LegalBasis,
+    retention_policy: RetentionPolicy,
+}
+
+impl GdprCompliance {
+    pub async fn handle_data_subject_request(
+        &amp;self,
+        request: DataSubjectRequest,
+    ) -&gt; Result&lt;DataSubjectResponse, GdprError&gt; {
+        match request.request_type {
+            RequestType::Access =&gt; self.handle_access_request(request).await,
+            RequestType::Rectification =&gt; self.handle_rectification_request(request).await,
+            RequestType::Erasure =&gt; self.handle_erasure_request(request).await,
+            RequestType::Portability =&gt; self.handle_portability_request(request).await,
+            RequestType::Restriction =&gt; self.handle_restriction_request(request).await,
+        }
+    }
+    
+    async fn handle_erasure_request(
+        &amp;self,
+        request: DataSubjectRequest,
+    ) -&gt; Result&lt;DataSubjectResponse, GdprError&gt; {
+        // Verify identity
+        self.verify_data_subject_identity(&amp;request).await?;
+        
+        // Check for legal obligations that prevent erasure
+        if self.has_legal_obligation_to_retain(&amp;request.subject_id).await? {
+            return Err(GdprError::ErasureNotPermitted(
+                "Data retention required by law".to_string()
+            ));
+        }
+        
+        // Perform cascading deletion
+        self.delete_user_data(&amp;request.subject_id).await?;
+        self.delete_audit_logs(&amp;request.subject_id).await?;
+        self.notify_third_parties(&amp;request.subject_id).await?;
+        
+        // Log the erasure
+        self.audit_logger.log_erasure(&amp;request).await;
+        
+        Ok(DataSubjectResponse {
+            request_id: request.id,
+            status: "completed".to_string(),
+            completion_date: Utc::now(),
+        })
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="soc-2-compliance"><a class="header" href="#soc-2-compliance">SOC 2 Compliance</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::compliance::{Soc2Controls, ControlObjective};
+
+pub struct Soc2Controls {
+    security_controls: Vec&lt;SecurityControl&gt;,
+    availability_controls: Vec&lt;AvailabilityControl&gt;,
+    confidentiality_controls: Vec&lt;ConfidentialityControl&gt;,
+}
+
+impl Soc2Controls {
+    pub fn implement_cc6_1_logical_access(&amp;self) -&gt; Result&lt;(), ComplianceError&gt; {
+        // CC6.1: Logical and physical access controls
+        
+        // Multi-factor authentication
+        self.enforce_mfa_for_admin_access()?;
+        
+        // Principle of least privilege
+        self.implement_rbac_controls()?;
+        
+        // Access reviews
+        self.schedule_quarterly_access_reviews()?;
+        
+        // Segregation of duties
+        self.enforce_segregation_of_duties()?;
+        
+        Ok(())
+    }
+    
+    pub fn implement_cc7_1_system_monitoring(&amp;self) -&gt; Result&lt;(), ComplianceError&gt; {
+        // CC7.1: System monitoring
+        
+        // Comprehensive logging
+        self.enable_comprehensive_audit_logging()?;
+        
+        // Real-time monitoring
+        self.implement_real_time_alerting()?;
+        
+        // Log integrity
+        self.implement_log_integrity_controls()?;
+        
+        // Incident response
+        self.implement_incident_response_procedures()?;
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="incident-response"><a class="header" href="#incident-response">Incident Response</a></h2>
+<h3 id="security-incident-detection"><a class="header" href="#security-incident-detection">Security Incident Detection</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::security::{IncidentDetector, SecurityIncident, IncidentSeverity};
+
+pub struct IncidentDetector {
+    anomaly_detector: AnomalyDetector,
+    threat_intelligence: ThreatIntelligence,
+    correlation_engine: CorrelationEngine,
+}
+
+impl IncidentDetector {
+    pub async fn analyze_security_events(&amp;self) -&gt; Vec&lt;SecurityIncident&gt; {
+        let mut incidents = Vec::new();
+        
+        // Detect authentication anomalies
+        let auth_anomalies = self.detect_authentication_anomalies().await;
+        for anomaly in auth_anomalies {
+            incidents.push(SecurityIncident {
+                id: Uuid::new_v4(),
+                incident_type: IncidentType::AuthenticationAnomaly,
+                severity: self.calculate_severity(&amp;anomaly),
+                description: anomaly.description,
+                affected_resources: anomaly.affected_resources,
+                indicators: anomaly.indicators,
+                timestamp: Utc::now(),
+            });
+        }
+        
+        // Detect data access anomalies
+        let data_anomalies = self.detect_data_access_anomalies().await;
+        for anomaly in data_anomalies {
+            incidents.push(SecurityIncident {
+                id: Uuid::new_v4(),
+                incident_type: IncidentType::DataAccessAnomaly,
+                severity: IncidentSeverity::High,
+                description: format!("Unusual data access pattern: {}", anomaly.pattern),
+                affected_resources: anomaly.resources,
+                indicators: anomaly.indicators,
+                timestamp: Utc::now(),
+            });
+        }
+        
+        incidents
+    }
+    
+    async fn detect_authentication_anomalies(&amp;self) -&gt; Vec&lt;AuthenticationAnomaly&gt; {
+        let mut anomalies = Vec::new();
+        
+        // Detect brute force attacks
+        let failed_logins = self.get_recent_failed_logins(Duration::hours(1)).await;
+        let grouped_by_ip = self.group_by_ip(failed_logins);
+        
+        for (ip, attempts) in grouped_by_ip {
+            if attempts.len() &gt; 50 {
+                anomalies.push(AuthenticationAnomaly {
+                    anomaly_type: AnomalyType::BruteForce,
+                    source_ip: ip,
+                    description: format!("Brute force attack detected: {} failed attempts", attempts.len()),
+                    affected_resources: attempts.into_iter().map(|a| a.target_user).collect(),
+                    indicators: vec![
+                        format!("source_ip: {}", ip),
+                        format!("attempt_count: {}", attempts.len()),
+                    ],
+                });
+            }
+        }
+        
+        // Detect impossible travel
+        let successful_logins = self.get_recent_successful_logins(Duration::hours(24)).await;
+        let travel_anomalies = self.detect_impossible_travel(successful_logins).await;
+        anomalies.extend(travel_anomalies);
+        
+        anomalies
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="automated-response"><a class="header" href="#automated-response">Automated Response</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::security::{AutomatedResponse, ResponseAction};
+
+pub struct AutomatedResponse {
+    action_executor: ActionExecutor,
+    notification_service: NotificationService,
+    escalation_rules: Vec&lt;EscalationRule&gt;,
+}
+
+impl AutomatedResponse {
+    pub async fn respond_to_incident(&amp;self, incident: &amp;SecurityIncident) {
+        match incident.severity {
+            IncidentSeverity::Critical =&gt; {
+                self.execute_critical_response(incident).await;
+            }
+            IncidentSeverity::High =&gt; {
+                self.execute_high_severity_response(incident).await;
+            }
+            IncidentSeverity::Medium =&gt; {
+                self.execute_medium_severity_response(incident).await;
+            }
+            IncidentSeverity::Low =&gt; {
+                self.execute_low_severity_response(incident).await;
+            }
+        }
+    }
+    
+    async fn execute_critical_response(&amp;self, incident: &amp;SecurityIncident) {
+        // Immediate blocking
+        if let Some(source_ip) = self.extract_source_ip(incident) {
+            self.action_executor.block_ip_address(source_ip).await;
+        }
+        
+        // Disable compromised accounts
+        for resource in &amp;incident.affected_resources {
+            if resource.resource_type == "User" {
+                self.action_executor.disable_user_account(&amp;resource.id).await;
+            }
+        }
+        
+        // Immediate notifications
+        self.notification_service.send_critical_alert(incident).await;
+        self.notification_service.notify_security_team(incident).await;
+        self.notification_service.notify_management(incident).await;
+        
+        // Initiate incident response process
+        self.initiate_incident_response_process(incident).await;
+    }
+    
+    async fn initiate_incident_response_process(&amp;self, incident: &amp;SecurityIncident) {
+        // Create incident ticket
+        let ticket = self.create_incident_ticket(incident).await;
+        
+        // Preserve evidence
+        self.preserve_digital_evidence(incident).await;
+        
+        // Notify external parties if required
+        if self.requires_external_notification(incident) {
+            self.notify_authorities(incident).await;
+            self.notify_customers(incident).await;
+        }
+        
+        // Start forensic analysis
+        self.start_forensic_analysis(incident).await;
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="security-testing"><a class="header" href="#security-testing">Security Testing</a></h2>
+<h3 id="penetration-testing-integration"><a class="header" href="#penetration-testing-integration">Penetration Testing Integration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::testing::{PenetrationTest, VulnerabilityScanner};
+
+pub struct SecurityTestSuite {
+    vulnerability_scanner: VulnerabilityScanner,
+    penetration_tester: PenetrationTest,
+    compliance_checker: ComplianceChecker,
+}
+
+impl SecurityTestSuite {
+    pub async fn run_security_tests(&amp;self) -&gt; SecurityTestReport {
+        let mut report = SecurityTestReport::new();
+        
+        // Vulnerability scanning
+        let vulnerabilities = self.vulnerability_scanner.scan().await;
+        report.add_vulnerabilities(vulnerabilities);
+        
+        // Authentication testing
+        let auth_tests = self.test_authentication_security().await;
+        report.add_test_results("authentication", auth_tests);
+        
+        // Authorization testing
+        let authz_tests = self.test_authorization_security().await;
+        report.add_test_results("authorization", authz_tests);
+        
+        // Input validation testing
+        let input_tests = self.test_input_validation().await;
+        report.add_test_results("input_validation", input_tests);
+        
+        // Network security testing
+        let network_tests = self.test_network_security().await;
+        report.add_test_results("network_security", network_tests);
+        
+        report
+    }
+    
+    async fn test_authentication_security(&amp;self) -&gt; Vec&lt;TestResult&gt; {
+        vec![
+            self.test_jwt_validation().await,
+            self.test_token_expiration().await,
+            self.test_brute_force_protection().await,
+            self.test_session_management().await,
+        ]
+    }
+    
+    async fn test_jwt_validation(&amp;self) -&gt; TestResult {
+        let test_cases = vec![
+            ("Invalid signature", "invalid_jwt_token"),
+            ("Expired token", self.create_expired_jwt()),
+            ("Wrong audience", self.create_wrong_audience_jwt()),
+            ("Missing required claims", self.create_incomplete_jwt()),
+        ];
+        
+        for (test_name, token) in test_cases {
+            let result = self.make_authenticated_request(token).await;
+            if result.status() != 401 {
+                return TestResult::Failed(format!("JWT validation failed for: {}", test_name));
+            }
+        }
+        
+        TestResult::Passed("JWT validation working correctly".to_string())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices-summary"><a class="header" href="#best-practices-summary">Best Practices Summary</a></h2>
+<h3 id="authentication-best-practices"><a class="header" href="#authentication-best-practices">Authentication Best Practices</a></h3>
+<ol>
+<li>
+<p><strong>Use Strong Authentication Methods</strong></p>
+<ul>
+<li>Implement JWT with RS256 or ES256 algorithms</li>
+<li>Require multi-factor authentication for admin access</li>
+<li>Use short-lived tokens (15-60 minutes)</li>
+<li>Implement proper token refresh mechanisms</li>
+</ul>
+</li>
+<li>
+<p><strong>Secure Token Handling</strong></p>
+<ul>
+<li>Never store tokens in local storage</li>
+<li>Use secure, httpOnly cookies when possible</li>
+<li>Implement proper token revocation</li>
+<li>Cache public keys securely with rotation</li>
+</ul>
+</li>
+<li>
+<p><strong>Session Management</strong></p>
+<ul>
+<li>Implement session timeout</li>
+<li>Regenerate session IDs after authentication</li>
+<li>Use secure session storage</li>
+<li>Implement concurrent session limits</li>
+</ul>
+</li>
+</ol>
+<h3 id="authorization-best-practices"><a class="header" href="#authorization-best-practices">Authorization Best Practices</a></h3>
+<ol>
+<li>
+<p><strong>Principle of Least Privilege</strong></p>
+<ul>
+<li>Grant minimum necessary permissions</li>
+<li>Implement role-based access control</li>
+<li>Use attribute-based access control for complex scenarios</li>
+<li>Regular access reviews and cleanup</li>
+</ul>
+</li>
+<li>
+<p><strong>Resource-Level Security</strong></p>
+<ul>
+<li>Implement tenant isolation</li>
+<li>Validate resource ownership</li>
+<li>Use resource-specific permissions</li>
+<li>Implement field-level access control</li>
+</ul>
+</li>
+</ol>
+<h3 id="data-protection-best-practices"><a class="header" href="#data-protection-best-practices">Data Protection Best Practices</a></h3>
+<ol>
+<li>
+<p><strong>Encryption</strong></p>
+<ul>
+<li>Encrypt sensitive data at rest</li>
+<li>Use TLS 1.2+ for data in transit</li>
+<li>Implement key rotation policies</li>
+<li>Use envelope encryption for large datasets</li>
+</ul>
+</li>
+<li>
+<p><strong>Data Handling</strong></p>
+<ul>
+<li>Implement data classification</li>
+<li>Use data masking for non-production environments</li>
+<li>Implement secure data deletion</li>
+<li>Monitor data access patterns</li>
+</ul>
+</li>
+</ol>
+<h3 id="network-security-best-practices"><a class="header" href="#network-security-best-practices">Network Security Best Practices</a></h3>
+<ol>
+<li>
+<p><strong>Network Controls</strong></p>
+<ul>
+<li>Implement IP allowlisting</li>
+<li>Use rate limiting aggressively</li>
+<li>Configure CORS properly</li>
+<li>Implement DDoS protection</li>
+</ul>
+</li>
+<li>
+<p><strong>Monitoring</strong></p>
+<ul>
+<li>Implement comprehensive logging</li>
+<li>Use real-time alerting</li>
+<li>Monitor for anomalous patterns</li>
+<li>Implement automated response</li>
+</ul>
+</li>
+</ol>
+<h3 id="deployment-security-best-practices"><a class="header" href="#deployment-security-best-practices">Deployment Security Best Practices</a></h3>
+<ol>
+<li>
+<p><strong>Infrastructure Security</strong></p>
+<ul>
+<li>Use minimal container images</li>
+<li>Run as non-root user</li>
+<li>Implement network policies</li>
+<li>Use secrets management</li>
+</ul>
+</li>
+<li>
+<p><strong>Configuration Security</strong></p>
+<ul>
+<li>Never hardcode secrets</li>
+<li>Use environment-specific configurations</li>
+<li>Implement configuration validation</li>
+<li>Regular security assessments</li>
+</ul>
+</li>
+</ol>
+<p>This comprehensive security guide provides the foundation for deploying and operating secure SCIM servers in production environments. Regular security reviews and updates are essential for maintaining security posture.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../advanced/production-deployment.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../advanced/monitoring.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../advanced/production-deployment.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../advanced/monitoring.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

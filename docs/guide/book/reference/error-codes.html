@@ -1,0 +1,789 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Error Codes - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="error-codes"><a class="header" href="#error-codes">Error Codes</a></h1>
+<p>This reference documents all error codes that the SCIM Server library can generate, their meanings, causes, and recommended responses.</p>
+<h2 id="error-response-format"><a class="header" href="#error-response-format">Error Response Format</a></h2>
+<p>All SCIM errors follow the standard SCIM 2.0 error response format:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidFilter",
+  "detail": "The specified filter syntax is invalid: unexpected token 'and' at position 15"
+}
+</code></pre>
+<h3 id="error-response-fields"><a class="header" href="#error-response-fields">Error Response Fields</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>schemas</code></td><td>Array</td><td>Always contains the SCIM error schema</td></tr>
+<tr><td><code>status</code></td><td>String</td><td>HTTP status code as a string</td></tr>
+<tr><td><code>scimType</code></td><td>String</td><td>SCIM-specific error type (optional)</td></tr>
+<tr><td><code>detail</code></td><td>String</td><td>Human-readable error description</td></tr>
+</tbody></table>
+</div>
+<h2 id="http-status-codes"><a class="header" href="#http-status-codes">HTTP Status Codes</a></h2>
+<h3 id="400-bad-request"><a class="header" href="#400-bad-request">400 Bad Request</a></h3>
+<p><strong>When</strong>: The request is malformed or contains invalid data.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Invalid JSON syntax</li>
+<li>Missing required fields</li>
+<li>Invalid field values</li>
+<li>Malformed filter expressions</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidSyntax",
+  "detail": "Request body contains invalid JSON: expected ',' or '}' at line 3 column 15"
+}
+</code></pre>
+<h3 id="401-unauthorized"><a class="header" href="#401-unauthorized">401 Unauthorized</a></h3>
+<p><strong>When</strong>: Authentication is required but missing or invalid.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Missing Authorization header</li>
+<li>Invalid credentials</li>
+<li>Expired tokens</li>
+<li>Malformed authentication headers</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "401",
+  "detail": "Authentication required: missing or invalid Authorization header"
+}
+</code></pre>
+<h3 id="403-forbidden"><a class="header" href="#403-forbidden">403 Forbidden</a></h3>
+<p><strong>When</strong>: Authentication succeeded but authorization failed.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Insufficient permissions for the operation</li>
+<li>Tenant isolation violations</li>
+<li>Read-only attribute modification attempts</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "403",
+  "detail": "Insufficient permissions: cannot modify users in tenant 'production'"
+}
+</code></pre>
+<h3 id="404-not-found"><a class="header" href="#404-not-found">404 Not Found</a></h3>
+<p><strong>When</strong>: The requested resource doesn't exist.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Invalid resource ID</li>
+<li>Resource was deleted</li>
+<li>Incorrect endpoint path</li>
+<li>Wrong tenant context</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "404",
+  "detail": "User with ID '123e4567-e89b-12d3-a456-426614174000' not found"
+}
+</code></pre>
+<h3 id="409-conflict"><a class="header" href="#409-conflict">409 Conflict</a></h3>
+<p><strong>When</strong>: The operation conflicts with the current state.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Duplicate unique values (usernames, emails)</li>
+<li>Circular group memberships</li>
+<li>Resource already exists</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "409",
+  "scimType": "uniqueness",
+  "detail": "User with userName 'jdoe@example.com' already exists"
+}
+</code></pre>
+<h3 id="412-precondition-failed"><a class="header" href="#412-precondition-failed">412 Precondition Failed</a></h3>
+<p><strong>When</strong>: ETag-based concurrency control detects a conflict.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Resource was modified by another client</li>
+<li>Missing or invalid If-Match header</li>
+<li>Concurrent updates</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "412",
+  "detail": "Resource was modified: expected ETag 'W/\"abc123\"' but found 'W/\"def456\"'"
+}
+</code></pre>
+<h3 id="413-payload-too-large"><a class="header" href="#413-payload-too-large">413 Payload Too Large</a></h3>
+<p><strong>When</strong>: The request body exceeds size limits.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Large bulk operations</li>
+<li>Excessive user attributes</li>
+<li>Large file uploads</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "413",
+  "detail": "Request body size 5242880 bytes exceeds maximum allowed size of 1048576 bytes"
+}
+</code></pre>
+<h3 id="429-too-many-requests"><a class="header" href="#429-too-many-requests">429 Too Many Requests</a></h3>
+<p><strong>When</strong>: Rate limiting is triggered.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Exceeding API rate limits</li>
+<li>Too many concurrent requests</li>
+<li>Bulk operation limits</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "429",
+  "detail": "Rate limit exceeded: maximum 100 requests per minute, retry after 60 seconds"
+}
+</code></pre>
+<h3 id="500-internal-server-error"><a class="header" href="#500-internal-server-error">500 Internal Server Error</a></h3>
+<p><strong>When</strong>: An unexpected server error occurs.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Database connection failures</li>
+<li>Unhandled exceptions</li>
+<li>Configuration errors</li>
+<li>Provider implementation bugs</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "500",
+  "detail": "Internal server error: database connection timeout"
+}
+</code></pre>
+<h3 id="501-not-implemented"><a class="header" href="#501-not-implemented">501 Not Implemented</a></h3>
+<p><strong>When</strong>: The requested feature is not supported.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Optional SCIM features not implemented</li>
+<li>Unsupported operations</li>
+<li>Missing provider functionality</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "501",
+  "detail": "Bulk operations are not supported by this provider"
+}
+</code></pre>
+<h3 id="503-service-unavailable"><a class="header" href="#503-service-unavailable">503 Service Unavailable</a></h3>
+<p><strong>When</strong>: The service is temporarily unavailable.</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Database maintenance</li>
+<li>System overload</li>
+<li>Temporary outages</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "503",
+  "detail": "Service temporarily unavailable: scheduled maintenance in progress"
+}
+</code></pre>
+<h2 id="scim-error-types"><a class="header" href="#scim-error-types">SCIM Error Types</a></h2>
+<p>SCIM defines specific error types in the <code>scimType</code> field for more precise error categorization:</p>
+<h3 id="invalidfilter"><a class="header" href="#invalidfilter">invalidFilter</a></h3>
+<p><strong>Description</strong>: Filter expression syntax is invalid.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Malformed filter syntax</li>
+<li>Unknown attributes in filter</li>
+<li>Invalid operators</li>
+<li>Missing quotes or parentheses</li>
+</ul>
+<p><strong>Examples</strong>:</p>
+<pre><code># Invalid operator
+filter=userName xyz "john"
+
+# Missing quotes
+filter=userName eq john@example.com
+
+# Unknown attribute
+filter=unknownField eq "value"
+</code></pre>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidFilter",
+  "detail": "Invalid filter expression: unknown operator 'xyz' at position 9"
+}
+</code></pre>
+<h3 id="toomany"><a class="header" href="#toomany">tooMany</a></h3>
+<p><strong>Description</strong>: Query returned too many results.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Query without sufficient filtering</li>
+<li>Missing pagination parameters</li>
+<li>Large datasets without limits</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "tooMany",
+  "detail": "Query returned 50000 results, maximum allowed is 10000. Use pagination or add filters."
+}
+</code></pre>
+<h3 id="uniqueness"><a class="header" href="#uniqueness">uniqueness</a></h3>
+<p><strong>Description</strong>: Unique constraint violation.</p>
+<p><strong>HTTP Status</strong>: 409</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Duplicate usernames</li>
+<li>Duplicate email addresses</li>
+<li>Duplicate external IDs</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "409",
+  "scimType": "uniqueness",
+  "detail": "Email address 'user@example.com' is already in use by another user"
+}
+</code></pre>
+<h3 id="mutability"><a class="header" href="#mutability">mutability</a></h3>
+<p><strong>Description</strong>: Attempt to modify a read-only attribute.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Modifying <code>id</code> field</li>
+<li>Changing <code>meta.created</code> timestamp</li>
+<li>Updating immutable custom attributes</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "mutability",
+  "detail": "Attribute 'id' is immutable and cannot be modified"
+}
+</code></pre>
+<h3 id="invalidsyntax"><a class="header" href="#invalidsyntax">invalidSyntax</a></h3>
+<p><strong>Description</strong>: Request syntax is invalid.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Malformed JSON</li>
+<li>Invalid attribute names</li>
+<li>Wrong data types</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidSyntax",
+  "detail": "Invalid JSON syntax: unexpected token '}' at line 5 column 1"
+}
+</code></pre>
+<h3 id="invalidpath"><a class="header" href="#invalidpath">invalidPath</a></h3>
+<p><strong>Description</strong>: PATCH operation path is invalid.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Malformed JSON Path expressions</li>
+<li>Paths to non-existent attributes</li>
+<li>Invalid array indices</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidPath",
+  "detail": "Invalid patch path: 'emails[type eq \"work\"].value' - array filter not supported"
+}
+</code></pre>
+<h3 id="invalidvalue"><a class="header" href="#invalidvalue">invalidValue</a></h3>
+<p><strong>Description</strong>: Attribute value doesn't meet validation requirements.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Invalid email format</li>
+<li>Password doesn't meet complexity requirements</li>
+<li>Enum values not in allowed list</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidValue",
+  "detail": "Invalid email format: 'not-an-email' is not a valid email address"
+}
+</code></pre>
+<h3 id="invalidvers"><a class="header" href="#invalidvers">invalidVers</a></h3>
+<p><strong>Description</strong>: Version-related error in bulk operations.</p>
+<p><strong>HTTP Status</strong>: 412</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>ETag mismatches in bulk operations</li>
+<li>Version conflicts</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "412",
+  "scimType": "invalidVers",
+  "detail": "Version conflict in bulk operation: resource was modified"
+}
+</code></pre>
+<h3 id="sensitive"><a class="header" href="#sensitive">sensitive</a></h3>
+<p><strong>Description</strong>: Request contains sensitive information that cannot be processed.</p>
+<p><strong>HTTP Status</strong>: 403</p>
+<p><strong>Common Causes</strong>:</p>
+<ul>
+<li>Accessing password attributes</li>
+<li>Retrieving sensitive security information</li>
+</ul>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "403",
+  "scimType": "sensitive",
+  "detail": "Cannot retrieve sensitive attribute: password"
+}
+</code></pre>
+<h2 id="library-specific-error-codes"><a class="header" href="#library-specific-error-codes">Library-Specific Error Codes</a></h2>
+<p>These errors are specific to the SCIM Server library implementation:</p>
+<h3 id="tenantnotfound"><a class="header" href="#tenantnotfound">TenantNotFound</a></h3>
+<p><strong>Description</strong>: Specified tenant does not exist.</p>
+<p><strong>HTTP Status</strong>: 404</p>
+<p><strong>Rust Error</strong>: <code>ScimError::TenantNotFound</code></p>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "404",
+  "detail": "Tenant 'acme-corp' not found"
+}
+</code></pre>
+<h3 id="providererror"><a class="header" href="#providererror">ProviderError</a></h3>
+<p><strong>Description</strong>: Storage provider encountered an error.</p>
+<p><strong>HTTP Status</strong>: 500</p>
+<p><strong>Rust Error</strong>: <code>ScimError::ProviderError</code></p>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "500",
+  "detail": "Provider error: database connection failed"
+}
+</code></pre>
+<h3 id="validationerror"><a class="header" href="#validationerror">ValidationError</a></h3>
+<p><strong>Description</strong>: Custom validation failed.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Rust Error</strong>: <code>ScimError::ValidationError</code></p>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidValue",
+  "detail": "Custom validation failed: employee ID must be 6 digits"
+}
+</code></pre>
+<h3 id="serializationerror"><a class="header" href="#serializationerror">SerializationError</a></h3>
+<p><strong>Description</strong>: JSON serialization/deserialization failed.</p>
+<p><strong>HTTP Status</strong>: 400</p>
+<p><strong>Rust Error</strong>: <code>ScimError::SerializationError</code></p>
+<p><strong>Response</strong>:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidSyntax",
+  "detail": "JSON parsing error: missing field 'userName' at line 3"
+}
+</code></pre>
+<h2 id="error-handling-best-practices"><a class="header" href="#error-handling-best-practices">Error Handling Best Practices</a></h2>
+<h3 id="for-api-clients"><a class="header" href="#for-api-clients">For API Clients</a></h3>
+<ol>
+<li><strong>Always check HTTP status codes</strong> before processing responses</li>
+<li><strong>Parse the <code>scimType</code> field</strong> for specific error handling</li>
+<li><strong>Log the <code>detail</code> field</strong> for debugging purposes</li>
+<li><strong>Implement retry logic</strong> for 429, 500, 502, 503 status codes</li>
+<li><strong>Handle 412 errors</strong> by refetching the resource and retrying</li>
+</ol>
+<h3 id="for-server-implementations"><a class="header" href="#for-server-implementations">For Server Implementations</a></h3>
+<ol>
+<li><strong>Provide detailed error messages</strong> without exposing sensitive information</li>
+<li><strong>Use appropriate HTTP status codes</strong> for different error types</li>
+<li><strong>Include SCIM error types</strong> when applicable</li>
+<li><strong>Log errors server-side</strong> for monitoring and debugging</li>
+<li><strong>Sanitize error details</strong> to prevent information leakage</li>
+</ol>
+<h3 id="example-error-handling"><a class="header" href="#example-error-handling">Example Error Handling</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::{ScimError, ScimResult};
+
+async fn handle_user_creation(user_data: Value) -&gt; ScimResult&lt;User&gt; {
+    match create_user(user_data).await {
+        Ok(user) =&gt; Ok(user),
+        Err(ScimError::ValidationError { field, message }) =&gt; {
+            Err(ScimError::BadRequest {
+                scim_type: Some("invalidValue".to_string()),
+                detail: format!("Validation failed for field '{}': {}", field, message),
+            })
+        },
+        Err(ScimError::UniqueConstraintViolation { field, value }) =&gt; {
+            Err(ScimError::Conflict {
+                scim_type: Some("uniqueness".to_string()),
+                detail: format!("Value '{}' for field '{}' already exists", value, field),
+            })
+        },
+        Err(e) =&gt; Err(e), // Re-throw other errors
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="client-side-error-handling"><a class="header" href="#client-side-error-handling">Client-Side Error Handling</a></h3>
+<pre><code class="language-javascript">async function createUser(userData) {
+    try {
+        const response = await fetch('/Users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/scim+json' },
+            body: JSON.stringify(userData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            
+            switch (response.status) {
+                case 400:
+                    if (error.scimType === 'invalidValue') {
+                        throw new ValidationError(error.detail);
+                    }
+                    throw new BadRequestError(error.detail);
+                    
+                case 409:
+                    if (error.scimType === 'uniqueness') {
+                        throw new DuplicateError(error.detail);
+                    }
+                    throw new ConflictError(error.detail);
+                    
+                case 429:
+                    // Implement exponential backoff
+                    await sleep(getRetryDelay());
+                    return createUser(userData);
+                    
+                default:
+                    throw new ScimError(response.status, error.detail);
+            }
+        }
+        
+        return response.json();
+    } catch (error) {
+        console.error('User creation failed:', error);
+        throw error;
+    }
+}
+</code></pre>
+<h2 id="debugging-error-responses"><a class="header" href="#debugging-error-responses">Debugging Error Responses</a></h2>
+<h3 id="enable-detailed-logging"><a class="header" href="#enable-detailed-logging">Enable Detailed Logging</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tracing::{error, warn, debug};
+
+// In your error handler
+match result {
+    Err(ScimError::ValidationError { field, message }) =&gt; {
+        warn!("Validation error for field '{}': {}", field, message);
+        // Return user-friendly error
+    },
+    Err(ScimError::ProviderError(e)) =&gt; {
+        error!("Provider error: {:?}", e);
+        // Return generic error message
+    },
+    _ =&gt; {}
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="error-response-testing"><a class="header" href="#error-response-testing">Error Response Testing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[tokio::test]
+async fn test_error_responses() {
+    let server = test_server().await;
+    
+    // Test validation error
+    let response = server
+        .post("/Users")
+        .json(&amp;json!({"userName": ""})) // Invalid empty username
+        .await;
+        
+    assert_eq!(response.status(), 400);
+    
+    let error: ScimError = response.json().await;
+    assert_eq!(error.scim_type, Some("invalidValue".to_string()));
+    assert!(error.detail.contains("userName"));
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="common-error-scenarios"><a class="header" href="#common-error-scenarios">Common Error Scenarios</a></h2>
+<h3 id="bulk-operation-errors"><a class="header" href="#bulk-operation-errors">Bulk Operation Errors</a></h3>
+<p>Bulk operations can contain mixed success/failure results:</p>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:BulkResponse"],
+  "Operations": [
+    {
+      "method": "POST",
+      "bulkId": "user1",
+      "location": "/Users/123",
+      "status": "201"
+    },
+    {
+      "method": "POST", 
+      "bulkId": "user2",
+      "status": "409",
+      "response": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": "409",
+        "scimType": "uniqueness",
+        "detail": "userName 'duplicate@example.com' already exists"
+      }
+    }
+  ]
+}
+</code></pre>
+<h3 id="multi-tenant-errors"><a class="header" href="#multi-tenant-errors">Multi-Tenant Errors</a></h3>
+<pre><code class="language-json">{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "404",
+  "detail": "Resource not found in tenant 'customer-a'. Verify tenant context and resource ID."
+}
+</code></pre>
+<p>This comprehensive error reference should help developers understand, handle, and debug all error scenarios in the SCIM Server library.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../reference/api-endpoints.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../reference/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../reference/api-endpoints.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../reference/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

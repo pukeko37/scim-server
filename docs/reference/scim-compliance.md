@@ -182,7 +182,9 @@ All multi-valued attributes support the standard structure:
 | GET | /Schemas | Available schemas | ✅ |
 | GET | /Schemas/{uri} | Specific schema | ✅ |
 
-#### Bulk Operations (🔄 Partial Support)
+#### Bulk Operations (❌ Not Implemented)
+
+> **⚠️ Implementation Status**: Despite configuration support, **no actual bulk operation processing exists**. The `/Bulk` endpoint is not implemented.
 
 | Method | Endpoint | Purpose | Support |
 |--------|----------|---------|---------|
@@ -224,7 +226,9 @@ GET /Users?startIndex=1&count=10
 - ✅ Default pagination when parameters omitted
 - ✅ Maximum result limits enforced
 
-#### Filtering (✅ Fully Supported)
+#### Filtering (❌ Claimed Support Only)
+
+> **⚠️ Implementation Gap**: While the `filter` parameter is accepted, **no actual filter processing occurs**. All providers ignore filter expressions and return unfiltered results.
 
 ```
 GET /Users?filter=userName eq "john.doe"
@@ -368,7 +372,9 @@ All error responses follow SCIM 2.0 error format:
 
 ## Compliance Summary
 
-### Overall Compliance Status: 94% (49/52)
+### Overall Compliance Status: ~94% (49/52) - **Optimistic Estimate**
+
+> **⚠️ Reality Check**: Based on actual code inspection, the realistic compliance is closer to **65%** due to missing implementations for advanced filtering, bulk operations, and search capabilities. See [SCIM Compliance - Actual Status](./scim-compliance-actual.md) for details.
 
 | Category | Total Features | Implemented | Percentage |
 |----------|----------------|-------------|------------|
@@ -445,8 +451,11 @@ All error responses follow SCIM 2.0 error format:
 ### Query and Filtering
 
 #### Filter Expression Parser
+
+> **⚠️ Implementation Gap**: The code below represents the **intended API** but is **not currently implemented**. No filter expression parser exists in the codebase.
+
 ```rust
-// Complex filter parsing and evaluation
+// ❌ This API does not exist - implementation needed
 let filter = FilterExpression::parse(
     r#"userName eq "john.doe" and (emails.type eq "work" or emails.type eq "home")"#
 )?;
@@ -550,6 +559,8 @@ let config = ScimConfig::builder()
 ## Limitations and Known Issues
 
 ### Current Limitations
+
+> **⚠️ Critical Notice**: The limitations listed below significantly understate the actual gaps. Major features like advanced filtering and bulk operations are completely unimplemented, not just "limited".
 
 1. **Bulk Operations (❌ Not Implemented)**
    - The `/Bulk` endpoint is not yet implemented

@@ -1,0 +1,5 @@
+[book]
+authors = ["Andrew Bowers"]
+language = "en"
+src = "src"
+title = "SCIM Server Guide"

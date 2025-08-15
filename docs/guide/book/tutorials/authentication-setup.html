@@ -1,0 +1,867 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Authentication Setup - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="authentication-setup"><a class="header" href="#authentication-setup">Authentication Setup</a></h1>
+<p>This tutorial shows you how to implement authentication and authorization for your SCIM Server, covering OAuth 2.0, API keys, and custom authentication schemes.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>SCIM servers typically operate in enterprise environments where security is paramount. The SCIM Server library provides flexible authentication mechanisms that can integrate with existing identity providers and security infrastructure.</p>
+<h3 id="common-authentication-patterns"><a class="header" href="#common-authentication-patterns">Common Authentication Patterns</a></h3>
+<ol>
+<li><strong>OAuth 2.0 Bearer Tokens</strong> - Industry standard for API authentication</li>
+<li><strong>API Keys</strong> - Simple shared secrets for service-to-service communication</li>
+<li><strong>JWT Tokens</strong> - Self-contained tokens with embedded claims</li>
+<li><strong>Basic Authentication</strong> - Username/password for development and testing</li>
+<li><strong>Custom Authentication</strong> - Integration with proprietary systems</li>
+</ol>
+<h2 id="quick-start-basic-authentication"><a class="header" href="#quick-start-basic-authentication">Quick Start: Basic Authentication</a></h2>
+<p>Let's start with a simple development setup using basic authentication:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{ScimServer, InMemoryProvider};
+use axum::{
+    extract::{Request, State},
+    http::{StatusCode, HeaderMap},
+    middleware::{self, Next},
+    response::Response,
+    Router,
+};
+use base64::{Engine as _, engine::general_purpose};
+
+#[derive(Clone)]
+struct AppState {
+    scim_server: ScimServer,
+    admin_credentials: (String, String), // (username, password)
+}
+
+async fn basic_auth_middleware(
+    State(state): State&lt;AppState&gt;,
+    headers: HeaderMap,
+    request: Request,
+    next: Next,
+) -&gt; Result&lt;Response, StatusCode&gt; {
+    // Get Authorization header
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Check Basic auth format
+    if !auth_header.starts_with("Basic ") {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Decode credentials
+    let encoded = &amp;auth_header[6..];
+    let decoded = general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    
+    let credentials = String::from_utf8(decoded)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    
+    let mut parts = credentials.splitn(2, ':');
+    let username = parts.next().ok_or(StatusCode::UNAUTHORIZED)?;
+    let password = parts.next().ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Validate credentials
+    if username == state.admin_credentials.0 &amp;&amp; password == state.admin_credentials.1 {
+        Ok(next.run(request).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let provider = InMemoryProvider::new();
+    let scim_server = ScimServer::builder()
+        .provider(provider)
+        .build();
+
+    let state = AppState {
+        scim_server,
+        admin_credentials: ("admin".to_string(), "secret123".to_string()),
+    };
+
+    let app = Router::new()
+        .nest("/scim/v2/:tenant_id", scim_routes())
+        .layer(middleware::from_fn_with_state(state.clone(), basic_auth_middleware))
+        .with_state(state);
+
+    println!("SCIM server with basic auth running on http://localhost:3000");
+    println!("Use credentials: admin:secret123");
+    
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}</code></pre></pre>
+<h2 id="oauth-20-bearer-token-authentication"><a class="header" href="#oauth-20-bearer-token-authentication">OAuth 2.0 Bearer Token Authentication</a></h2>
+<p>For production deployments, OAuth 2.0 is the recommended approach:</p>
+<h3 id="jwt-token-validation"><a class="header" href="#jwt-token-validation">JWT Token Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    sub: String,    // Subject (user ID)
+    exp: usize,     // Expiration time
+    iat: usize,     // Issued at
+    iss: String,    // Issuer
+    aud: String,    // Audience
+    scope: String,  // OAuth scopes
+    tenant_id: Option&lt;String&gt;, // Tenant context
+}
+
+async fn oauth_middleware(
+    State(state): State&lt;AppState&gt;,
+    headers: HeaderMap,
+    mut request: Request,
+    next: Next,
+) -&gt; Result&lt;Response, StatusCode&gt; {
+    // Extract Bearer token
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if !auth_header.starts_with("Bearer ") {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let token = &amp;auth_header[7..];
+
+    // Validate JWT token
+    let decoding_key = DecodingKey::from_secret(state.jwt_secret.as_ref());
+    let validation = Validation::new(Algorithm::HS256);
+    
+    let token_data = decode::&lt;Claims&gt;(token, &amp;decoding_key, &amp;validation)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Check token expiration
+    let now = chrono::Utc::now().timestamp() as usize;
+    if token_data.claims.exp &lt; now {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Check required scopes
+    let scopes: Vec&lt;&amp;str&gt; = token_data.claims.scope.split(' ').collect();
+    if !scopes.contains(&amp;"scim:read") &amp;&amp; !scopes.contains(&amp;"scim:write") {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Add user context to request
+    request.extensions_mut().insert(UserContext {
+        user_id: token_data.claims.sub,
+        tenant_id: token_data.claims.tenant_id,
+        scopes,
+    });
+
+    Ok(next.run(request).await)
+}
+
+#[derive(Clone)]
+struct UserContext {
+    user_id: String,
+    tenant_id: Option&lt;String&gt;,
+    scopes: Vec&lt;String&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="integration-with-external-oauth-providers"><a class="header" href="#integration-with-external-oauth-providers">Integration with External OAuth Providers</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use reqwest::Client;
+use serde_json::Value;
+
+#[derive(Clone)]
+struct OAuthConfig {
+    introspection_url: String,
+    client_id: String,
+    client_secret: String,
+}
+
+async fn validate_oauth_token(
+    config: &amp;OAuthConfig,
+    token: &amp;str,
+) -&gt; Result&lt;Claims, String&gt; {
+    let client = Client::new();
+    
+    // Call OAuth provider's introspection endpoint
+    let response = client
+        .post(&amp;config.introspection_url)
+        .basic_auth(&amp;config.client_id, Some(&amp;config.client_secret))
+        .form(&amp;[("token", token)])
+        .send()
+        .await
+        .map_err(|e| format!("Failed to validate token: {}", e))?;
+
+    let introspection: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // Check if token is active
+    if !introspection["active"].as_bool().unwrap_or(false) {
+        return Err("Token is not active".to_string());
+    }
+
+    // Extract claims
+    Ok(Claims {
+        sub: introspection["sub"].as_str().unwrap_or("").to_string(),
+        exp: introspection["exp"].as_u64().unwrap_or(0) as usize,
+        iat: introspection["iat"].as_u64().unwrap_or(0) as usize,
+        iss: introspection["iss"].as_str().unwrap_or("").to_string(),
+        aud: introspection["aud"].as_str().unwrap_or("").to_string(),
+        scope: introspection["scope"].as_str().unwrap_or("").to_string(),
+        tenant_id: introspection["tenant_id"].as_str().map(|s| s.to_string()),
+    })
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="api-key-authentication"><a class="header" href="#api-key-authentication">API Key Authentication</a></h2>
+<p>For service-to-service communication, API keys provide a simpler alternative:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use sha2::{Sha256, Digest};
+use std::collections::HashMap;
+
+#[derive(Clone)]
+struct ApiKeyStore {
+    keys: HashMap&lt;String, ApiKeyInfo&gt;,
+}
+
+#[derive(Clone)]
+struct ApiKeyInfo {
+    name: String,
+    tenant_id: String,
+    permissions: Vec&lt;String&gt;,
+    created_at: chrono::DateTime&lt;chrono::Utc&gt;,
+    last_used: Option&lt;chrono::DateTime&lt;chrono::Utc&gt;&gt;,
+}
+
+impl ApiKeyStore {
+    fn new() -&gt; Self {
+        let mut keys = HashMap::new();
+        
+        // Example API key (in production, store these securely)
+        keys.insert(
+            "sk_test_1234567890abcdef".to_string(),
+            ApiKeyInfo {
+                name: "Development Key".to_string(),
+                tenant_id: "tenant-1".to_string(),
+                permissions: vec!["scim:read".to_string(), "scim:write".to_string()],
+                created_at: chrono::Utc::now(),
+                last_used: None,
+            },
+        );
+        
+        Self { keys }
+    }
+    
+    async fn validate_key(&amp;mut self, api_key: &amp;str) -&gt; Option&lt;&amp;ApiKeyInfo&gt; {
+        if let Some(key_info) = self.keys.get_mut(api_key) {
+            key_info.last_used = Some(chrono::Utc::now());
+            Some(key_info)
+        } else {
+            None
+        }
+    }
+}
+
+async fn api_key_middleware(
+    State(mut state): State&lt;AppState&gt;,
+    headers: HeaderMap,
+    mut request: Request,
+    next: Next,
+) -&gt; Result&lt;Response, StatusCode&gt; {
+    // Extract API key from header
+    let api_key = headers
+        .get("X-API-Key")
+        .or_else(|| headers.get("Authorization").and_then(|h| {
+            h.to_str().ok().and_then(|s| {
+                if s.starts_with("Bearer ") {
+                    Some(&amp;s[7..])
+                } else {
+                    None
+                }
+            })
+        }))
+        .and_then(|h| h.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Validate API key
+    let key_info = state.api_keys.validate_key(api_key).await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Add context to request
+    request.extensions_mut().insert(ApiKeyContext {
+        tenant_id: key_info.tenant_id.clone(),
+        permissions: key_info.permissions.clone(),
+        key_name: key_info.name.clone(),
+    });
+
+    Ok(next.run(request).await)
+}
+
+#[derive(Clone)]
+struct ApiKeyContext {
+    tenant_id: String,
+    permissions: Vec&lt;String&gt;,
+    key_name: String,
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="multi-tenant-authentication"><a class="header" href="#multi-tenant-authentication">Multi-Tenant Authentication</a></h2>
+<p>Handle different authentication schemes per tenant:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Clone)]
+enum AuthScheme {
+    OAuth {
+        jwks_url: String,
+        audience: String,
+        issuer: String,
+    },
+    ApiKey {
+        keys: HashMap&lt;String, String&gt;, // key -&gt; permissions
+    },
+    Basic {
+        username: String,
+        password_hash: String,
+    },
+}
+
+#[derive(Clone)]
+struct TenantAuthConfig {
+    tenant_configs: HashMap&lt;String, AuthScheme&gt;,
+}
+
+impl TenantAuthConfig {
+    async fn authenticate(
+        &amp;self,
+        tenant_id: &amp;str,
+        headers: &amp;HeaderMap,
+    ) -&gt; Result&lt;AuthContext, StatusCode&gt; {
+        let auth_scheme = self.tenant_configs
+            .get(tenant_id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+
+        match auth_scheme {
+            AuthScheme::OAuth { jwks_url, audience, issuer } =&gt; {
+                self.validate_oauth(headers, jwks_url, audience, issuer).await
+            },
+            AuthScheme::ApiKey { keys } =&gt; {
+                self.validate_api_key(headers, keys).await
+            },
+            AuthScheme::Basic { username, password_hash } =&gt; {
+                self.validate_basic(headers, username, password_hash).await
+            },
+        }
+    }
+    
+    async fn validate_oauth(
+        &amp;self,
+        headers: &amp;HeaderMap,
+        jwks_url: &amp;str,
+        audience: &amp;str,
+        issuer: &amp;str,
+    ) -&gt; Result&lt;AuthContext, StatusCode&gt; {
+        // OAuth validation logic
+        todo!("Implement OAuth validation")
+    }
+    
+    async fn validate_api_key(
+        &amp;self,
+        headers: &amp;HeaderMap,
+        keys: &amp;HashMap&lt;String, String&gt;,
+    ) -&gt; Result&lt;AuthContext, StatusCode&gt; {
+        // API key validation logic
+        todo!("Implement API key validation")
+    }
+    
+    async fn validate_basic(
+        &amp;self,
+        headers: &amp;HeaderMap,
+        username: &amp;str,
+        password_hash: &amp;str,
+    ) -&gt; Result&lt;AuthContext, StatusCode&gt; {
+        // Basic auth validation logic
+        todo!("Implement basic auth validation")
+    }
+}
+
+#[derive(Clone)]
+struct AuthContext {
+    tenant_id: String,
+    user_id: Option&lt;String&gt;,
+    permissions: Vec&lt;String&gt;,
+    auth_type: String,
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="authorization-and-permissions"><a class="header" href="#authorization-and-permissions">Authorization and Permissions</a></h2>
+<p>Implement fine-grained access control:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Clone)]
+struct PermissionChecker {
+    // Define permission patterns
+}
+
+impl PermissionChecker {
+    fn can_access_resource(
+        &amp;self,
+        context: &amp;AuthContext,
+        resource_type: &amp;str,
+        operation: &amp;str,
+        resource_id: Option&lt;&amp;str&gt;,
+    ) -&gt; bool {
+        // Check if user has required permissions
+        let required_permission = format!("scim:{}:{}", resource_type, operation);
+        
+        if context.permissions.contains(&amp;required_permission) {
+            return true;
+        }
+        
+        // Check wildcard permissions
+        let wildcard_permission = format!("scim:{}:*", resource_type);
+        if context.permissions.contains(&amp;wildcard_permission) {
+            return true;
+        }
+        
+        // Check admin permission
+        if context.permissions.contains(&amp;"scim:admin".to_string()) {
+            return true;
+        }
+        
+        // Resource-specific checks
+        if let Some(id) = resource_id {
+            let specific_permission = format!("scim:{}:{}:{}", resource_type, operation, id);
+            if context.permissions.contains(&amp;specific_permission) {
+                return true;
+            }
+        }
+        
+        false
+    }
+}
+
+// Usage in handlers
+async fn get_user_handler(
+    State(state): State&lt;AppState&gt;,
+    Extension(auth_context): Extension&lt;AuthContext&gt;,
+    Path((tenant_id, user_id)): Path&lt;(String, String)&gt;,
+) -&gt; Result&lt;Json&lt;ScimUser&gt;, StatusCode&gt; {
+    // Check permissions
+    if !state.permissions.can_access_resource(
+        &amp;auth_context,
+        "users",
+        "read",
+        Some(&amp;user_id),
+    ) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    
+    // Proceed with operation
+    let user = state.scim_server
+        .get_user(&amp;tenant_id, &amp;user_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(user))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="production-security-considerations"><a class="header" href="#production-security-considerations">Production Security Considerations</a></h2>
+<h3 id="rate-limiting"><a class="header" href="#rate-limiting">Rate Limiting</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tower_governor::{GovernorLayer, governor::GovernorConfig};
+use std::time::Duration;
+
+// Add rate limiting middleware
+let governor_conf = GovernorConfig::default()
+    .per_second(10)
+    .burst_size(20)
+    .period(Duration::from_secs(60));
+
+let app = Router::new()
+    .nest("/scim/v2", scim_routes())
+    .layer(GovernorLayer::new(&amp;governor_conf))
+    .layer(middleware::from_fn(auth_middleware));
+<span class="boring">}</span></code></pre></pre>
+<h3 id="request-logging-and-audit"><a class="header" href="#request-logging-and-audit">Request Logging and Audit</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>async fn audit_middleware(
+    Extension(auth_context): Extension&lt;AuthContext&gt;,
+    request: Request,
+    next: Next,
+) -&gt; Response {
+    let method = request.method().clone();
+    let uri = request.uri().clone();
+    let start_time = std::time::Instant::now();
+    
+    let response = next.run(request).await;
+    
+    let duration = start_time.elapsed();
+    let status = response.status();
+    
+    // Log the request
+    tracing::info!(
+        user_id = auth_context.user_id,
+        tenant_id = auth_context.tenant_id,
+        method = %method,
+        uri = %uri,
+        status = %status,
+        duration_ms = duration.as_millis(),
+        "SCIM API request"
+    );
+    
+    response
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="https-and-security-headers"><a class="header" href="#https-and-security-headers">HTTPS and Security Headers</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tower_http::{
+    set_header::SetResponseHeaderLayer,
+    cors::CorsLayer,
+};
+
+let app = Router::new()
+    .nest("/scim/v2", scim_routes())
+    .layer(SetResponseHeaderLayer::overriding(
+        http::header::STRICT_TRANSPORT_SECURITY,
+        http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+    ))
+    .layer(SetResponseHeaderLayer::overriding(
+        http::header::X_CONTENT_TYPE_OPTIONS,
+        http::HeaderValue::from_static("nosniff"),
+    ))
+    .layer(SetResponseHeaderLayer::overriding(
+        http::header::X_FRAME_OPTIONS,
+        http::HeaderValue::from_static("DENY"),
+    ))
+    .layer(CorsLayer::permissive()) // Configure CORS appropriately
+    .layer(middleware::from_fn(auth_middleware));
+<span class="boring">}</span></code></pre></pre>
+<h2 id="testing-authentication"><a class="header" href="#testing-authentication">Testing Authentication</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum_test::TestServer;
+    
+    #[tokio::test]
+    async fn test_basic_auth_success() {
+        let app = create_test_app().await;
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server
+            .get("/scim/v2/tenant-1/Users")
+            .add_header("Authorization", "Basic YWRtaW46c2VjcmV0MTIz") // admin:secret123
+            .await;
+        
+        assert_eq!(response.status_code(), 200);
+    }
+    
+    #[tokio::test]
+    async fn test_basic_auth_failure() {
+        let app = create_test_app().await;
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server
+            .get("/scim/v2/tenant-1/Users")
+            .add_header("Authorization", "Basic aW52YWxpZA==") // invalid
+            .await;
+        
+        assert_eq!(response.status_code(), 401);
+    }
+    
+    #[tokio::test]
+    async fn test_api_key_auth() {
+        let app = create_test_app().await;
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server
+            .get("/scim/v2/tenant-1/Users")
+            .add_header("X-API-Key", "sk_test_1234567890abcdef")
+            .await;
+        
+        assert_eq!(response.status_code(), 200);
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>Create a configuration system for different environments:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(serde::Deserialize)]
+struct AuthConfig {
+    #[serde(default)]
+    basic_auth: Option&lt;BasicAuthConfig&gt;,
+    #[serde(default)]
+    oauth: Option&lt;OAuthConfig&gt;,
+    #[serde(default)]
+    api_keys: Option&lt;ApiKeyConfig&gt;,
+}
+
+#[derive(serde::Deserialize)]
+struct BasicAuthConfig {
+    username: String,
+    password: String, // In production, use password hash
+}
+
+#[derive(serde::Deserialize)]
+struct OAuthConfig {
+    jwks_url: String,
+    audience: String,
+    issuer: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ApiKeyConfig {
+    keys_file: String, // Path to API keys file
+}
+
+// Load from environment or config file
+fn load_auth_config() -&gt; AuthConfig {
+    let config_str = std::fs::read_to_string("auth_config.toml")
+        .expect("Failed to read auth config");
+    
+    toml::from_str(&amp;config_str)
+        .expect("Failed to parse auth config")
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This comprehensive authentication setup provides enterprise-grade security for your SCIM Server while maintaining flexibility for different deployment scenarios.</p>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li><a href="../advanced/custom-validation.html">Implement custom validation</a> for additional security</li>
+<li><a href="../advanced/monitoring.html">Set up monitoring</a> for security events</li>
+<li><a href="../advanced/production-deployment.html">Configure production deployment</a> with proper security</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorials/custom-resources.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorials/multi-tenant-deployment.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorials/custom-resources.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorials/multi-tenant-deployment.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>
