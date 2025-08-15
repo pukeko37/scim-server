@@ -5,12 +5,19 @@ on:
     branches: [main]
   workflow_dispatch: # Allow manual triggering
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
@@ -28,3 +35,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/guide/book
           publish_branch: gh-pages
+          force_orphan: true
