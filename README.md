@@ -10,7 +10,7 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **⚠️ Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.3.2"`. Breaking changes are signaled by minor version increments until v1.0.
+> **⚠️ Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.3.3"`. Breaking changes are signaled by minor version increments until v1.0.
 
 ## ⚡ Quick Start
 
@@ -18,7 +18,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "=0.3.2"
+scim-server = "=0.3.3"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -73,7 +73,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 
 | Resource | Description |
 |----------|-------------|
-| 📖 **[User Guide](docs/guide/book/)** | Comprehensive tutorials and concepts |
+| 📖 **[User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html)** | Comprehensive tutorials and concepts |
 | 🔧 **[API Documentation](https://docs.rs/scim-server)** | Detailed API reference with examples |
 | 💡 **[Examples](examples/)** | Copy-paste starting points for common use cases |
 | 📋 **[CHANGELOG](CHANGELOG.md)** | Version history and migration guides |
@@ -81,7 +81,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 ### Learning Path
 
 1. **Start Here**: Follow the Quick Start above
-2. **Learn Concepts**: Read the [User Guide](docs/guide/book/) 
+2. **Learn Concepts**: Read the [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) 
 3. **See Examples**: Browse [examples/](examples/) for your use case
 4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server) for detailed API docs
 
@@ -112,11 +112,7 @@ See [examples/](examples/) for complete working examples including:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see:
-
-- [Contributing Guide](docs/reference/development/contributing.md)
-- [Development Setup](docs/reference/development/setup.md)
-- [Code Standards](docs/reference/development/standards.md)
+We welcome contributions! Please see our [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) for development information, or [open an issue](https://github.com/pukeko37/scim-server/issues) to discuss your ideas.
 
 ## 📄 License
 
@@ -124,4 +120,4 @@ Licensed under the [MIT License](LICENSE).
 
 ---
 
-**Need help?** Check the [User Guide](docs/guide/book/) or [open an issue](https://github.com/pukeko37/scim-server/issues).
+**Need help?** Check the [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) or [open an issue](https://github.com/pukeko37/scim-server/issues).

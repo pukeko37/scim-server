@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.3] - 2025-08-16
+
+### Fixed
+- Fixed README.md documentation links to point to actual HTML documentation using htmlpreview.github.io instead of mdbook source files
+
 ## [0.3.2] - 2025-08-16
 
 ### Added
