@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.5] - 2025-08-16
+
+### Fixed
+- Updated GitHub Pages workflow to properly create gh-pages branch for documentation deployment
+- Fixed workflow compatibility with default GitHub Pages settings
+
 ## [0.3.4] - 2025-08-16
 
 ### Added
