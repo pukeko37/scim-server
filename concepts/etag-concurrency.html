@@ -1,0 +1,719 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>ETag Concurrency Control - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="etag-concurrency-control"><a class="header" href="#etag-concurrency-control">ETag Concurrency Control</a></h1>
+<p>ETag concurrency control is a critical feature for preventing lost updates in multi-client environments. This chapter explains how SCIM Server implements enterprise-grade optimistic locking using ETags to ensure data consistency.</p>
+<h2 id="what-are-etags"><a class="header" href="#what-are-etags">What are ETags?</a></h2>
+<p>ETags (Entity Tags) are HTTP headers that represent the version of a resource. They enable optimistic concurrency control, where multiple clients can work on the same resource without locking, but updates are validated to prevent conflicts.</p>
+<h3 id="benefits-of-etag-concurrency-control"><a class="header" href="#benefits-of-etag-concurrency-control">Benefits of ETag Concurrency Control</a></h3>
+<ul>
+<li><strong>Prevent Lost Updates</strong>: Avoid scenarios where one client overwrites another's changes</li>
+<li><strong>Optimistic Locking</strong>: No blocking - clients work independently until conflict detection</li>
+<li><strong>Performance</strong>: Better than pessimistic locking for distributed systems</li>
+<li><strong>Consistency</strong>: Ensure data integrity in concurrent environments</li>
+<li><strong>Auditability</strong>: Track version changes for compliance and debugging</li>
+</ul>
+<h2 id="how-etags-work-in-scim-server"><a class="header" href="#how-etags-work-in-scim-server">How ETags Work in SCIM Server</a></h2>
+<p>SCIM Server automatically manages ETags for all resources, providing seamless concurrency control:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{ScimServer, storage::InMemoryStorage};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let storage = InMemoryStorage::new();
+    let server = ScimServer::new(storage).await?;
+    
+    // Create a user - ETag is automatically generated
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com",
+        "active": true
+    });
+
+    let user = server.create_user("tenant-1", user_data).await?;
+    println!("Created user with ETag: {}", user.meta.version);
+    // Output: W/"1-abc123def456"
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="etag-format-and-structure"><a class="header" href="#etag-format-and-structure">ETag Format and Structure</a></h2>
+<p>SCIM Server uses weak ETags following HTTP standards:</p>
+<pre><code>W/"&lt;version&gt;-&lt;hash&gt;"
+</code></pre>
+<ul>
+<li><strong>W/</strong>: Indicates a weak ETag (semantic equivalence)</li>
+<li><strong>version</strong>: Monotonically increasing version number</li>
+<li><strong>hash</strong>: Content hash for additional validation</li>
+</ul>
+<p>Examples:</p>
+<ul>
+<li><code>W/"1-a1b2c3d4"</code> - Version 1, first creation</li>
+<li><code>W/"2-e5f6g7h8"</code> - Version 2, after first update</li>
+<li><code>W/"3-i9j0k1l2"</code> - Version 3, after second update</li>
+</ul>
+<h2 id="basic-concurrency-control"><a class="header" href="#basic-concurrency-control">Basic Concurrency Control</a></h2>
+<h3 id="reading-resources-with-etags"><a class="header" href="#reading-resources-with-etags">Reading Resources with ETags</a></h3>
+<p>All read operations return the current ETag:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::{ScimServer, TenantId};
+
+async fn read_user_with_etag(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let user = server.get_user(tenant_id, user_id).await?;
+    
+    println!("User: {}", user.user_name);
+    println!("Current ETag: {}", user.meta.version);
+    println!("Last Modified: {}", user.meta.last_modified);
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="conditional-updates"><a class="header" href="#conditional-updates">Conditional Updates</a></h3>
+<p>Use ETags to ensure updates only succeed if the resource hasn't changed:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::{ScimServer, ETag, ConditionalResult};
+
+async fn safe_update_user(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+    expected_etag: &amp;ETag,
+    updates: serde_json::Value,
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    match server.conditional_update_user(
+        tenant_id,
+        user_id,
+        updates,
+        Some(expected_etag),
+    ).await? {
+        ConditionalResult::Success(updated_user) =&gt; {
+            println!("Update successful!");
+            println!("New ETag: {}", updated_user.meta.version);
+        },
+        ConditionalResult::VersionMismatch { expected, current } =&gt; {
+            println!("Version conflict detected!");
+            println!("Expected: {}, Current: {}", expected, current);
+            // Handle conflict - see conflict resolution section
+        },
+        ConditionalResult::NotFound =&gt; {
+            println!("User no longer exists");
+        }
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="advanced-concurrency-patterns"><a class="header" href="#advanced-concurrency-patterns">Advanced Concurrency Patterns</a></h2>
+<h3 id="optimistic-update-with-retry"><a class="header" href="#optimistic-update-with-retry">Optimistic Update with Retry</a></h3>
+<p>Handle conflicts gracefully with automatic retry:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::{ScimServer, ConditionalResult, BackoffStrategy};
+use tokio::time::{sleep, Duration};
+
+async fn optimistic_update_with_retry(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+    update_fn: impl Fn(&amp;serde_json::Value) -&gt; serde_json::Value,
+    max_retries: u32,
+) -&gt; Result&lt;serde_json::Value, Box&lt;dyn std::error::Error&gt;&gt; {
+    for attempt in 0..max_retries {
+        // Get current version
+        let current_user = server.get_user(tenant_id, user_id).await?;
+        let current_etag = &amp;current_user.meta.version;
+        
+        // Apply updates
+        let updated_data = update_fn(&amp;current_user);
+        
+        // Attempt conditional update
+        match server.conditional_update_user(
+            tenant_id,
+            user_id,
+            updated_data,
+            Some(current_etag),
+        ).await? {
+            ConditionalResult::Success(user) =&gt; return Ok(user),
+            ConditionalResult::VersionMismatch { .. } =&gt; {
+                if attempt &lt; max_retries - 1 {
+                    // Exponential backoff before retry
+                    let delay = Duration::from_millis(100 * 2_u64.pow(attempt));
+                    sleep(delay).await;
+                    continue;
+                } else {
+                    return Err("Max retries exceeded".into());
+                }
+            },
+            ConditionalResult::NotFound =&gt; {
+                return Err("User was deleted during update".into());
+            }
+        }
+    }
+    
+    unreachable!()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="batch-operations-with-version-checking"><a class="header" href="#batch-operations-with-version-checking">Batch Operations with Version Checking</a></h3>
+<h2 id="advanced-patterns"><a class="header" href="#advanced-patterns">Advanced Patterns</a></h2>
+<h3 id="multiple-operations-with-etags"><a class="header" href="#multiple-operations-with-etags">Multiple Operations with ETags</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::{ConditionalResult, VersionedResource};
+
+async fn batch_update_with_etags(
+    provider: &amp;impl ResourceProvider,
+    tenant_id: &amp;TenantId,
+    operations: Vec&lt;(String, serde_json::Value, ETag)&gt;, // (user_id, data, expected_etag)
+) -&gt; Result&lt;Vec&lt;ConditionalResult&lt;VersionedResource&gt;&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut results = Vec::new();
+    let context = RequestContext::new("batch-update", None);
+    
+    // Process each operation individually (bulk operations not yet implemented)
+    for (user_id, data, expected_etag) in operations {
+        let result = provider.conditional_update(
+            "User",
+            &amp;user_id,
+            data,
+            &amp;expected_etag,
+            &amp;context
+        ).await?;
+        
+        match &amp;result {
+            ConditionalResult::Success(versioned) =&gt; {
+                println!("Updated {}: new version {}", user_id, versioned.version());
+            },
+            ConditionalResult::VersionMismatch(conflict) =&gt; {
+                println!("Conflict on {}: expected {}, got {}", 
+                         user_id, expected_etag, conflict.current_version);
+            },
+            ConditionalResult::NotFound =&gt; {
+                println!("User {} not found", user_id);
+            }
+        }
+        
+        results.push(result);
+    }
+    
+    Ok(results)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="conflict-resolution-strategies"><a class="header" href="#conflict-resolution-strategies">Conflict Resolution Strategies</a></h2>
+<p>When version conflicts occur, several strategies can be employed:</p>
+<h3 id="strategy-1-last-writer-wins-forced-update"><a class="header" href="#strategy-1-last-writer-wins-forced-update">Strategy 1: Last Writer Wins (Forced Update)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>async fn force_update(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+    updates: serde_json::Value,
+) -&gt; Result&lt;serde_json::Value, Box&lt;dyn std::error::Error&gt;&gt; {
+    // Update without ETag check - potentially dangerous!
+    let result = server.update_user(tenant_id, user_id, updates).await?;
+    println!("Forced update completed");
+    Ok(result)
+}
+<span class="boring">}</span></code></pre></pre>
+<p>⚠️ <strong>Warning</strong>: Use this strategy only when you're certain it's safe to overwrite changes.</p>
+<h3 id="strategy-2-merge-changes"><a class="header" href="#strategy-2-merge-changes">Strategy 2: Merge Changes</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use serde_json::{Value, Map};
+
+async fn merge_and_update(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+    my_changes: serde_json::Value,
+    max_attempts: u32,
+) -&gt; Result&lt;serde_json::Value, Box&lt;dyn std::error::Error&gt;&gt; {
+    for attempt in 0..max_attempts {
+        // Get current state
+        let current_user = server.get_user(tenant_id, user_id).await?;
+        let current_etag = &amp;current_user.meta.version;
+        
+        // Merge changes (simple field-level merge)
+        let merged_data = merge_user_data(&amp;current_user, &amp;my_changes)?;
+        
+        // Attempt update with current ETag
+        match server.conditional_update_user(
+            tenant_id,
+            user_id,
+            merged_data,
+            Some(current_etag),
+        ).await? {
+            ConditionalResult::Success(user) =&gt; return Ok(user),
+            ConditionalResult::VersionMismatch { .. } =&gt; {
+                // Retry with fresh data
+                continue;
+            },
+            ConditionalResult::NotFound =&gt; {
+                return Err("User was deleted".into());
+            }
+        }
+    }
+    
+    Err("Failed to merge after maximum attempts".into())
+}
+
+fn merge_user_data(
+    current: &amp;serde_json::Value,
+    changes: &amp;serde_json::Value,
+) -&gt; Result&lt;serde_json::Value, Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut merged = current.clone();
+    
+    if let (Some(current_obj), Some(changes_obj)) = (
+        merged.as_object_mut(),
+        changes.as_object()
+    ) {
+        for (key, value) in changes_obj {
+            // Simple field replacement - you might want more sophisticated merging
+            current_obj.insert(key.clone(), value.clone());
+        }
+    }
+    
+    Ok(merged)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="strategy-3-user-mediated-resolution"><a class="header" href="#strategy-3-user-mediated-resolution">Strategy 3: User-Mediated Resolution</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::ConflictResolution;
+
+async fn resolve_conflict_interactively(
+    server: &amp;ScimServer,
+    tenant_id: &amp;TenantId,
+    user_id: &amp;str,
+    my_changes: serde_json::Value,
+    conflict: ConflictResolution,
+) -&gt; Result&lt;serde_json::Value, Box&lt;dyn std::error::Error&gt;&gt; {
+    println!("Conflict detected for user {}", user_id);
+    println!("Your changes: {}", serde_json::to_string_pretty(&amp;my_changes)?);
+    println!("Current state: {}", serde_json::to_string_pretty(&amp;conflict.current_state)?);
+    
+    // In a real application, present UI for user to choose resolution
+    let resolution = prompt_user_for_resolution(&amp;my_changes, &amp;conflict.current_state)?;
+    
+    match resolution {
+        UserChoice::KeepMine =&gt; {
+            // Force update with my changes
+            server.update_user(tenant_id, user_id, my_changes).await
+        },
+        UserChoice::KeepTheirs =&gt; {
+            // Return current state, no update needed
+            Ok(conflict.current_state)
+        },
+        UserChoice::Merge(merged_data) =&gt; {
+            // Use user-provided merge
+            server.update_user(tenant_id, user_id, merged_data).await
+        }
+    }
+}
+
+enum UserChoice {
+    KeepMine,
+    KeepTheirs,
+    Merge(serde_json::Value),
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="http-integration"><a class="header" href="#http-integration">HTTP Integration</a></h2>
+<h3 id="etag-headers-in-http-responses"><a class="header" href="#etag-headers-in-http-responses">ETag Headers in HTTP Responses</a></h3>
+<p>SCIM Server automatically includes ETag headers in HTTP responses:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{response::Response, http::HeaderMap};
+
+async fn http_get_user(
+    tenant_id: String,
+    user_id: String,
+    server: ScimServer,
+) -&gt; Result&lt;Response, AppError&gt; {
+    let user = server.get_user(&amp;TenantId::new(tenant_id), &amp;user_id).await?;
+    
+    let mut headers = HeaderMap::new();
+    headers.insert("ETag", user.meta.version.to_string().parse()?);
+    headers.insert("Last-Modified", user.meta.last_modified.to_rfc2822().parse()?);
+    
+    let response = Response::builder()
+        .status(200)
+        .header("Content-Type", "application/scim+json")
+        .header("ETag", user.meta.version.to_string())
+        .body(serde_json::to_string(&amp;user)?)
+        .unwrap();
+    
+    Ok(response)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="conditional-requests-with-if-match"><a class="header" href="#conditional-requests-with-if-match">Conditional Requests with If-Match</a></h3>
+<p>Handle conditional updates via HTTP If-Match headers:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{extract::HeaderMap, http::StatusCode};
+
+async fn http_update_user(
+    tenant_id: String,
+    user_id: String,
+    headers: HeaderMap,
+    Json(updates): Json&lt;serde_json::Value&gt;,
+    server: ScimServer,
+) -&gt; Result&lt;Response, AppError&gt; {
+    let if_match = headers.get("If-Match")
+        .and_then(|v| v.to_str().ok())
+        .map(ETag::parse)
+        .transpose()?;
+    
+    match server.conditional_update_user(
+        &amp;TenantId::new(tenant_id),
+        &amp;user_id,
+        updates,
+        if_match.as_ref(),
+    ).await? {
+        ConditionalResult::Success(user) =&gt; {
+            Ok(Response::builder()
+                .status(200)
+                .header("ETag", user.meta.version.to_string())
+                .body(serde_json::to_string(&amp;user)?)
+                .unwrap())
+        },
+        ConditionalResult::VersionMismatch { expected, current } =&gt; {
+            Ok(Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .header("ETag", current.to_string())
+                .body(format!("Version mismatch: expected {}, current {}", expected, current))
+                .unwrap())
+        },
+        ConditionalResult::NotFound =&gt; {
+            Ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body("User not found")
+                .unwrap())
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="performance-considerations"><a class="header" href="#performance-considerations">Performance Considerations</a></h2>
+<h3 id="etag-storage-optimization"><a class="header" href="#etag-storage-optimization">ETag Storage Optimization</a></h3>
+<p>ETags are stored efficiently to minimize overhead:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::storage::{ETagStorage, CompressionLevel};
+
+// Configure ETag storage for optimal performance
+let etag_config = ETagStorage::builder()
+    .compression(CompressionLevel::Fast)
+    .cache_size_mb(256)
+    .cleanup_interval_hours(24)
+    .build();
+
+let storage = InMemoryStorage::new()
+    .with_etag_config(etag_config);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="batch-etag-operations"><a class="header" href="#batch-etag-operations">Batch ETag Operations</a></h3>
+<p>Efficiently handle ETags in bulk operations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Pre-fetch ETags for bulk validation
+let user_ids = vec!["user1", "user2", "user3"];
+let etags = server.get_etags(&amp;tenant_id, &amp;user_ids).await?;
+
+// Validate all ETags before proceeding with bulk operation
+for (user_id, expected_etag) in expected_etags {
+    let current_etag = etags.get(user_id).ok_or("User not found")?;
+    if current_etag != &amp;expected_etag {
+        return Err(format!("Version mismatch for user {}", user_id).into());
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="ai-integration-and-etags"><a class="header" href="#ai-integration-and-etags">AI Integration and ETags</a></h2>
+<p>ETags work seamlessly with AI tools via MCP:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::mcp::{McpTool, ConflictResolutionStrategy};
+
+// AI can handle conflicts intelligently
+let ai_conflict_resolver = McpTool::new("claude-3-5-sonnet")
+    .with_conflict_strategy(ConflictResolutionStrategy::SmartMerge)
+    .with_retry_limit(3);
+
+// AI assistant automatically handles ETag conflicts
+let result = ai_conflict_resolver.update_user_safe(
+    &amp;tenant_id,
+    &amp;user_id,
+    json!({
+        "active": false,
+        "lastLogin": "2024-01-15T10:30:00Z"
+    })
+).await?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="always-use-etags-for-updates"><a class="header" href="#always-use-etags-for-updates">Always Use ETags for Updates</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Good: Always check ETags for updates
+let user = server.get_user(&amp;tenant_id, &amp;user_id).await?;
+let current_etag = &amp;user.meta.version;
+let result = server.conditional_update_user(&amp;tenant_id, &amp;user_id, updates, Some(current_etag)).await?;
+
+// Avoid: Blind updates without version checking
+let result = server.update_user(&amp;tenant_id, &amp;user_id, updates).await?; // Risky!
+<span class="boring">}</span></code></pre></pre>
+<h3 id="handle-all-conflict-cases"><a class="header" href="#handle-all-conflict-cases">Handle All Conflict Cases</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match server.conditional_update_user(&amp;tenant_id, &amp;user_id, updates, Some(&amp;etag)).await? {
+    ConditionalResult::Success(user) =&gt; {
+        // Success case
+    },
+    ConditionalResult::VersionMismatch { expected, current } =&gt; {
+        // Always handle conflicts
+    },
+    ConditionalResult::NotFound =&gt; {
+        // Handle deletion case
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="monitor-conflict-rates"><a class="header" href="#monitor-conflict-rates">Monitor Conflict Rates</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::metrics::ConflictMetrics;
+
+// Track conflict rates to identify problematic access patterns
+let metrics = server.get_conflict_metrics(&amp;tenant_id).await?;
+if metrics.conflict_rate_percent &gt; 5.0 {
+    log::warn!("High conflict rate detected: {}%", metrics.conflict_rate_percent);
+    // Consider implementing additional coordination mechanisms
+}
+<span class="boring">}</span></code></pre></pre>
+<p>ETag concurrency control in SCIM Server provides robust protection against data loss while maintaining high performance in concurrent environments. By understanding and properly implementing these patterns, you can build reliable multi-client systems that handle conflicts gracefully.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../concepts/providers.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorials/custom-resources.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../concepts/providers.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorials/custom-resources.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

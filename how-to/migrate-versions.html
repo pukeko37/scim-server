@@ -1,0 +1,481 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Migrate Between Versions - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="migrate-between-versions"><a class="header" href="#migrate-between-versions">Migrate Between Versions</a></h1>
+<p>This guide covers migrating your SCIM Server implementation between versions within the 0.3.x series. The library follows semantic versioning and provides clear migration paths for breaking changes.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>The SCIM Server library started at version 0.3.0 and follows semantic versioning:</p>
+<ul>
+<li><strong>Patch versions</strong> (0.3.0 → 0.3.1 → 0.3.2): Bug fixes, no breaking changes</li>
+<li><strong>Minor versions</strong> (0.3.x → 0.4.x): New features, backward compatible</li>
+<li><strong>Major versions</strong> (0.x.x → 1.x.x): Breaking changes requiring migration</li>
+</ul>
+<h2 id="current-version-history"><a class="header" href="#current-version-history">Current Version History</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Version</th><th>Release Date</th><th>Type</th><th>Key Changes</th></tr></thead><tbody>
+<tr><td>0.3.0</td><td>2024-12</td><td>Initial</td><td>Initial release with core SCIM 2.0 functionality</td></tr>
+<tr><td>0.3.1</td><td>2024-12</td><td>Patch</td><td>Enhanced storage provider architecture</td></tr>
+<tr><td>0.3.2</td><td>2024-12</td><td>Patch</td><td>ETag concurrency control, MCP integration</td></tr>
+</tbody></table>
+</div>
+<h2 id="migration-within-03x-series"><a class="header" href="#migration-within-03x-series">Migration Within 0.3.x Series</a></h2>
+<h3 id="from-030-to-031"><a class="header" href="#from-030-to-031">From 0.3.0 to 0.3.1</a></h3>
+<p><strong>Breaking Changes</strong>: None - This is a patch release.</p>
+<p><strong>New Features</strong>:</p>
+<ul>
+<li>Enhanced storage provider architecture</li>
+<li>Improved error handling</li>
+<li>Additional validation features</li>
+</ul>
+<p><strong>Migration Steps</strong>:</p>
+<ol>
+<li>
+<p>Update <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+scim-server = "0.3.1"
+</code></pre>
+</li>
+<li>
+<p>Run <code>cargo update</code> to update dependencies</p>
+</li>
+<li>
+<p>No code changes required - all existing code continues to work</p>
+</li>
+</ol>
+<h3 id="from-031-to-032"><a class="header" href="#from-031-to-032">From 0.3.1 to 0.3.2</a></h3>
+<p><strong>Breaking Changes</strong>: None - This is a patch release.</p>
+<p><strong>New Features</strong>:</p>
+<ul>
+<li>ETag concurrency control system</li>
+<li>MCP (Model Context Protocol) integration for AI agents</li>
+<li>Enhanced versioning with <code>VersionedResource</code></li>
+<li>Conditional operations support</li>
+</ul>
+<p><strong>Migration Steps</strong>:</p>
+<ol>
+<li>
+<p>Update <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+scim-server = "0.3.2"
+</code></pre>
+</li>
+<li>
+<p>Run <code>cargo update</code></p>
+</li>
+<li>
+<p><strong>Optional</strong>: Migrate to new concurrency features:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::resource::version::{VersionedResource, ConditionalResult};
+
+// Old approach (still works)
+let resource = provider.update_resource("User", &amp;id, data, &amp;context).await?;
+
+// New approach with version control
+let versioned = provider.conditional_update("User", &amp;id, data, &amp;expected_version, &amp;context).await?;
+match versioned {
+    ConditionalResult::Success(resource) =&gt; { /* Update succeeded */ },
+    ConditionalResult::VersionMismatch(conflict) =&gt; { /* Handle conflict */ },
+    ConditionalResult::NotFound =&gt; { /* Resource not found */ },
+}
+<span class="boring">}</span></code></pre></pre>
+</li>
+</ol>
+<h2 id="best-practices-for-migration"><a class="header" href="#best-practices-for-migration">Best Practices for Migration</a></h2>
+<h3 id="1-test-before-upgrading"><a class="header" href="#1-test-before-upgrading">1. Test Before Upgrading</a></h3>
+<p>Always test version upgrades in a development environment:</p>
+<pre><code class="language-bash"># Create a test project
+cargo new scim-test
+cd scim-test
+
+# Add the new version
+cargo add scim-server@0.3.2
+
+# Test your existing code
+cargo build
+cargo test
+</code></pre>
+<h3 id="2-review-release-notes"><a class="header" href="#2-review-release-notes">2. Review Release Notes</a></h3>
+<p>Check the <a href="../../../../CHANGELOG.html">CHANGELOG.md</a> for detailed information about each release:</p>
+<ul>
+<li>New features and their usage</li>
+<li>Bug fixes that might affect your code</li>
+<li>Performance improvements</li>
+<li>Deprecation notices</li>
+</ul>
+<h3 id="3-incremental-updates"><a class="header" href="#3-incremental-updates">3. Incremental Updates</a></h3>
+<p>For multiple version updates, upgrade incrementally:</p>
+<pre><code class="language-bash"># Instead of 0.3.0 → 0.3.2 directly
+cargo add scim-server@0.3.1  # First step
+cargo build &amp;&amp; cargo test     # Verify
+cargo add scim-server@0.3.2  # Second step
+cargo build &amp;&amp; cargo test     # Verify
+</code></pre>
+<h3 id="4-backup-before-production-updates"><a class="header" href="#4-backup-before-production-updates">4. Backup Before Production Updates</a></h3>
+<p>Always backup your data before updating production systems:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Example backup before migration
+async fn backup_before_migration() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let provider = get_production_provider().await?;
+    let context = RequestContext::new("migration", None);
+    
+    // Backup all users
+    let users = provider.list_resources("User", None, &amp;context).await?;
+    let backup_file = format!("users_backup_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    std::fs::write(backup_file, serde_json::to_string_pretty(&amp;users)?)?;
+    
+    // Backup all groups
+    let groups = provider.list_resources("Group", None, &amp;context).await?;
+    let backup_file = format!("groups_backup_{}.json", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    std::fs::write(backup_file, serde_json::to_string_pretty(&amp;groups)?)?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="staying-updated"><a class="header" href="#staying-updated">Staying Updated</a></h2>
+<h3 id="1-watch-for-new-releases"><a class="header" href="#1-watch-for-new-releases">1. Watch for New Releases</a></h3>
+<p>Monitor the repository for new releases:</p>
+<ul>
+<li>GitHub releases page</li>
+<li>Cargo.toml dependency updates</li>
+<li>Security advisories</li>
+</ul>
+<h3 id="2-dependency-updates"><a class="header" href="#2-dependency-updates">2. Dependency Updates</a></h3>
+<p>Regularly update dependencies:</p>
+<pre><code class="language-bash"># Check for outdated dependencies
+cargo outdated
+
+# Update to latest compatible versions
+cargo update
+
+# Update to specific version
+cargo add scim-server@latest
+</code></pre>
+<h3 id="3-feature-migration"><a class="header" href="#3-feature-migration">3. Feature Migration</a></h3>
+<p>When new features are released, consider migrating gradually:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Example: Adopting ETag concurrency control
+impl MyApplication {
+    // Phase 1: Add version checking without enforcement
+    async fn soft_version_check(&amp;self, id: &amp;str, expected_version: Option&lt;&amp;str&gt;) -&gt; bool {
+        if let Some(version) = expected_version {
+            // Log version mismatches but don't fail
+            match self.provider.get_versioned_resource("User", id, &amp;self.context).await {
+                Ok(Some(resource)) =&gt; {
+                    if resource.version().as_str() != version {
+                        warn!("Version mismatch detected for user {}: expected {}, got {}", 
+                              id, version, resource.version());
+                        return false;
+                    }
+                },
+                _ =&gt; return false,
+            }
+        }
+        true
+    }
+    
+    // Phase 2: Enforce version checking
+    async fn strict_version_check(&amp;self, id: &amp;str, expected_version: &amp;str) -&gt; Result&lt;(), AppError&gt; {
+        // Now fail on version mismatches
+        // Implementation...
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="future-migration-planning"><a class="header" href="#future-migration-planning">Future Migration Planning</a></h2>
+<h3 id="upcoming-major-version-10x"><a class="header" href="#upcoming-major-version-10x">Upcoming Major Version (1.0.x)</a></h3>
+<p>The library is working toward a 1.0 release that may include:</p>
+<ul>
+<li>
+<p><strong>Potential Breaking Changes</strong>:</p>
+<ul>
+<li>SCIM filter expression parser (if it changes API)</li>
+<li>Bulk operations implementation</li>
+<li>Enhanced multi-tenancy features</li>
+</ul>
+</li>
+<li>
+<p><strong>Migration Planning</strong>:</p>
+<ul>
+<li>Follow this documentation for migration guides</li>
+<li>Test pre-release versions in development</li>
+<li>Plan for potential downtime if storage formats change</li>
+</ul>
+</li>
+</ul>
+<h3 id="staying-compatible"><a class="header" href="#staying-compatible">Staying Compatible</a></h3>
+<p>To minimize migration effort:</p>
+<ol>
+<li><strong>Use the public API</strong>: Avoid relying on internal implementation details</li>
+<li><strong>Follow deprecation warnings</strong>: Migrate away from deprecated features early</li>
+<li><strong>Use feature flags conservatively</strong>: Only enable features you actively use</li>
+<li><strong>Test thoroughly</strong>: Comprehensive tests make migrations safer</li>
+</ol>
+<h2 id="getting-help"><a class="header" href="#getting-help">Getting Help</a></h2>
+<p>If you encounter issues during migration:</p>
+<ol>
+<li><strong>Check the <a href="../../../../CHANGELOG.html">CHANGELOG.md</a></strong> for version-specific notes</li>
+<li><strong>Review <a href="https://github.com/pukeko37/scim-server/issues">GitHub Issues</a></strong> for known problems</li>
+<li><strong>Ask questions</strong> in GitHub Discussions</li>
+<li><strong>Report bugs</strong> with version information and reproduction steps</li>
+</ol>
+<h2 id="example-complete-migration-script"><a class="header" href="#example-complete-migration-script">Example: Complete Migration Script</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// migration_helper.rs
+use scim_server::*;
+
+pub struct MigrationHelper {
+    old_provider: Box&lt;dyn ResourceProvider&gt;,
+    new_provider: Box&lt;dyn ResourceProvider&gt;,
+}
+
+impl MigrationHelper {
+    pub async fn verify_compatibility(&amp;self) -&gt; Result&lt;(), MigrationError&gt; {
+        // Verify that existing code still works
+        let context = RequestContext::new("migration_test", None);
+        
+        // Test basic operations
+        let test_user = serde_json::json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "migration.test@example.com"
+        });
+        
+        // This should work across all 0.3.x versions
+        let created = self.new_provider.create_resource("User", test_user, &amp;context).await?;
+        let retrieved = self.new_provider.get_resource("User", &amp;created.id().unwrap(), &amp;context).await?;
+        self.new_provider.delete_resource("User", &amp;created.id().unwrap(), &amp;context).await?;
+        
+        println!("✅ Migration compatibility verified");
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This migration guide focuses on actual version history and real migration scenarios for the SCIM Server library. As the library evolves, this guide will be updated with specific migration instructions for each version.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../concurrency/conflict-resolution.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../how-to/troubleshooting.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../concurrency/conflict-resolution.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../how-to/troubleshooting.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

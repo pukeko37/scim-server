@@ -1,0 +1,1051 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Field-Level Validation - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="field-level-validation"><a class="header" href="#field-level-validation">Field-Level Validation</a></h1>
+<p>This guide covers granular validation at the field and attribute level, allowing you to implement custom validation logic for specific user attributes, custom extensions, and complex data types.</p>
+<h2 id="custom-attribute-validators"><a class="header" href="#custom-attribute-validators">Custom Attribute Validators</a></h2>
+<p>The field-level validation system allows you to register validators for specific attributes:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::validation::{FieldValidator, ValidationContext, ValidationError};
+use std::collections::HashMap;
+use regex::Regex;
+use async_trait::async_trait;
+
+pub struct CustomAttributeValidator {
+    validators: HashMap&lt;String, Box&lt;dyn FieldValidator + Send + Sync&gt;&gt;,
+}
+
+#[async_trait]
+pub trait FieldValidator {
+    async fn validate(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt;;
+}
+
+impl CustomAttributeValidator {
+    pub fn new() -&gt; Self {
+        let mut validators = HashMap::new();
+        
+        // Phone number validator
+        validators.insert(
+            "phoneNumbers".to_string(),
+            Box::new(PhoneNumberValidator::new()) as Box&lt;dyn FieldValidator + Send + Sync&gt;
+        );
+        
+        // Social Security Number validator
+        validators.insert(
+            "enterpriseUser:ssn".to_string(),
+            Box::new(SsnValidator::new()) as Box&lt;dyn FieldValidator + Send + Sync&gt;
+        );
+        
+        // Employee ID validator
+        validators.insert(
+            "enterpriseUser:employeeNumber".to_string(),
+            Box::new(EmployeeIdValidator::new()) as Box&lt;dyn FieldValidator + Send + Sync&gt;
+        );
+        
+        // Custom business identifier validator
+        validators.insert(
+            "enterpriseUser:businessId".to_string(),
+            Box::new(BusinessIdentifierValidator::new()) as Box&lt;dyn FieldValidator + Send + Sync&gt;
+        );
+        
+        Self { validators }
+    }
+    
+    pub async fn validate_field(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(validator) = self.validators.get(field_name) {
+            validator.validate(field_name, value, context).await?;
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="phone-number-validation"><a class="header" href="#phone-number-validation">Phone Number Validation</a></h2>
+<p>Comprehensive phone number validation with international format support:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct PhoneNumberValidator {
+    allowed_countries: Vec&lt;String&gt;,
+    phone_regex: Regex,
+    external_validation_enabled: bool,
+}
+
+impl PhoneNumberValidator {
+    pub fn new() -&gt; Self {
+        Self {
+            allowed_countries: vec![
+                "US".to_string(), 
+                "CA".to_string(), 
+                "GB".to_string(),
+                "DE".to_string(),
+                "FR".to_string(),
+            ],
+            phone_regex: Regex::new(r"^\+[1-9]\d{1,14}$").unwrap(),
+            external_validation_enabled: true,
+        }
+    }
+    
+    pub fn with_allowed_countries(mut self, countries: Vec&lt;String&gt;) -&gt; Self {
+        self.allowed_countries = countries;
+        self
+    }
+    
+    pub fn disable_external_validation(mut self) -&gt; Self {
+        self.external_validation_enabled = false;
+        self
+    }
+}
+
+#[async_trait]
+impl FieldValidator for PhoneNumberValidator {
+    async fn validate(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(phone_numbers) = value.as_array() {
+            for (index, phone_obj) in phone_numbers.iter().enumerate() {
+                if let Some(phone_value) = phone_obj.get("value").and_then(|v| v.as_str()) {
+                    self.validate_single_phone(phone_value, field_name, index).await?;
+                }
+            }
+        } else if let Some(phone_value) = value.as_str() {
+            // Handle direct string value
+            self.validate_single_phone(phone_value, field_name, 0).await?;
+        }
+        
+        Ok(())
+    }
+}
+
+impl PhoneNumberValidator {
+    async fn validate_single_phone(
+        &amp;self,
+        phone_value: &amp;str,
+        field_name: &amp;str,
+        index: usize,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        let field_path = if field_name.contains("phoneNumbers") {
+            format!("{}[{}].value", field_name, index)
+        } else {
+            field_name.to_string()
+        };
+        
+        // Basic format validation
+        if !self.phone_regex.is_match(phone_value) {
+            return Err(ValidationError::new(
+                "INVALID_PHONE_FORMAT",
+                "Phone number must be in international format (+1234567890)",
+            ).with_field(&amp;field_path));
+        }
+        
+        // Extract and validate country code
+        let country_code = self.extract_country_code(phone_value)?;
+        if !self.is_allowed_country_code(&amp;country_code) {
+            return Err(ValidationError::new(
+                "INVALID_COUNTRY_CODE",
+                &amp;format!("Phone number country code '{}' is not allowed", country_code),
+            ).with_field(&amp;field_path));
+        }
+        
+        // Validate phone number length for specific countries
+        self.validate_country_specific_length(phone_value, &amp;country_code, &amp;field_path)?;
+        
+        // External validation if enabled
+        if self.external_validation_enabled {
+            self.validate_with_external_service(phone_value, &amp;field_path).await?;
+        }
+        
+        Ok(())
+    }
+    
+    fn extract_country_code(&amp;self, phone_value: &amp;str) -&gt; Result&lt;String, ValidationError&gt; {
+        if phone_value.len() &lt; 2 {
+            return Err(ValidationError::new(
+                "INVALID_PHONE_LENGTH",
+                "Phone number too short",
+            ));
+        }
+        
+        // Common country codes
+        for length in [1, 2, 3] {
+            if phone_value.len() &gt; length {
+                let potential_code = &amp;phone_value[1..=length];
+                if self.is_valid_country_code(potential_code) {
+                    return Ok(potential_code.to_string());
+                }
+            }
+        }
+        
+        Err(ValidationError::new(
+            "UNKNOWN_COUNTRY_CODE",
+            "Unable to determine country code",
+        ))
+    }
+    
+    fn is_valid_country_code(&amp;self, code: &amp;str) -&gt; bool {
+        // Common country codes
+        let valid_codes = [
+            "1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", 
+            "43", "44", "45", "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", 
+            "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", 
+            "90", "91", "92", "93", "94", "95", "98", "212", "213", "216", "218", "220", 
+            "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", 
+            "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", 
+            "243", "244", "245", "246", "247", "248", "249", "250", "251", "252", "253", 
+            "254", "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", 
+            "266", "267", "268", "269", "290", "291", "297", "298", "299", "350", "351", 
+            "352", "353", "354", "355", "356", "357", "358", "359", "370", "371", "372", 
+            "373", "374", "375", "376", "377", "378", "380", "381", "382", "383", "385", 
+            "386", "387", "389", "420", "421", "423", "500", "501", "502", "503", "504", 
+            "505", "506", "507", "508", "509", "590", "591", "592", "593", "594", "595", 
+            "596", "597", "598", "599", "670", "672", "673", "674", "675", "676", "677", 
+            "678", "679", "680", "681", "682", "683", "684", "685", "686", "687", "688", 
+            "689", "690", "691", "692", "850", "852", "853", "855", "856", "880", "886", 
+            "960", "961", "962", "963", "964", "965", "966", "967", "968", "970", "971", 
+            "972", "973", "974", "975", "976", "977", "992", "993", "994", "995", "996", 
+            "998"
+        ];
+        
+        valid_codes.contains(&amp;code)
+    }
+    
+    fn is_allowed_country_code(&amp;self, country_code: &amp;str) -&gt; bool {
+        match country_code {
+            "1" =&gt; self.allowed_countries.contains(&amp;"US".to_string()) || 
+                   self.allowed_countries.contains(&amp;"CA".to_string()),
+            "44" =&gt; self.allowed_countries.contains(&amp;"GB".to_string()),
+            "49" =&gt; self.allowed_countries.contains(&amp;"DE".to_string()),
+            "33" =&gt; self.allowed_countries.contains(&amp;"FR".to_string()),
+            _ =&gt; true, // Allow other countries by default
+        }
+    }
+    
+    fn validate_country_specific_length(
+        &amp;self,
+        phone_value: &amp;str,
+        country_code: &amp;str,
+        field_path: &amp;str,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        let expected_lengths = match country_code {
+            "1" =&gt; vec![11], // US/Canada: +1 + 10 digits
+            "44" =&gt; vec![13], // UK: +44 + 10-11 digits
+            "49" =&gt; vec![12, 13], // Germany: +49 + 10-11 digits
+            "33" =&gt; vec![12], // France: +33 + 9 digits
+            _ =&gt; return Ok(()), // Skip validation for other countries
+        };
+        
+        if !expected_lengths.contains(&amp;phone_value.len()) {
+            return Err(ValidationError::new(
+                "INVALID_PHONE_LENGTH",
+                &amp;format!("Invalid phone number length for country code {}", country_code),
+            ).with_field(field_path));
+        }
+        
+        Ok(())
+    }
+    
+    async fn validate_with_external_service(
+        &amp;self,
+        phone_number: &amp;str,
+        field_path: &amp;str,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&amp;format!("https://api.phonevalidation.com/validate/{}", phone_number))
+            .timeout(std::time::Duration::from_secs(3))
+            .send()
+            .await
+            .map_err(|_| ValidationError::new(
+                "PHONE_VALIDATION_SERVICE_ERROR",
+                "Unable to validate phone number with external service",
+            ).with_field(field_path))?;
+        
+        if !response.status().is_success() {
+            return Err(ValidationError::new(
+                "INVALID_PHONE_NUMBER",
+                "Phone number validation failed",
+            ).with_field(field_path));
+        }
+        
+        // Parse validation response
+        let validation_result: PhoneValidationResult = response.json().await
+            .map_err(|_| ValidationError::new(
+                "PHONE_VALIDATION_PARSE_ERROR",
+                "Failed to parse phone validation response",
+            ).with_field(field_path))?;
+        
+        if !validation_result.is_valid {
+            return Err(ValidationError::new(
+                "INVALID_PHONE_NUMBER",
+                &amp;validation_result.reason.unwrap_or_else(|| "Phone number is invalid".to_string()),
+            ).with_field(field_path));
+        }
+        
+        Ok(())
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct PhoneValidationResult {
+    is_valid: bool,
+    reason: Option&lt;String&gt;,
+    carrier: Option&lt;String&gt;,
+    line_type: Option&lt;String&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="social-security-number-validation"><a class="header" href="#social-security-number-validation">Social Security Number Validation</a></h2>
+<p>Comprehensive SSN validation with format and uniqueness checks:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct SsnValidator {
+    allow_itin: bool,
+    check_uniqueness: bool,
+}
+
+impl SsnValidator {
+    pub fn new() -&gt; Self {
+        Self {
+            allow_itin: false,
+            check_uniqueness: true,
+        }
+    }
+    
+    pub fn allow_itin(mut self, allow: bool) -&gt; Self {
+        self.allow_itin = allow;
+        self
+    }
+    
+    pub fn check_uniqueness(mut self, check: bool) -&gt; Self {
+        self.check_uniqueness = check;
+        self
+    }
+    
+    fn validate_ssn_format(&amp;self, ssn: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        // Remove hyphens and spaces
+        let cleaned = ssn.replace(['-', ' '], "");
+        
+        // Must be exactly 9 digits
+        if cleaned.len() != 9 || !cleaned.chars().all(|c| c.is_ascii_digit()) {
+            return Err(ValidationError::new(
+                "INVALID_SSN_FORMAT",
+                "SSN must be 9 digits (XXX-XX-XXXX format)",
+            ));
+        }
+        
+        // Extract area, group, and serial numbers
+        let area = &amp;cleaned[0..3];
+        let group = &amp;cleaned[3..5];
+        let serial = &amp;cleaned[5..9];
+        
+        // Validate area number
+        self.validate_area_number(area)?;
+        
+        // Validate group number
+        self.validate_group_number(group)?;
+        
+        // Validate serial number
+        self.validate_serial_number(serial)?;
+        
+        // Check for invalid patterns
+        self.validate_patterns(&amp;cleaned)?;
+        
+        Ok(())
+    }
+    
+    fn validate_area_number(&amp;self, area: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        let area_num: u32 = area.parse().unwrap_or(0);
+        
+        // Invalid area numbers
+        if area_num == 0 || area_num == 666 || area_num &gt;= 900 {
+            return Err(ValidationError::new(
+                "INVALID_SSN_AREA",
+                "Invalid SSN area number",
+            ));
+        }
+        
+        // Check if it's an ITIN (Individual Taxpayer Identification Number)
+        if area_num &gt;= 900 &amp;&amp; area_num &lt;= 999 {
+            if !self.allow_itin {
+                return Err(ValidationError::new(
+                    "ITIN_NOT_ALLOWED",
+                    "Individual Taxpayer Identification Numbers (ITIN) are not allowed",
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+    
+    fn validate_group_number(&amp;self, group: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        let group_num: u32 = group.parse().unwrap_or(0);
+        
+        if group_num == 0 {
+            return Err(ValidationError::new(
+                "INVALID_SSN_GROUP",
+                "Invalid SSN group number (cannot be 00)",
+            ));
+        }
+        
+        Ok(())
+    }
+    
+    fn validate_serial_number(&amp;self, serial: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        let serial_num: u32 = serial.parse().unwrap_or(0);
+        
+        if serial_num == 0 {
+            return Err(ValidationError::new(
+                "INVALID_SSN_SERIAL",
+                "Invalid SSN serial number (cannot be 0000)",
+            ));
+        }
+        
+        Ok(())
+    }
+    
+    fn validate_patterns(&amp;self, ssn: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        // Invalid SSN patterns
+        let invalid_patterns = [
+            "000000000", "111111111", "222222222", "333333333",
+            "444444444", "555555555", "666666666", "777777777",
+            "888888888", "999999999", "123456789", "987654321"
+        ];
+        
+        if invalid_patterns.contains(&amp;ssn) {
+            return Err(ValidationError::new(
+                "INVALID_SSN_PATTERN",
+                "SSN contains an invalid pattern",
+            ));
+        }
+        
+        // Check for consecutive digits
+        if self.has_consecutive_pattern(ssn) {
+            return Err(ValidationError::new(
+                "INVALID_SSN_PATTERN",
+                "SSN cannot contain repetitive patterns",
+            ));
+        }
+        
+        Ok(())
+    }
+    
+    fn has_consecutive_pattern(&amp;self, ssn: &amp;str) -&gt; bool {
+        let chars: Vec&lt;char&gt; = ssn.chars().collect();
+        
+        // Check for all same digits
+        if chars.iter().all(|&amp;c| c == chars[0]) {
+            return true;
+        }
+        
+        // Check for ascending/descending sequences
+        for window in chars.windows(3) {
+            if window[0] as u8 + 1 == window[1] as u8 &amp;&amp; window[1] as u8 + 1 == window[2] as u8 {
+                return true; // Ascending sequence
+            }
+            if window[0] as u8 == window[1] as u8 + 1 &amp;&amp; window[1] as u8 == window[2] as u8 + 1 {
+                return true; // Descending sequence
+            }
+        }
+        
+        false
+    }
+}
+
+#[async_trait]
+impl FieldValidator for SsnValidator {
+    async fn validate(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(ssn) = value.as_str() {
+            // Validate format
+            self.validate_ssn_format(ssn)
+                .map_err(|mut e| {
+                    e.field_path = Some(field_name.to_string());
+                    e
+                })?;
+            
+            // Check uniqueness if enabled
+            if self.check_uniqueness {
+                // Note: This would require access to the storage provider
+                // In practice, you'd inject the storage provider into the validator
+                if let Some(storage) = context.storage.as_ref() {
+                    if storage.ssn_exists(&amp;context.tenant_id, ssn).await.unwrap_or(false) {
+                        return Err(ValidationError::new(
+                            "SSN_ALREADY_EXISTS",
+                            "Social Security Number is already in use",
+                        ).with_field(field_name));
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="employee-id-validation"><a class="header" href="#employee-id-validation">Employee ID Validation</a></h2>
+<p>Custom business identifier validation:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct EmployeeIdValidator {
+    format_regex: Regex,
+    department_prefixes: HashMap&lt;String, String&gt;,
+    check_uniqueness: bool,
+}
+
+impl EmployeeIdValidator {
+    pub fn new() -&gt; Self {
+        let mut department_prefixes = HashMap::new();
+        department_prefixes.insert("Engineering".to_string(), "ENG".to_string());
+        department_prefixes.insert("Sales".to_string(), "SAL".to_string());
+        department_prefixes.insert("Marketing".to_string(), "MKT".to_string());
+        department_prefixes.insert("HR".to_string(), "HRS".to_string());
+        department_prefixes.insert("Finance".to_string(), "FIN".to_string());
+        
+        Self {
+            format_regex: Regex::new(r"^[A-Z]{3}\d{5}$").unwrap(),
+            department_prefixes,
+            check_uniqueness: true,
+        }
+    }
+    
+    pub fn with_custom_format(mut self, regex: &amp;str) -&gt; Result&lt;Self, regex::Error&gt; {
+        self.format_regex = Regex::new(regex)?;
+        Ok(self)
+    }
+    
+    fn validate_format(&amp;self, employee_id: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        if !self.format_regex.is_match(employee_id) {
+            return Err(ValidationError::new(
+                "INVALID_EMPLOYEE_ID_FORMAT",
+                "Employee ID must follow format: 3 letters + 5 digits (e.g., ENG12345)",
+            ));
+        }
+        
+        Ok(())
+    }
+    
+    fn validate_department_prefix(
+        &amp;self,
+        employee_id: &amp;str,
+        user_department: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(department) = user_department {
+            if let Some(expected_prefix) = self.department_prefixes.get(department) {
+                let prefix = &amp;employee_id[0..3];
+                if prefix != expected_prefix {
+                    return Err(ValidationError::new(
+                        "EMPLOYEE_ID_DEPARTMENT_MISMATCH",
+                        &amp;format!(
+                            "Employee ID prefix '{}' does not match department '{}' (expected '{}')",
+                            prefix, department, expected_prefix
+                        ),
+                    ));
+                }
+            }
+        }
+        
+        Ok(())
+    }
+    
+    fn validate_sequence_number(&amp;self, employee_id: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        let sequence = &amp;employee_id[3..8];
+        let sequence_num: u32 = sequence.parse().unwrap_or(0);
+        
+        // Sequence number cannot be 00000
+        if sequence_num == 0 {
+            return Err(ValidationError::new(
+                "INVALID_EMPLOYEE_ID_SEQUENCE",
+                "Employee ID sequence number cannot be 00000",
+            ));
+        }
+        
+        // Validate reasonable range (e.g., 00001-99999)
+        if sequence_num &gt; 99999 {
+            return Err(ValidationError::new(
+                "INVALID_EMPLOYEE_ID_SEQUENCE",
+                "Employee ID sequence number must be between 00001 and 99999",
+            ));
+        }
+        
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl FieldValidator for EmployeeIdValidator {
+    async fn validate(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(employee_id) = value.as_str() {
+            // Validate format
+            self.validate_format(employee_id)
+                .map_err(|mut e| {
+                    e.field_path = Some(field_name.to_string());
+                    e
+                })?;
+            
+            // Validate sequence number
+            self.validate_sequence_number(employee_id)
+                .map_err(|mut e| {
+                    e.field_path = Some(field_name.to_string());
+                    e
+                })?;
+            
+            // Validate department prefix if user has department info
+            if let Some(user_data) = context.additional_data.get("user") {
+                if let Some(department) = user_data.get("department").and_then(|v| v.as_str()) {
+                    self.validate_department_prefix(employee_id, Some(department))
+                        .map_err(|mut e| {
+                            e.field_path = Some(field_name.to_string());
+                            e
+                        })?;
+                }
+            }
+            
+            // Check uniqueness
+            if self.check_uniqueness {
+                if let Some(storage) = context.storage.as_ref() {
+                    if storage.employee_id_exists(&amp;context.tenant_id, employee_id).await.unwrap_or(false) {
+                        return Err(ValidationError::new(
+                            "EMPLOYEE_ID_ALREADY_EXISTS",
+                            "Employee ID is already in use",
+                        ).with_field(field_name));
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="credit-card-validation-for-financial-applications"><a class="header" href="#credit-card-validation-for-financial-applications">Credit Card Validation (for Financial Applications)</a></h2>
+<p>If your application handles financial data:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct CreditCardValidator {
+    allowed_types: Vec&lt;CreditCardType&gt;,
+    validate_luhn: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CreditCardType {
+    Visa,
+    MasterCard,
+    AmericanExpress,
+    Discover,
+    DinersClub,
+    JCB,
+}
+
+impl CreditCardValidator {
+    pub fn new() -&gt; Self {
+        Self {
+            allowed_types: vec![
+                CreditCardType::Visa,
+                CreditCardType::MasterCard,
+                CreditCardType::AmericanExpress,
+            ],
+            validate_luhn: true,
+        }
+    }
+    
+    pub fn with_allowed_types(mut self, types: Vec&lt;CreditCardType&gt;) -&gt; Self {
+        self.allowed_types = types;
+        self
+    }
+    
+    fn detect_card_type(&amp;self, number: &amp;str) -&gt; Option&lt;CreditCardType&gt; {
+        match number {
+            n if n.starts_with('4') =&gt; Some(CreditCardType::Visa),
+            n if n.starts_with("51") || n.starts_with("52") || n.starts_with("53") || 
+                 n.starts_with("54") || n.starts_with("55") =&gt; Some(CreditCardType::MasterCard),
+            n if n.starts_with("34") || n.starts_with("37") =&gt; Some(CreditCardType::AmericanExpress),
+            n if n.starts_with("6011") || n.starts_with("65") =&gt; Some(CreditCardType::Discover),
+            n if n.starts_with("300") || n.starts_with("301") || n.starts_with("302") ||
+                 n.starts_with("303") || n.starts_with("36") || n.starts_with("38") =&gt; Some(CreditCardType::DinersClub),
+            n if n.starts_with("35") =&gt; Some(CreditCardType::JCB),
+            _ =&gt; None,
+        }
+    }
+    
+    fn validate_luhn_algorithm(&amp;self, number: &amp;str) -&gt; bool {
+        let digits: Vec&lt;u32&gt; = number.chars()
+            .filter_map(|c| c.to_digit(10))
+            .collect();
+        
+        if digits.is_empty() {
+            return false;
+        }
+        
+        let checksum = digits.iter()
+            .rev()
+            .enumerate()
+            .map(|(i, &amp;digit)| {
+                if i % 2 == 1 {
+                    let doubled = digit * 2;
+                    if doubled &gt; 9 { doubled - 9 } else { doubled }
+                } else {
+                    digit
+                }
+            })
+            .sum::&lt;u32&gt;();
+        
+        checksum % 10 == 0
+    }
+    
+    fn validate_length(&amp;self, number: &amp;str, card_type: &amp;CreditCardType) -&gt; bool {
+        match card_type {
+            CreditCardType::Visa =&gt; number.len() == 13 || number.len() == 16 || number.len() == 19,
+            CreditCardType::MasterCard =&gt; number.len() == 16,
+            CreditCardType::AmericanExpress =&gt; number.len() == 15,
+            CreditCardType::Discover =&gt; number.len() == 16,
+            CreditCardType::DinersClub =&gt; number.len() == 14,
+            CreditCardType::JCB =&gt; number.len() == 15 || number.len() == 16,
+        }
+    }
+}
+
+#[async_trait]
+impl FieldValidator for CreditCardValidator {
+    async fn validate(
+        &amp;self,
+        field_name: &amp;str,
+        value: &amp;serde_json::Value,
+        _context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if let Some(card_number) = value.as_str() {
+            // Remove spaces and hyphens
+            let cleaned_number = card_number.replace([' ', '-'], "");
+            
+            // Validate format (digits only)
+            if !cleaned_number.chars().all(|c| c.is_ascii_digit()) {
+                return Err(ValidationError::new(
+                    "INVALID_CREDIT_CARD_FORMAT",
+                    "Credit card number must contain only digits",
+                ).with_field(field_name));
+            }
+            
+            // Detect card type
+            let card_type = self.detect_card_type(&amp;cleaned_number)
+                .ok_or_else(|| ValidationError::new(
+                    "UNSUPPORTED_CREDIT_CARD_TYPE",
+                    "Unsupported credit card type",
+                ).with_field(field_name))?;
+            
+            // Check if card type is allowed
+            if !self.allowed_types.contains(&amp;card_type) {
+                return Err(ValidationError::new(
+                    "CREDIT_CARD_TYPE_NOT_ALLOWED",
+                    &amp;format!("Credit card type {:?} is not allowed", card_type),
+                ).with_field(field_name));
+            }
+            
+            // Validate length for card type
+            if !self.validate_length(&amp;cleaned_number, &amp;card_type) {
+                return Err(ValidationError::new(
+                    "INVALID_CREDIT_CARD_LENGTH",
+                    &amp;format!("Invalid length for {:?} credit card", card_type),
+                ).with_field(field_name));
+            }
+            
+            // Validate using Luhn algorithm
+            if self.validate_luhn &amp;&amp; !self.validate_luhn_algorithm(&amp;cleaned_number) {
+                return Err(ValidationError::new(
+                    "INVALID_CREDIT_CARD_CHECKSUM",
+                    "Credit card number failed checksum validation",
+                ).with_field(field_name));
+            }
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="integration-with-custom-validators"><a class="header" href="#integration-with-custom-validators">Integration with Custom Validators</a></h2>
+<p>Use field-level validators within your main custom validators:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::validation::{CustomValidator, ValidationContext, ValidationError};
+
+pub struct ComprehensiveUserValidator {
+    field_validator: CustomAttributeValidator,
+}
+
+impl ComprehensiveUserValidator {
+    pub fn new() -&gt; Self {
+        Self {
+            field_validator: CustomAttributeValidator::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl CustomValidator for ComprehensiveUserValidator {
+    async fn validate_user(
+        &amp;self,
+        user: &amp;User,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        // Validate phone numbers
+        if let Some(phone_numbers) = &amp;user.phone_numbers {
+            let phone_value = serde_json::to_value(phone_numbers).unwrap();
+            self.field_validator
+                .validate_field("phoneNumbers", &amp;phone_value, context)
+                .await?;
+        }
+        
+        // Validate enterprise extensions
+        if let Some(enterprise_ext) = &amp;user.extension_attributes {
+            for (key, value) in enterprise_ext {
+                let field_name = format!("enterpriseUser:{}", key);
+                self.field_validator
+                    .validate_field(&amp;field_name, value, context)
+                    .await?;
+<span class="boring">}</span></code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../validation/advanced.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../validation/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../validation/advanced.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../validation/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

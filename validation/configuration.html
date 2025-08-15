@@ -1,0 +1,1144 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Configuration - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="validation-configuration"><a class="header" href="#validation-configuration">Validation Configuration</a></h1>
+<p>This guide covers configurable validation rules that can be dynamically managed and applied at runtime. Instead of hardcoding validation logic, you can define rules through configuration that can be updated without code changes.</p>
+<h2 id="configuration-driven-validation"><a class="header" href="#configuration-driven-validation">Configuration-Driven Validation</a></h2>
+<h3 id="validation-configuration-structure"><a class="header" href="#validation-configuration-structure">Validation Configuration Structure</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::validation::{ValidationConfig, ValidationRule, RuleEngine};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationConfig {
+    pub tenant_id: String,
+    pub rules: Vec&lt;ValidationRule&gt;,
+    pub external_validators: Vec&lt;ExternalValidatorConfig&gt;,
+    pub field_validators: HashMap&lt;String, FieldValidatorConfig&gt;,
+    pub global_settings: GlobalValidationSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationRule {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+    pub severity: ValidationSeverity,
+    pub resource_types: Vec&lt;String&gt;, // ["User", "Group"]
+    pub operations: Vec&lt;String&gt;,     // ["create", "update", "patch"]
+    pub conditions: Vec&lt;RuleCondition&gt;,
+    pub actions: Vec&lt;ValidationAction&gt;,
+    pub priority: u32,
+    pub tags: Vec&lt;String&gt;,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationSeverity {
+    Error,   // Blocks the operation
+    Warning, // Logs but allows operation
+    Info,    // Informational only
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleCondition {
+    pub field: String,
+    pub operator: ConditionOperator,
+    pub value: serde_json::Value,
+    pub case_sensitive: bool,
+    pub negate: bool, // NOT condition
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConditionOperator {
+    Equals,
+    NotEquals,
+    Contains,
+    StartsWith,
+    EndsWith,
+    Regex,
+    Length,
+    GreaterThan,
+    LessThan,
+    In,
+    NotIn,
+    Exists,
+    NotExists,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationAction {
+    Block { message: String },
+    Warn { message: String },
+    Log { level: String, message: String },
+    Transform { field: String, transformation: String },
+    Notify { recipients: Vec&lt;String&gt;, template: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalValidationSettings {
+    pub max_validation_time_ms: u64,
+    pub fail_fast: bool,
+    pub enable_external_validation: bool,
+    pub cache_validation_results: bool,
+    pub cache_ttl_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalValidatorConfig {
+    pub name: String,
+    pub url: String,
+    pub timeout_ms: u64,
+    pub retry_count: u32,
+    pub headers: HashMap&lt;String, String&gt;,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FieldValidatorConfig {
+    pub validator_type: String,
+    pub config: serde_json::Value,
+    pub enabled: bool,
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="rule-engine-implementation"><a class="header" href="#rule-engine-implementation">Rule Engine Implementation</a></h2>
+<h3 id="core-rule-engine"><a class="header" href="#core-rule-engine">Core Rule Engine</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use async_trait::async_trait;
+use std::time::{Duration, Instant};
+use tokio::time::timeout;
+
+pub struct RuleEngine {
+    config: ValidationConfig,
+    cache: Option&lt;ValidationCache&gt;,
+}
+
+impl RuleEngine {
+    pub fn new(config: ValidationConfig) -&gt; Self {
+        let cache = if config.global_settings.cache_validation_results {
+            Some(ValidationCache::new(
+                Duration::from_secs(config.global_settings.cache_ttl_seconds)
+            ))
+        } else {
+            None
+        };
+
+        Self { config, cache }
+    }
+
+    pub async fn validate_resource(
+        &amp;self,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;ValidationResult, ValidationError&gt; {
+        let start_time = Instant::now();
+        let max_duration = Duration::from_millis(self.config.global_settings.max_validation_time_ms);
+
+        // Check cache first
+        if let Some(cache) = &amp;self.cache {
+            if let Some(cached_result) = cache.get(resource, context).await {
+                return Ok(cached_result);
+            }
+        }
+
+        // Run validation with timeout
+        let validation_future = self.validate_internal(resource, context);
+        let result = timeout(max_duration, validation_future)
+            .await
+            .map_err(|_| ValidationError::new(
+                "VALIDATION_TIMEOUT",
+                "Validation exceeded maximum allowed time",
+            ))??;
+
+        // Cache successful results
+        if let Some(cache) = &amp;self.cache {
+            if result.is_valid() {
+                cache.put(resource, context, &amp;result).await;
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn validate_internal(
+        &amp;self,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;ValidationResult, ValidationError&gt; {
+        let mut validation_result = ValidationResult::new();
+        let applicable_rules = self.get_applicable_rules(resource, context);
+
+        for rule in applicable_rules {
+            if !rule.enabled {
+                continue;
+            }
+
+            match self.evaluate_rule(rule, resource, context).await {
+                Ok(rule_result) =&gt; {
+                    validation_result.merge(rule_result);
+                    
+                    // Fail fast if enabled and we have errors
+                    if self.config.global_settings.fail_fast &amp;&amp; !validation_result.errors.is_empty() {
+                        break;
+                    }
+                }
+                Err(e) =&gt; {
+                    validation_result.add_error(e);
+                    if self.config.global_settings.fail_fast {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(validation_result)
+    }
+
+    fn get_applicable_rules(
+        &amp;self,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) -&gt; Vec&lt;&amp;ValidationRule&gt; {
+        let mut applicable_rules: Vec&lt;&amp;ValidationRule&gt; = self.config.rules
+            .iter()
+            .filter(|rule| {
+                // Filter by resource type
+                rule.resource_types.is_empty() || 
+                rule.resource_types.contains(&amp;resource.resource_type())
+            })
+            .filter(|rule| {
+                // Filter by operation
+                rule.operations.is_empty() || 
+                rule.operations.contains(&amp;context.operation.to_string())
+            })
+            .collect();
+
+        // Sort by priority (higher priority first)
+        applicable_rules.sort_by(|a, b| b.priority.cmp(&amp;a.priority));
+        applicable_rules
+    }
+
+    async fn evaluate_rule(
+        &amp;self,
+        rule: &amp;ValidationRule,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;ValidationResult, ValidationError&gt; {
+        let mut rule_result = ValidationResult::new();
+
+        // Evaluate all conditions (AND logic)
+        let conditions_met = self.evaluate_conditions(&amp;rule.conditions, resource, context).await?;
+
+        if conditions_met {
+            // Execute actions
+            for action in &amp;rule.actions {
+                self.execute_action(action, rule, resource, context, &amp;mut rule_result).await?;
+            }
+        }
+
+        Ok(rule_result)
+    }
+
+    async fn evaluate_conditions(
+        &amp;self,
+        conditions: &amp;[RuleCondition],
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        for condition in conditions {
+            let condition_met = self.evaluate_condition(condition, resource, context).await?;
+            let final_result = if condition.negate { !condition_met } else { condition_met };
+            
+            if !final_result {
+                return Ok(false); // AND logic - all conditions must be true
+            }
+        }
+        
+        Ok(true)
+    }
+
+    async fn evaluate_condition(
+        &amp;self,
+        condition: &amp;RuleCondition,
+        resource: &amp;dyn ScimResource,
+        _context: &amp;ValidationContext,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        let field_value = self.extract_field_value(&amp;condition.field, resource)?;
+
+        match &amp;condition.operator {
+            ConditionOperator::Equals =&gt; {
+                Ok(self.compare_values(&amp;field_value, &amp;condition.value, condition.case_sensitive))
+            }
+            ConditionOperator::NotEquals =&gt; {
+                Ok(!self.compare_values(&amp;field_value, &amp;condition.value, condition.case_sensitive))
+            }
+            ConditionOperator::Contains =&gt; {
+                self.evaluate_contains(&amp;field_value, &amp;condition.value, condition.case_sensitive)
+            }
+            ConditionOperator::StartsWith =&gt; {
+                self.evaluate_starts_with(&amp;field_value, &amp;condition.value, condition.case_sensitive)
+            }
+            ConditionOperator::EndsWith =&gt; {
+                self.evaluate_ends_with(&amp;field_value, &amp;condition.value, condition.case_sensitive)
+            }
+            ConditionOperator::Regex =&gt; {
+                self.evaluate_regex(&amp;field_value, &amp;condition.value)
+            }
+            ConditionOperator::Length =&gt; {
+                self.evaluate_length(&amp;field_value, &amp;condition.value)
+            }
+            ConditionOperator::GreaterThan =&gt; {
+                self.evaluate_greater_than(&amp;field_value, &amp;condition.value)
+            }
+            ConditionOperator::LessThan =&gt; {
+                self.evaluate_less_than(&amp;field_value, &amp;condition.value)
+            }
+            ConditionOperator::In =&gt; {
+                self.evaluate_in(&amp;field_value, &amp;condition.value, condition.case_sensitive)
+            }
+            ConditionOperator::NotIn =&gt; {
+                Ok(!self.evaluate_in(&amp;field_value, &amp;condition.value, condition.case_sensitive)?)
+            }
+            ConditionOperator::Exists =&gt; {
+                Ok(!field_value.is_null())
+            }
+            ConditionOperator::NotExists =&gt; {
+                Ok(field_value.is_null())
+            }
+        }
+    }
+
+    fn extract_field_value(
+        &amp;self,
+        field_path: &amp;str,
+        resource: &amp;dyn ScimResource,
+    ) -&gt; Result&lt;serde_json::Value, ValidationError&gt; {
+        let resource_json = serde_json::to_value(resource)
+            .map_err(|e| ValidationError::new(
+                "FIELD_EXTRACTION_ERROR",
+                &amp;format!("Failed to serialize resource: {}", e),
+            ))?;
+
+        self.extract_nested_value(&amp;resource_json, field_path)
+    }
+
+    fn extract_nested_value(
+        &amp;self,
+        value: &amp;serde_json::Value,
+        path: &amp;str,
+    ) -&gt; Result&lt;serde_json::Value, ValidationError&gt; {
+        let parts: Vec&lt;&amp;str&gt; = path.split('.').collect();
+        let mut current = value;
+
+        for part in parts {
+            // Handle array access like "emails[0].value"
+            if let Some(bracket_pos) = part.find('[') {
+                let field_name = &amp;part[..bracket_pos];
+                let index_part = &amp;part[bracket_pos + 1..part.len() - 1];
+                let index: usize = index_part.parse()
+                    .map_err(|_| ValidationError::new(
+                        "INVALID_ARRAY_INDEX",
+                        &amp;format!("Invalid array index: {}", index_part),
+                    ))?;
+
+                current = current.get(field_name)
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| arr.get(index))
+                    .unwrap_or(&amp;serde_json::Value::Null);
+            } else {
+                current = current.get(part).unwrap_or(&amp;serde_json::Value::Null);
+            }
+        }
+
+        Ok(current.clone())
+    }
+
+    // Condition evaluation helper methods
+    fn compare_values(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+        case_sensitive: bool,
+    ) -&gt; bool {
+        if !case_sensitive {
+            if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
+                return field_str.to_lowercase() == condition_str.to_lowercase();
+            }
+        }
+        field_value == condition_value
+    }
+
+    fn evaluate_contains(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+        case_sensitive: bool,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
+            if case_sensitive {
+                Ok(field_str.contains(condition_str))
+            } else {
+                Ok(field_str.to_lowercase().contains(&amp;condition_str.to_lowercase()))
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn evaluate_starts_with(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+        case_sensitive: bool,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
+            if case_sensitive {
+                Ok(field_str.starts_with(condition_str))
+            } else {
+                Ok(field_str.to_lowercase().starts_with(&amp;condition_str.to_lowercase()))
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn evaluate_ends_with(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+        case_sensitive: bool,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
+            if case_sensitive {
+                Ok(field_str.ends_with(condition_str))
+            } else {
+                Ok(field_str.to_lowercase().ends_with(&amp;condition_str.to_lowercase()))
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn evaluate_regex(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        if let (Some(field_str), Some(pattern_str)) = (field_value.as_str(), condition_value.as_str()) {
+            let regex = regex::Regex::new(pattern_str)
+                .map_err(|e| ValidationError::new(
+                    "INVALID_REGEX",
+                    &amp;format!("Invalid regex pattern: {}", e),
+                ))?;
+            Ok(regex.is_match(field_str))
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn evaluate_length(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        let field_length = match field_value {
+            serde_json::Value::String(s) =&gt; s.len(),
+            serde_json::Value::Array(arr) =&gt; arr.len(),
+            _ =&gt; return Ok(false),
+        };
+
+        if let Some(expected_length) = condition_value.as_u64() {
+            Ok(field_length == expected_length as usize)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn evaluate_greater_than(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        match (field_value.as_f64(), condition_value.as_f64()) {
+            (Some(field_num), Some(condition_num)) =&gt; Ok(field_num &gt; condition_num),
+            _ =&gt; Ok(false),
+        }
+    }
+
+    fn evaluate_less_than(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        match (field_value.as_f64(), condition_value.as_f64()) {
+            (Some(field_num), Some(condition_num)) =&gt; Ok(field_num &lt; condition_num),
+            _ =&gt; Ok(false),
+        }
+    }
+
+    fn evaluate_in(
+        &amp;self,
+        field_value: &amp;serde_json::Value,
+        condition_value: &amp;serde_json::Value,
+        case_sensitive: bool,
+    ) -&gt; Result&lt;bool, ValidationError&gt; {
+        if let Some(values_array) = condition_value.as_array() {
+            for value in values_array {
+                if self.compare_values(field_value, value, case_sensitive) {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    async fn execute_action(
+        &amp;self,
+        action: &amp;ValidationAction,
+        rule: &amp;ValidationRule,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+        result: &amp;mut ValidationResult,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        match action {
+            ValidationAction::Block { message } =&gt; {
+                let error = ValidationError::new(
+                    &amp;format!("RULE_VIOLATION_{}", rule.id.to_uppercase()),
+                    message,
+                ).with_severity(ValidationSeverity::Error);
+                result.add_error(error);
+            }
+            ValidationAction::Warn { message } =&gt; {
+                let warning = ValidationError::new(
+                    &amp;format!("RULE_WARNING_{}", rule.id.to_uppercase()),
+                    message,
+                ).with_severity(ValidationSeverity::Warning);
+                result.add_warning(warning);
+            }
+            ValidationAction::Log { level, message } =&gt; {
+                self.log_validation_event(level, message, rule, resource, context).await;
+            }
+            ValidationAction::Transform { field, transformation } =&gt; {
+                // Transform actions would modify the resource
+                // This is advanced functionality that requires careful implementation
+                self.apply_transformation(field, transformation, resource, result).await?;
+            }
+            ValidationAction::Notify { recipients, template } =&gt; {
+                self.send_notification(recipients, template, rule, resource, context).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn log_validation_event(
+        &amp;self,
+        level: &amp;str,
+        message: &amp;str,
+        rule: &amp;ValidationRule,
+        resource: &amp;dyn ScimResource,
+        context: &amp;ValidationContext,
+    ) {
+        // Implementation would depend on your logging system
+        match level {
+            "error" =&gt; log::error!("Validation rule '{}': {} (resource: {}, tenant: {})", 
+                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
+            "warn" =&gt; log::warn!("Validation rule '{}': {} (resource: {}, tenant: {})", 
+                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
+            "info" =&gt; log::info!("Validation rule '{}': {} (resource: {}, tenant: {})", 
+                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
+            _ =&gt; log::debug!("Validation rule '{}': {} (resource: {}, tenant: {})", 
+                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
+        }
+    }
+
+    async fn apply_transformation(
+        &amp;self,
+        _field: &amp;str,
+        _transformation: &amp;str,
+        _resource: &amp;dyn ScimResource,
+        _result: &amp;mut ValidationResult,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        // Transformation implementation would be complex and resource-specific
+        // For now, we'll just log that a transformation was requested
+        log::info!("Transformation requested but not implemented");
+        Ok(())
+    }
+
+    async fn send_notification(
+        &amp;self,
+        _recipients: &amp;[String],
+        _template: &amp;str,
+        _rule: &amp;ValidationRule,
+        _resource: &amp;dyn ScimResource,
+        _context: &amp;ValidationContext,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        // Notification implementation would depend on your notification system
+        log::info!("Notification requested but not implemented");
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="configuration-examples"><a class="header" href="#configuration-examples">Configuration Examples</a></h2>
+<h3 id="sample-validation-configuration"><a class="header" href="#sample-validation-configuration">Sample Validation Configuration</a></h3>
+<pre><code class="language-yaml"># validation-config.yaml
+tenant_id: "company-123"
+
+global_settings:
+  max_validation_time_ms: 5000
+  fail_fast: false
+  enable_external_validation: true
+  cache_validation_results: true
+  cache_ttl_seconds: 300
+
+rules:
+  - id: "email_domain_check"
+    name: "Email Domain Validation"
+    description: "Ensure users have company email domains"
+    enabled: true
+    severity: "Error"
+    resource_types: ["User"]
+    operations: ["create", "update"]
+    priority: 100
+    conditions:
+      - field: "emails[0].value"
+        operator: "Regex"
+        value: ".*@(company\\.com|subsidiary\\.com)$"
+        case_sensitive: false
+        negate: false
+    actions:
+      - Block:
+          message: "Users must have a company email address (@company.com or @subsidiary.com)"
+
+  - id: "manager_hierarchy_check"
+    name: "Manager Hierarchy Validation"
+    description: "Prevent circular manager relationships"
+    enabled: true
+    severity: "Error"
+    resource_types: ["User"]
+    operations: ["update", "patch"]
+    priority: 90
+    conditions:
+      - field: "enterpriseUser.manager.value"
+        operator: "Exists"
+        value: null
+        case_sensitive: false
+        negate: false
+    actions:
+      - Block:
+          message: "Manager assignment would create a circular reference"
+      - Log:
+          level: "warn"
+          message: "Attempted circular manager assignment detected"
+
+  - id: "contractor_end_date"
+    name: "Contractor End Date Required"
+    description: "Contractors must have employment end date"
+    enabled: true
+    severity: "Error"
+    resource_types: ["User"]
+    operations: ["create", "update"]
+    priority: 80
+    conditions:
+      - field: "enterpriseUser.employeeType"
+        operator: "Equals"
+        value: "Contractor"
+        case_sensitive: false
+        negate: false
+      - field: "enterpriseUser.employmentEndDate"
+        operator: "NotExists"
+        value: null
+        case_sensitive: false
+        negate: false
+    actions:
+      - Block:
+          message: "Contractors must have an employment end date specified"
+
+  - id: "vip_user_notification"
+    name: "VIP User Notification"
+    description: "Notify security team when VIP users are modified"
+    enabled: true
+    severity: "Info"
+    resource_types: ["User"]
+    operations: ["create", "update", "delete"]
+    priority: 50
+    conditions:
+      - field: "enterpriseUser.vipStatus"
+        operator: "Equals"
+        value: true
+        case_sensitive: false
+        negate: false
+    actions:
+      - Log:
+          level: "info"
+          message: "VIP user account modified"
+      - Notify:
+          recipients: ["security@company.com", "compliance@company.com"]
+          template: "vip_user_modification"
+
+  - id: "username_format"
+    name: "Username Format Validation"
+    description: "Enforce username format standards"
+    enabled: true
+    severity: "Warning"
+    resource_types: ["User"]
+    operations: ["create", "update"]
+    priority: 70
+    conditions:
+      - field: "userName"
+        operator: "Regex"
+        value: "^[a-z]+\\.[a-z]+$"
+        case_sensitive: false
+        negate: true
+    actions:
+      - Warn:
+          message: "Username should follow format: firstname.lastname (lowercase, no numbers or special characters)"
+
+field_validators:
+  phoneNumbers:
+    validator_type: "PhoneNumberValidator"
+    enabled: true
+    config:
+      allowed_countries: ["US", "CA", "GB"]
+      external_validation: true
+
+  "enterpriseUser:ssn":
+    validator_type: "SsnValidator"
+    enabled: true
+    config:
+      allow_itin: false
+      check_uniqueness: true
+
+external_validators:
+  - name: "hr_system"
+    url: "https://hr.company.com/api/validate"
+    timeout_ms: 3000
+    retry_count: 2
+    headers:
+      Authorization: "Bearer ${HR_API_TOKEN}"
+      Content-Type: "application/json"
+</code></pre>
+<h3 id="loading-configuration"><a class="header" href="#loading-configuration">Loading Configuration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use serde_yaml;
+use std::fs;
+
+pub struct ConfigurationLoader;
+
+impl ConfigurationLoader {
+    pub fn load_from_file(file_path: &amp;str) -&gt; Result&lt;ValidationConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+        let config_content = fs::read_to_string(file_path)?;
+        let config: ValidationConfig = serde_yaml::from_str(&amp;config_content)?;
+        Ok(config)
+    }
+
+    pub fn load_from_env() -&gt; Result&lt;ValidationConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+        let config_path = std::env::var("VALIDATION_CONFIG_PATH")
+            .unwrap_or_else(|_| "validation-config.yaml".to_string());
+        Self::load_from_file(&amp;config_path)
+    }
+
+    pub async fn load_from_database(
+        tenant_id: &amp;str,
+        storage: &amp;dyn StorageProvider,
+    ) -&gt; Result&lt;ValidationConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Load configuration from database
+        let config_json = storage.get_tenant_config(tenant_id, "validation").await?;
+        let config: ValidationConfig = serde_json::from_str(&amp;config_json)?;
+        Ok(config)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="dynamic-rule-management"><a class="header" href="#dynamic-rule-management">Dynamic Rule Management</a></h2>
+<h3 id="rule-management-api"><a class="header" href="#rule-management-api">Rule Management API</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::validation::{ValidationConfig, ValidationRule, RuleEngine};
+
+pub struct ValidationRuleManager {
+    storage: Box&lt;dyn StorageProvider&gt;,
+    rule_engines: std::sync::RwLock&lt;HashMap&lt;String, RuleEngine&gt;&gt;, // tenant_id -&gt; RuleEngine
+}
+
+impl ValidationRuleManager {
+    pub fn new(storage: Box&lt;dyn StorageProvider&gt;) -&gt; Self {
+        Self {
+            storage,
+            rule_engines: std::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub async fn add_rule(
+        &amp;self,
+        tenant_id: &amp;str,
+        rule: ValidationRule,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        // Validate rule configuration
+        self.validate_rule_config(&amp;rule)?;
+
+        // Save to storage
+        self.storage.save_validation_rule(tenant_id, &amp;rule).await?;
+
+        // Reload configuration for tenant
+        self.reload_tenant_config(tenant_id).await?;
+
+        Ok(())
+    }
+
+    pub async fn update_rule(
+        &amp;self,
+        tenant_id: &amp;str,
+        rule_id: &amp;str,
+        updated_rule: ValidationRule,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        if updated_rule.id != rule_id {
+            return Err(ValidationError::new(
+                "RULE_ID_MISMATCH",
+                "Rule ID in path does not match rule ID in body",
+            ));
+        }
+
+        self.validate_rule_config(&amp;updated_rule)?;
+        self.storage.update_validation_rule(tenant_id, &amp;updated_rule).await?;
+        self.reload_tenant_config(tenant_id).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_rule(
+        &amp;self,
+        tenant_id: &amp;str,
+        rule_id: &amp;str,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        self.storage.delete_validation_rule(tenant_id, rule_id).await?;
+        self.reload_tenant_config(tenant_id).await?;
+        Ok(())
+    }
+
+    pub async fn toggle_rule(
+        &amp;self,
+        tenant_id: &amp;str,
+        rule_id: &amp;str,
+        enabled: bool,
+    ) -&gt; Result&lt;(), ValidationError&gt; {
+        self.storage.toggle_validation_rule(tenant_id, rule_id, enabled).await?;
+        self.reload_tenant_config(tenant_id).await?;
+        Ok(())
+    }
+
+    pub async fn get_rule_engine(&amp;self, tenant_id: &amp;str) -&gt; Result&lt;RuleEngine, ValidationError&gt; {
+        // Check if we have a cached rule engine
+        {
+            let engines = self.rule_engines.read().unwrap();
+            if let Some(engine) = engines.get(tenant_id) {
+                return Ok(engine.clone());
+            }
+        }
+
+        // Load configuration and create new engine
+        let config = self.load_tenant_config(tenant_id).await?;
+        let engine = RuleEngine::new(config);
+
+        // Cache the engine
+        {
+            let mut engines = self.rule_engines.write().unwrap();
+            engines.insert(tenant_id.to_string(), engine.clone());
+        }
+
+        Ok(engine)
+    }
+
+    async fn reload_tenant_config(&amp;self, tenant_id: &amp;str) -&gt; Result&lt;(), ValidationError&gt; {
+        let config = self.load_tenant_config(tenant_id).await?;
+        let engine = RuleEngine::new(config);
+
+        let mut engines = self.rule_engines.write().unwrap();
+        engines.insert(tenant_id.to_string(), engine);
+
+        Ok(())
+    }
+
+    async fn load_tenant_config(&amp;self, tenant_id: &amp;str) -&gt; Result&lt;ValidationConfig, ValidationError&gt; {
+        self.storage.get_validation_config(tenant_id).await
+            .map_err(|e| ValidationError::new(
+                "CONFIG_LOAD_ERROR",
+                &amp;format!("Failed to load validation config: {}", e),
+            ))
+    }
+
+    fn validate_rule_config(&amp;self, rule: &amp;ValidationRule) -&gt; Result&lt;(), ValidationError&gt; {
+        // Validate rule ID
+        if rule.id.is_empty() {
+            return Err(ValidationError::new(
+                "INVALID_RULE_ID",
+                "Rule ID cannot be empty",
+            ));
+        }
+
+        // Validate conditions
+        for condition in &amp;rule.conditions {
+            if condition.field.is_empty() {
+                return Err(ValidationError::new(
+                    "INVALID_CONDITION_FIELD",
+                    "Condition field cannot be empty",
+                ));
+            }
+
+            // Validate regex patterns
+            if matches!(condition.operator, ConditionOperator::Regex) {
+                if let Some(pattern) = condition.value.as_str() {
+                    regex::Regex::new(pattern).map_err(|e| ValidationError::new(
+                        "INVALID_REGEX_PATTERN",
+                        &amp;format!("Invalid regex pattern: {}", e),
+                    ))?;
+                }
+            }
+        }
+
+        // Validate actions
+        if rule.actions.is_empty() {
+            return Err(ValidationError::new(
+                "NO_ACTIONS_DEFINED",
+                "Rule must have at least one action",
+            ));
+        }
+
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="usage-examples"><a class="header" href="#usage-examples">Usage Examples</a></h2>
+<h3 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h3>
+<pre><pre class="playground"><code class="language-rust">use scim_server::validation::{ValidationRuleManager, RuleEngine};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box</code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../validation/field-level.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../providers/architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../validation/field-level.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../providers/architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

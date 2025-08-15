@@ -1,0 +1,564 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Custom Resources - SCIM Server Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">SCIM Server Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="custom-resources"><a class="header" href="#custom-resources">Custom Resources</a></h1>
+<p>This guide covers creating entirely new resource types in the SCIM Server library. While User and Group are the standard SCIM resources, you can define custom resource types to model organization-specific entities.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>Custom resources allow you to:</p>
+<ul>
+<li><strong>Model business entities</strong> - Devices, applications, roles, projects</li>
+<li><strong>Extend beyond identity</strong> - Any organizational resource</li>
+<li><strong>Maintain SCIM compliance</strong> - Follow SCIM patterns and conventions</li>
+<li><strong>Integrate with existing flows</strong> - Use standard SCIM operations</li>
+<li><strong>Support multi-tenancy</strong> - Different resource types per tenant</li>
+</ul>
+<h2 id="creating-a-device-resource"><a class="header" href="#creating-a-device-resource">Creating a Device Resource</a></h2>
+<h3 id="resource-definition"><a class="header" href="#resource-definition">Resource Definition</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::models::{Meta, Resource};
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Device {
+    pub id: Option&lt;String&gt;,
+    pub schemas: Vec&lt;String&gt;,
+    pub device_name: String,
+    pub device_type: DeviceType,
+    pub serial_number: Option&lt;String&gt;,
+    pub manufacturer: Option&lt;String&gt;,
+    pub model: Option&lt;String&gt;,
+    pub operating_system: Option&lt;OperatingSystem&gt;,
+    pub owner: Option&lt;DeviceOwner&gt;,
+    pub location: Option&lt;DeviceLocation&gt;,
+    pub network_info: Option&lt;NetworkInfo&gt;,
+    pub security_info: Option&lt;DeviceSecurityInfo&gt;,
+    pub active: Option&lt;bool&gt;,
+    pub meta: Option&lt;Meta&gt;,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DeviceType {
+    Laptop,
+    Desktop,
+    Tablet,
+    Phone,
+    Server,
+    Printer,
+    Other(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OperatingSystem {
+    pub name: String,
+    pub version: String,
+    pub architecture: Option&lt;String&gt;,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceOwner {
+    pub user_id: String,
+    pub user_name: Option&lt;String&gt;,
+    pub assignment_date: Option&lt;DateTime&lt;Utc&gt;&gt;,
+    pub assignment_type: AssignmentType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AssignmentType {
+    Personal,
+    Shared,
+    Pool,
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="schema-definition"><a class="header" href="#schema-definition">Schema Definition</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::schema::{SchemaDefinition, AttributeDefinition, AttributeType};
+
+pub fn create_device_schema() -&gt; SchemaDefinition {
+    SchemaDefinition {
+        id: "urn:company:schemas:core:2.0:Device".to_string(),
+        name: "Device".to_string(),
+        description: "Device resource schema".to_string(),
+        attributes: vec![
+            AttributeDefinition {
+                name: "deviceName".to_string(),
+                attribute_type: AttributeType::String,
+                multi_valued: false,
+                description: "The name of the device".to_string(),
+                required: true,
+                case_exact: false,
+                mutability: Mutability::ReadWrite,
+                returned: Returned::Always,
+                uniqueness: Uniqueness::None,
+                reference_types: None,
+                canonical_values: None,
+                sub_attributes: None,
+            },
+            AttributeDefinition {
+                name: "deviceType".to_string(),
+                attribute_type: AttributeType::String,
+                multi_valued: false,
+                description: "The type of device".to_string(),
+                required: true,
+                case_exact: false,
+                mutability: Mutability::ReadWrite,
+                returned: Returned::Always,
+                uniqueness: Uniqueness::None,
+                reference_types: None,
+                canonical_values: Some(vec![
+                    "Laptop".to_string(),
+                    "Desktop".to_string(),
+                    "Tablet".to_string(),
+                    "Phone".to_string(),
+                    "Server".to_string(),
+                    "Printer".to_string(),
+                    "Other".to_string(),
+                ]),
+                sub_attributes: None,
+            },
+            // Add more attributes...
+        ],
+        meta: SchemaMeta {
+            resource_type: "Schema".to_string(),
+            location: "/Schemas/urn:company:schemas:core:2.0:Device".to_string(),
+            created: Utc::now(),
+            last_modified: Utc::now(),
+            version: "1.0".to_string(),
+        },
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="resource-provider-implementation"><a class="header" href="#resource-provider-implementation">Resource Provider Implementation</a></h2>
+<h3 id="storage-provider-extension"><a class="header" href="#storage-provider-extension">Storage Provider Extension</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::storage::StorageProvider;
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait DeviceStorageProvider: StorageProvider {
+    async fn create_device(
+        &amp;self,
+        tenant_id: &amp;str,
+        device: Device,
+    ) -&gt; Result&lt;Device, StorageError&gt;;
+    
+    async fn get_device(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+    ) -&gt; Result&lt;Device, StorageError&gt;;
+    
+    async fn update_device(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+        device: Device,
+        version: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;Device, StorageError&gt;;
+    
+    async fn delete_device(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+        version: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;(), StorageError&gt;;
+    
+    async fn list_devices(
+        &amp;self,
+        tenant_id: &amp;str,
+        sort_by: Option&lt;&amp;str&gt;,
+        sort_order: Option&lt;SortOrder&gt;,
+        start_index: Option&lt;usize&gt;,
+        count: Option&lt;usize&gt;,
+    ) -&gt; Result&lt;ListResponse&lt;Device&gt;, StorageError&gt;;
+    
+    // Helper methods for common filtering patterns
+    async fn find_devices_by_type(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_type: &amp;DeviceType,
+    ) -&gt; Result&lt;Vec&lt;Device&gt;, StorageError&gt;;
+    
+    async fn find_devices_by_status(
+        &amp;self,
+        tenant_id: &amp;str,
+        status: &amp;DeviceStatus,
+    ) -&gt; Result&lt;Vec&lt;Device&gt;, StorageError&gt;;
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="resource-handler"><a class="header" href="#resource-handler">Resource Handler</a></h2>
+<h3 id="http-endpoint-implementation"><a class="header" href="#http-endpoint-implementation">HTTP Endpoint Implementation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::handlers::{ResourceHandler, ScimHandler};
+use axum::{Json, Path, Query};
+
+pub struct DeviceHandler&lt;T: DeviceStorageProvider&gt; {
+    storage: T,
+    validator: DeviceValidator,
+}
+
+impl&lt;T: DeviceStorageProvider&gt; DeviceHandler&lt;T&gt; {
+    pub fn new(storage: T) -&gt; Self {
+        Self {
+            storage,
+            validator: DeviceValidator::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl&lt;T: DeviceStorageProvider&gt; ResourceHandler&lt;Device&gt; for DeviceHandler&lt;T&gt; {
+    async fn create(
+        &amp;self,
+        tenant_id: &amp;str,
+        device: Device,
+    ) -&gt; Result&lt;Device, ScimError&gt; {
+        // Validate device
+        self.validator.validate_create(&amp;device)?;
+        
+        // Create in storage
+        let created_device = self.storage.create_device(tenant_id, device).await?;
+        
+        Ok(created_device)
+    }
+    
+    async fn get(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+    ) -&gt; Result&lt;Device, ScimError&gt; {
+        self.storage.get_device(tenant_id, device_id).await
+            .map_err(|e| e.into())
+    }
+    
+    async fn update(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+        device: Device,
+        version: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;Device, ScimError&gt; {
+        // Validate update
+        self.validator.validate_update(&amp;device)?;
+        
+        // Update in storage
+        let updated_device = self.storage.update_device(
+            tenant_id,
+            device_id,
+            device,
+            version,
+        ).await?;
+        
+        Ok(updated_device)
+    }
+    
+    async fn delete(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_id: &amp;str,
+        version: Option&lt;&amp;str&gt;,
+    ) -&gt; Result&lt;(), ScimError&gt; {
+        self.storage.delete_device(tenant_id, device_id, version).await
+            .map_err(|e| e.into())
+    }
+    
+    async fn list(
+        &amp;self,
+        tenant_id: &amp;str,
+        sort_by: Option&lt;&amp;str&gt;,
+        sort_order: Option&lt;SortOrder&gt;,
+        start_index: Option&lt;usize&gt;,
+        count: Option&lt;usize&gt;,
+    ) -&gt; Result&lt;ListResponse&lt;Device&gt;, ScimError&gt; {
+        self.storage.list_devices(
+            tenant_id,
+            sort_by,
+            sort_order,
+            start_index,
+            count,
+        ).await.map_err(|e| e.into())
+    }
+    
+    // Implement specific search methods for common patterns
+    async fn search_by_type(
+        &amp;self,
+        tenant_id: &amp;str,
+        device_type: &amp;DeviceType,
+    ) -&gt; Result&lt;Vec&lt;Device&gt;, ScimError&gt; {
+        self.storage.find_devices_by_type(tenant_id, device_type)
+            .await
+            .map_err(|e| e.into())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="registration-and-configuration"><a class="header" href="#registration-and-configuration">Registration and Configuration</a></h2>
+<h3 id="registering-custom-resources"><a class="header" href="#registering-custom-resources">Registering Custom Resources</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use scim_server::ScimServerBuilder;
+
+let server = ScimServerBuilder::new()
+    .with_provider(storage_provider)
+    .register_resource_type::&lt;Device&gt;("Device", device_handler)
+    .register_schema(create_device_schema())
+    .add_endpoint("/Devices", device_routes())
+    .build();
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="resource-design"><a class="header" href="#resource-design">Resource Design</a></h3>
+<ul>
+<li>Follow SCIM naming conventions</li>
+<li>Use appropriate attribute types</li>
+<li>Define proper mutability rules</li>
+<li>Include comprehensive metadata</li>
+</ul>
+<h3 id="performance"><a class="header" href="#performance">Performance</a></h3>
+<ul>
+<li>Index frequently queried attributes</li>
+<li>Implement efficient filtering</li>
+<li>Consider caching for read-heavy resources</li>
+<li>Optimize storage provider operations</li>
+</ul>
+<h3 id="validation"><a class="header" href="#validation">Validation</a></h3>
+<ul>
+<li>Implement comprehensive validation rules</li>
+<li>Validate references to other resources</li>
+<li>Check business logic constraints</li>
+<li>Provide meaningful error messages</li>
+</ul>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li><a href="./extensions.html">Extensions</a> - Add custom attributes to existing resources</li>
+<li><a href="./validation.html">Validation</a> - Implement custom validation rules</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../schemas/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../schemas/extensions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../schemas/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../schemas/extensions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>
