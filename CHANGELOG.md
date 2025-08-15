@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.4] - 2025-08-16
+
+### Added
+- GitHub Actions workflow for automatic documentation deployment to GitHub Pages
+- Professional documentation hosting with proper CSS/JS loading and navigation
+
+### Changed
+- README.md documentation links now use clean GitHub Pages URLs (https://pukeko37.github.io/scim-server/)
+- Improved documentation user experience with fully functional mdbook interface
+
 ## [0.3.3] - 2025-08-16
 
 ### Fixed
