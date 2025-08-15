@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.3.6] - 2025-08-16
+
+### Fixed
+- Successfully deployed documentation to GitHub Pages with working CSS and navigation
+- Manual gh-pages branch creation to resolve GitHub Actions deployment issues
+- All documentation links now fully functional with proper styling
+
+### Changed
+- Documentation now hosted at https://pukeko37.github.io/scim-server/ with complete mdbook functionality
+
 ## [0.3.5] - 2025-08-16
 
 ### Fixed
