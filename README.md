@@ -73,7 +73,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 
 | Resource | Description |
 |----------|-------------|
-| 📖 **[User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html)** | Comprehensive tutorials and concepts |
+| 📖 **[User Guide](https://pukeko37.github.io/scim-server/)** | Comprehensive tutorials and concepts |
 | 🔧 **[API Documentation](https://docs.rs/scim-server)** | Detailed API reference with examples |
 | 💡 **[Examples](examples/)** | Copy-paste starting points for common use cases |
 | 📋 **[CHANGELOG](CHANGELOG.md)** | Version history and migration guides |
@@ -81,7 +81,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 ### Learning Path
 
 1. **Start Here**: Follow the Quick Start above
-2. **Learn Concepts**: Read the [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) 
+2. **Learn Concepts**: Read the [User Guide](https://pukeko37.github.io/scim-server/) 
 3. **See Examples**: Browse [examples/](examples/) for your use case
 4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server) for detailed API docs
 
@@ -112,7 +112,7 @@ See [examples/](examples/) for complete working examples including:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) for development information, or [open an issue](https://github.com/pukeko37/scim-server/issues) to discuss your ideas.
+We welcome contributions! Please see our [User Guide](https://pukeko37.github.io/scim-server/) for development information, or [open an issue](https://github.com/pukeko37/scim-server/issues) to discuss your ideas.
 
 ## 📄 License
 
@@ -120,4 +120,4 @@ Licensed under the [MIT License](LICENSE).
 
 ---
 
-**Need help?** Check the [User Guide](https://htmlpreview.github.io/?https://github.com/pukeko37/scim-server/blob/main/docs/guide/book/index.html) or [open an issue](https://github.com/pukeko37/scim-server/issues).
+**Need help?** Check the [User Guide](https://pukeko37.github.io/scim-server/) or [open an issue](https://github.com/pukeko37/scim-server/issues).
