@@ -19,21 +19,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [0.3.2] - 2025-01-27
+## [0.3.2] - 2025-08-16
 
 ### Added
-- Comprehensive documentation strategy in `ReferenceNotes/documentation-strategy.md`
-- Structured approach for organizing documentation across multiple layers
-- Implementation plan for documentation refactoring
+- Comprehensive documentation overhaul with 10,000+ lines of accurate content
+- Single source of truth documentation in mdbook format (`docs/guide/src/`)
+- Complete mdbook-based user guide with professional structure
+- Placeholder pages filled with substantive content and TODO markers
+- Clear implementation status indicators (✅/❌/⚠️) throughout documentation
+- Honest SCIM compliance assessment (updated from false 94% to accurate ~65%)
+- Working code examples that compile and run successfully
+- Documentation refactoring completion report in `docs/DOCUMENTATION_REFACTORING_COMPLETE.md`
+- SCIM compliance audit findings in `docs/COMPLIANCE_AUDIT_FINDINGS.md`
 
 ### Changed
-- Prepared for major documentation restructuring following progressive disclosure principles
-- Enhanced documentation organization strategy to improve user experience
+- **MAJOR**: Updated SCIM compliance claims from misleading 94% to honest ~65% assessment
+- **MAJOR**: Replaced all non-existent API examples (FilterExpression, BulkOperation) with working alternatives
+- Converted troubleshooting guide to use realistic pagination patterns instead of filter expressions
+- Updated security examples to use safe query building instead of non-existent filter parsing
+- Modified all tutorials to show only working code patterns
+- Enhanced migration guide with accurate version history (0.3.0 → 0.3.2)
+- Improved API endpoint documentation with clear implementation status
+
+### Removed
+- **21,700+ lines** of outdated, duplicate, and misleading documentation content
+- Entire `docs/guides/` directory (75+ redundant files)
+- Complete `docs/examples/` directory with outdated patterns
+- All references to non-existent FilterExpression::parse() APIs
+- All fake BulkOperation and BulkRequest implementation examples
+- Misleading bulk operations support claims
+- False filter expression parsing capabilities
+
+### Fixed
+- All code examples now compile successfully without errors
+- Removed references to unimplemented features throughout documentation
+- Corrected API endpoint documentation to reflect actual capabilities
+- Fixed placeholder pages that were causing broken navigation
+- Updated configuration examples to match actual library options
+- Corrected troubleshooting patterns to use implemented features only
 
 ### Documentation
-- Created six-layer documentation architecture (Entry Point, Quick Start, Examples, Learning, API Reference, Technical Reference)
-- Established clear homes for different types of documentation
-- Defined quality standards and maintenance processes for documentation
+- **BREAKING**: Consolidated all documentation to single mdbook source
+- Created comprehensive tutorial series with working examples only
+- Enhanced getting started guides with accurate feature representations
+- Added detailed provider implementation patterns
+- Improved schema and validation documentation
+- Enhanced multi-tenancy and security guides
+- Updated all reference documentation for accuracy
 
 ## [0.3.1] - 2025-08-14
 
