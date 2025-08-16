@@ -193,7 +193,7 @@ cd my-scim-server
 </code></pre>
 <p>Add the required dependencies to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.3.2"
+scim-server = "0.3.7"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 anyhow = "1.0"
@@ -202,12 +202,12 @@ anyhow = "1.0"
 <p>Create your first SCIM server in <code>src/main.rs</code>:</p>
 <pre><pre class="playground"><code class="language-rust">use scim_server::{
     ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::{RequestContext, ResourceProvider},
+    StandardResourceProvider,
+    InMemoryStorage,
+    RequestContext, ResourceProvider,
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    schema::SchemaRegistry,
-    resource::ScimOperation,
+    SchemaRegistry,
+    ScimOperation,
 };
 use serde_json::json;
 
@@ -224,9 +224,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Create SCIM server with provider
     let mut server = ScimServer::new(provider)?;
     
+    // Create schema registry (needed for both user and group schemas)
+    let schema_registry = SchemaRegistry::new()?;
+    
     // Register User resource type
-    let user_schema = SchemaRegistry::new()?.get_core_user_schema()?;
-    let user_handler = create_user_resource_handler(user_schema);
+    let user_schema = schema_registry.get_user_schema();
+    let user_handler = create_user_resource_handler(user_schema.clone());
     server.register_resource_type(
         "User",
         user_handler,
@@ -241,8 +244,8 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     )?;
     
     // Register Group resource type
-    let group_schema = SchemaRegistry::new()?.get_core_group_schema()?;
-    let group_handler = create_group_resource_handler(group_schema);
+    let group_schema = schema_registry.get_group_schema();
+    let group_handler = create_group_resource_handler(group_schema.clone());
     server.register_resource_type(
         "Group",
         group_handler,
@@ -342,7 +345,7 @@ match retrieved_user {
     Some(user) =&gt; {
         println!("✅ Retrieved user: {} ({})", 
                  user.get_username().unwrap_or("unknown"),
-                 user.get_display_name().unwrap_or("unknown"));
+                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
     }
     None =&gt; {
         println!("❌ User not found");
@@ -381,7 +384,7 @@ let updated_user = server.update_resource("User", user_id, updated_data, &amp;co
 
 println!("✅ Updated user: {} ({})", 
          updated_user.get_username().unwrap_or("unknown"),
-         updated_user.get_display_name().unwrap_or("unknown"));
+         updated_user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
 <span class="boring">}</span></code></pre></pre>
 <h2 id="step-5-working-with-groups"><a class="header" href="#step-5-working-with-groups">Step 5: Working with Groups</a></h2>
 <p>Let's create a group and manage membership:</p>
@@ -406,7 +409,7 @@ let group_data = json!({
 let group = server.create_resource("Group", group_data, &amp;context).await?;
 
 println!("✅ Created group: {} (ID: {})", 
-         group.get_display_name().unwrap_or("unknown"),
+         group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
          group.get_id().unwrap_or("unknown"));
 <span class="boring">}</span></code></pre></pre>
 <h2 id="step-6-listing-resources"><a class="header" href="#step-6-listing-resources">Step 6: Listing Resources</a></h2>
@@ -423,7 +426,7 @@ println!("✅ Found {} users:", users.len());
 for user in &amp;users {
     println!("  - {} ({})", 
              user.get_username().unwrap_or("unknown"),
-             user.get_display_name().unwrap_or("unknown"));
+             user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
 }
 
 println!("\n📋 Listing all groups...");
@@ -433,7 +436,7 @@ let groups = server.list_resources("Group", None, &amp;context).await?;
 println!("✅ Found {} groups:", groups.len());
 for group in &amp;groups {
     println!("  - {} (ID: {})", 
-             group.get_display_name().unwrap_or("unknown"),
+             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
              group.get_id().unwrap_or("unknown"));
 }
 <span class="boring">}</span></code></pre></pre>
@@ -457,7 +460,7 @@ match found_user {
     Some(user) =&gt; {
         println!("✅ Found user by username: {} ({})", 
                  user.get_username().unwrap_or("unknown"),
-                 user.get_display_name().unwrap_or("unknown"));
+                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
     }
     None =&gt; {
         println!("❌ User not found");
@@ -468,7 +471,7 @@ match found_user {
 <p>Finally, let's demonstrate multi-tenant capabilities:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use scim_server::TenantContext;
+</span>use scim_server::resource::TenantContext;
 
 // ... after search operations ...
 
@@ -511,12 +514,12 @@ println!("✅ Tenant isolation working correctly!");
 <p>Here's the complete working example:</p>
 <pre><pre class="playground"><code class="language-rust">use scim_server::{
     ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::{RequestContext, TenantContext, ResourceProvider},
+    StandardResourceProvider,
+    InMemoryStorage,
+    RequestContext, TenantContext, ResourceProvider,
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    schema::SchemaRegistry,
-    resource::ScimOperation,
+    SchemaRegistry,
+    ScimOperation,
 };
 use serde_json::json;
 
@@ -533,9 +536,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Create SCIM server with provider
     let mut server = ScimServer::new(provider)?;
     
+    // Create schema registry (needed for both user and group schemas)
+    let schema_registry = SchemaRegistry::new()?;
+    
     // Register User resource type
-    let user_schema = SchemaRegistry::new()?.get_core_user_schema()?;
-    let user_handler = create_user_resource_handler(user_schema);
+    let user_schema = schema_registry.get_user_schema();
+    let user_handler = create_user_resource_handler(user_schema.clone());
     server.register_resource_type(
         "User",
         user_handler,
@@ -550,8 +556,8 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     )?;
     
     // Register Group resource type
-    let group_schema = SchemaRegistry::new()?.get_core_group_schema()?;
-    let group_handler = create_group_resource_handler(group_schema);
+    let group_schema = schema_registry.get_group_schema();
+    let group_handler = create_group_resource_handler(group_schema.clone());
     server.register_resource_type(
         "Group",
         group_handler,
@@ -610,7 +616,7 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let group = server.create_resource("Group", group_data, &amp;context).await?;
     
     println!("✅ Created group: {} (ID: {})", 
-             group.get_display_name().unwrap_or("unknown"),
+             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
              group.get_id().unwrap_or("unknown"));
     
     // List resources
@@ -623,33 +629,6 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     Ok(())
 }</code></pre></pre>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Now that you have a working SCIM server, you can:</p>
-<ol>
-<li><strong><a href="../tutorials/authentication-setup.html">Add Authentication</a></strong> - Secure your SCIM endpoints</li>
-<li><strong><a href="../tutorials/custom-resources.html">Implement Custom Resources</a></strong> - Extend beyond Users and Groups</li>
-<li><strong><a href="../advanced/production-deployment.html">Deploy for Production</a></strong> - Scale your SCIM server</li>
-<li><strong><a href="../providers/basic.html">Add Database Storage</a></strong> - Replace in-memory storage with persistence</li>
-<li><strong><a href="../tutorials/multi-tenant-deployment.html">Set up Multi-Tenancy</a></strong> - Support multiple customers</li>
-</ol>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
-<h3 id="common-issues"><a class="header" href="#common-issues">Common Issues</a></h3>
-<p><strong>Compilation Errors</strong></p>
-<ul>
-<li>Make sure you're using the correct version: <code>scim-server = "0.3.2"</code></li>
-<li>Ensure all required features are enabled</li>
-</ul>
-<p><strong>Runtime Errors</strong></p>
-<ul>
-<li>Check that all resource types are registered before use</li>
-<li>Verify request contexts are properly created</li>
-</ul>
-<p><strong>Resource Not Found</strong></p>
-<ul>
-<li>Ensure you're using the correct tenant context</li>
-<li>Check that the resource was created successfully</li>
-</ul>
-<p>For more help, see the <a href="../how-to/troubleshooting.html">Troubleshooting Guide</a>.</p>
 
                     </main>
 
@@ -659,9 +638,6 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../getting-started/basic-operations.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <i class="fa fa-angle-right"></i>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -673,9 +649,6 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../getting-started/basic-operations.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <i class="fa fa-angle-right"></i>
-                    </a>
             </nav>
 
         </div>

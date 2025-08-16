@@ -197,17 +197,16 @@ impl<S: StorageProvider> VersionedStorageProvider<S> {
 Process multiple operations efficiently:
 
 ```rust
-use scim_server::{ResourceProvider, RequestContext, ConditionalResult};
-use futures::future::try_join_all;
+use scim_server::{ResourceProvider, RequestContext};
 use serde_json::json;
 
 // Process multiple user creations
 async fn create_multiple_users(
     provider: &impl ResourceProvider,
-    tenant_id: &str,
+    _tenant_id: &str,
     users_data: Vec<serde_json::Value>
-) -> Result<Vec<ScimUser>, Box<dyn std::error::Error>> {
-    let context = RequestContext::new("batch-create", None);
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+    let context = RequestContext::new("batch-create".to_string());
     let mut results = Vec::new();
     
     // Sequential processing (safest approach)
@@ -222,10 +221,10 @@ async fn create_multiple_users(
 // Parallel processing (for independent operations)
 async fn create_users_parallel(
     provider: &impl ResourceProvider,
-    tenant_id: &str,
+    _tenant_id: &str,
     users_data: Vec<serde_json::Value>
-) -> Result<Vec<ScimUser>, Box<dyn std::error::Error>> {
-    let context = RequestContext::new("parallel-create", None);
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+    let context = RequestContext::new("parallel-create".to_string());
     
     let futures: Vec<_> = users_data.into_iter()
         .map(|data| provider.create_resource("User", data, &context))

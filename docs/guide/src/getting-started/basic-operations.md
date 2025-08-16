@@ -25,8 +25,8 @@ All examples assume this basic setup:
 
 ```rust
 use scim_server::{
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
+    StandardResourceProvider,
+    InMemoryStorage,
     RequestContext,
 };
 use serde_json::json;
@@ -130,7 +130,7 @@ if let Some(name) = full_user.get_name() {
 ```rust
 let user = provider.get_resource("User", &user_id, &context).await?;
 println!("User: {}", user.get_username().unwrap_or("unknown"));
-println!("Active: {}", user.get_active().unwrap_or(false));
+println!("Active: {}", user.is_active());
 if let Some(meta) = user.get_meta() {
     println!("Created: {}", meta.created);
     println!("Version: {}", meta.version.as_ref().unwrap_or(&"unknown".to_string()));
@@ -245,7 +245,7 @@ let group_data = json!({
 });
 
 let group = provider.create_resource("Group", group_data, &context).await?;
-println!("Created group: {}", group.get_display_name().unwrap_or("unknown"));
+println!("Created group: {}", group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
 ```
 
 **Group with members:**
@@ -352,7 +352,7 @@ println!("Found {} groups", groups.len());
 
 for group in groups {
     println!("  - {} ({})",
-             group.get_display_name().unwrap_or("unknown"),
+             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
              group.get_id().unwrap_or("unknown"));
 }
 ```

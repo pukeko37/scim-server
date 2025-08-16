@@ -581,15 +581,17 @@
 //! ```rust
 //! use scim_server::SchemaDiscovery;
 //!
-//! # async fn example() {
-//! let discovery = SchemaDiscovery::new().unwrap();
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let discovery = SchemaDiscovery::new()?;
+//!
 //! // Get available schemas
-//! let schemas = discovery.get_schemas().await.unwrap();
+//! let schemas = discovery.get_schemas().await?;
 //! println!("Available schemas: {}", schemas.len());
 //!
 //! // Get service provider configuration
-//! let config = discovery.get_service_provider_config().await.unwrap();
+//! let config = discovery.get_service_provider_config().await?;
 //! println!("Bulk operations supported: {}", config.bulk_supported);
+//! # Ok(())
 //! # }
 //! ```
 //!
@@ -673,10 +675,10 @@
 //! #### During Development (with Cargo)
 //! ```bash
 //! # Validate a single schema file
-//! cargo run --bin schema-validator schemas/User.json
+//! cargo run --bin schema-validator path/to/User.json
 //!
 //! # Validate all schemas in a directory
-//! cargo run --bin schema-validator ./schemas/
+//! cargo run --bin schema-validator ./path/to/schemas/
 //! ```
 //!
 //! #### Standalone Installation
@@ -685,8 +687,8 @@
 //! cargo install --path . --bin schema-validator
 //!
 //! # Then use directly
-//! schema-validator schemas/User.json
-//! schema-validator ./schemas/
+//! schema-validator path/to/User.json
+//! schema-validator ./path/to/schemas/
 //! ```
 //!
 //! #### From Published Crate (when available)
@@ -695,7 +697,7 @@
 //! cargo install scim-server --bin schema-validator
 //!
 //! # Use anywhere
-//! schema-validator /path/to/schemas/
+//! schema-validator /path/to/custom/schemas/
 //! ```
 //!
 //! ### Features
@@ -709,7 +711,7 @@
 //! ### Example Output
 //!
 //! ```text
-//! Validating schema file: schemas/User.json
+//! Validating schema file: path/to/User.json
 //! ✓ Schema is valid!
 //!
 //! Schema Summary:
@@ -809,7 +811,7 @@ pub use multi_tenant::{
 };
 
 // Standard provider implementations
-pub use providers::{InMemoryError, InMemoryProvider, InMemoryStats};
+pub use providers::{InMemoryError, InMemoryProvider, InMemoryStats, StandardResourceProvider};
 
 // Storage layer - pluggable backend implementations
 pub use storage::{

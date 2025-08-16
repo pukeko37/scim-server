@@ -3,7 +3,7 @@
 //! This module provides the SchemaRegistry which handles schema loading from files,
 //! schema management, and provides access to registered schemas for validation.
 
-use super::types::{AttributeDefinition, AttributeType, Schema};
+use super::{embedded, types::{AttributeDefinition, AttributeType, Schema}};
 
 use chrono::{DateTime, FixedOffset};
 use serde_json::Value;
@@ -23,9 +23,32 @@ pub struct SchemaRegistry {
 }
 
 impl SchemaRegistry {
-    /// Create a new schema registry with core User schema loaded from file.
+    /// Create a new schema registry with embedded core schemas.
+    ///
+    /// This method uses the schemas embedded in the library and doesn't require
+    /// external schema files. For loading schemas from files, use `from_schema_dir()`.
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        Self::from_schema_dir("schemas")
+        Self::with_embedded_schemas()
+    }
+
+    /// Create a new schema registry with embedded core schemas.
+    ///
+    /// This method uses the schemas embedded in the library and doesn't require
+    /// external schema files. This is the recommended method for schema discovery
+    /// functionality as it works without any file dependencies.
+    pub fn with_embedded_schemas() -> Result<Self, Box<dyn std::error::Error>> {
+        let core_user_schema = Self::load_schema_from_str(embedded::core_user_schema())?;
+        let core_group_schema = Self::load_schema_from_str(embedded::core_group_schema())?;
+
+        let mut schemas = HashMap::new();
+        schemas.insert(core_user_schema.id.clone(), core_user_schema.clone());
+        schemas.insert(core_group_schema.id.clone(), core_group_schema.clone());
+
+        Ok(Self {
+            core_user_schema,
+            core_group_schema,
+            schemas,
+        })
     }
 
     /// Create a schema registry by loading schemas from a directory.
@@ -54,7 +77,12 @@ impl SchemaRegistry {
         path: P,
     ) -> Result<Schema, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(&path)?;
-        let mut schema: Schema = serde_json::from_str(&content)?;
+        Self::load_schema_from_str(&content)
+    }
+
+    /// Load a schema from a JSON string.
+    fn load_schema_from_str(content: &str) -> Result<Schema, Box<dyn std::error::Error>> {
+        let mut schema: Schema = serde_json::from_str(content)?;
 
         // Convert JSON schema format to internal format
         Self::convert_json_schema(&mut schema);

@@ -21,3 +21,12 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Test results (internal use only)
+test-results/
+
+# Documentation testing (internal use only)
+doc-testing/
+
+# Reference notes (internal use only)
+ReferenceNotes/

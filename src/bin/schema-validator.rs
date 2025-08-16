@@ -19,13 +19,13 @@
 //! ### Validate a Single Schema File
 //!
 //! ```bash
-//! cargo run --bin schema-validator schemas/User.json
+//! cargo run --bin schema-validator path/to/User.json
 //! ```
 //!
 //! ### Validate All Schemas in a Directory
 //!
 //! ```bash
-//! cargo run --bin schema-validator ./schemas/
+//! cargo run --bin schema-validator ./path/to/schemas/
 //! ```
 //!
 //! ## Output Examples
@@ -33,7 +33,7 @@
 //! ### Successful Validation
 //!
 //! ```text
-//! Validating schema file: schemas/User.json
+//! Validating schema file: path/to/User.json
 //! ✓ Schema is valid!
 //!
 //! Schema Summary:
@@ -54,7 +54,7 @@
 //! ### Directory Validation
 //!
 //! ```text
-//! Validating schemas in directory: ./schemas/
+//! Validating schemas in directory: ./path/to/schemas/
 //!
 //! Validating: User.json
 //!   ✓ Valid - User (urn:ietf:params:scim:schemas:core:2.0:User)
@@ -76,7 +76,7 @@
 //! ### Error Output
 //!
 //! ```text
-//! Validating schema file: invalid-schema.json
+//! Validating schema file: path/to/invalid-schema.json
 //! ❌ Schema validation failed: Schema missing required 'id' field
 //! ```
 //!
@@ -122,8 +122,8 @@ fn main() {
         eprintln!("Usage: {} <schema-file-or-directory>", args[0]);
         eprintln!();
         eprintln!("Examples:");
-        eprintln!("  {} schemas/User.json", args[0]);
-        eprintln!("  {} ./schemas/", args[0]);
+        eprintln!("  {} path/to/User.json", args[0]);
+        eprintln!("  {} ./path/to/schemas/", args[0]);
         process::exit(1);
     }
 

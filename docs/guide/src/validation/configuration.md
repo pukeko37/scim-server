@@ -1,930 +1,362 @@
 # Validation Configuration
 
-This guide covers configurable validation rules that can be dynamically managed and applied at runtime. Instead of hardcoding validation logic, you can define rules through configuration that can be updated without code changes.
+SCIM Server 0.3.7 provides schema-based validation with limited configuration options. This guide covers the actual validation configuration capabilities available in the current implementation.
 
-## Configuration-Driven Validation
+## Current Configuration Capabilities
 
-### Validation Configuration Structure
+### Schema Registry Configuration
 
-```rust
-use scim_server::validation::{ValidationConfig, ValidationRule, RuleEngine};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationConfig {
-    pub tenant_id: String,
-    pub rules: Vec<ValidationRule>,
-    pub external_validators: Vec<ExternalValidatorConfig>,
-    pub field_validators: HashMap<String, FieldValidatorConfig>,
-    pub global_settings: GlobalValidationSettings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationRule {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub enabled: bool,
-    pub severity: ValidationSeverity,
-    pub resource_types: Vec<String>, // ["User", "Group"]
-    pub operations: Vec<String>,     // ["create", "update", "patch"]
-    pub conditions: Vec<RuleCondition>,
-    pub actions: Vec<ValidationAction>,
-    pub priority: u32,
-    pub tags: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ValidationSeverity {
-    Error,   // Blocks the operation
-    Warning, // Logs but allows operation
-    Info,    // Informational only
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuleCondition {
-    pub field: String,
-    pub operator: ConditionOperator,
-    pub value: serde_json::Value,
-    pub case_sensitive: bool,
-    pub negate: bool, // NOT condition
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConditionOperator {
-    Equals,
-    NotEquals,
-    Contains,
-    StartsWith,
-    EndsWith,
-    Regex,
-    Length,
-    GreaterThan,
-    LessThan,
-    In,
-    NotIn,
-    Exists,
-    NotExists,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ValidationAction {
-    Block { message: String },
-    Warn { message: String },
-    Log { level: String, message: String },
-    Transform { field: String, transformation: String },
-    Notify { recipients: Vec<String>, template: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GlobalValidationSettings {
-    pub max_validation_time_ms: u64,
-    pub fail_fast: bool,
-    pub enable_external_validation: bool,
-    pub cache_validation_results: bool,
-    pub cache_ttl_seconds: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExternalValidatorConfig {
-    pub name: String,
-    pub url: String,
-    pub timeout_ms: u64,
-    pub retry_count: u32,
-    pub headers: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldValidatorConfig {
-    pub validator_type: String,
-    pub config: serde_json::Value,
-    pub enabled: bool,
-}
-```
-
-## Rule Engine Implementation
-
-### Core Rule Engine
+The primary validation configuration in SCIM Server involves choosing how to load SCIM schemas:
 
 ```rust
-use async_trait::async_trait;
-use std::time::{Duration, Instant};
-use tokio::time::timeout;
+use scim_server::SchemaRegistry;
 
-pub struct RuleEngine {
-    config: ValidationConfig,
-    cache: Option<ValidationCache>,
-}
+// Option 1: Use embedded schemas (recommended)
+let registry = SchemaRegistry::new()?;
 
-impl RuleEngine {
-    pub fn new(config: ValidationConfig) -> Self {
-        let cache = if config.global_settings.cache_validation_results {
-            Some(ValidationCache::new(
-                Duration::from_secs(config.global_settings.cache_ttl_seconds)
-            ))
-        } else {
-            None
-        };
+// Option 2: Use embedded schemas explicitly
+let registry = SchemaRegistry::with_embedded_schemas()?;
 
-        Self { config, cache }
-    }
-
-    pub async fn validate_resource(
-        &self,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) -> Result<ValidationResult, ValidationError> {
-        let start_time = Instant::now();
-        let max_duration = Duration::from_millis(self.config.global_settings.max_validation_time_ms);
-
-        // Check cache first
-        if let Some(cache) = &self.cache {
-            if let Some(cached_result) = cache.get(resource, context).await {
-                return Ok(cached_result);
-            }
-        }
-
-        // Run validation with timeout
-        let validation_future = self.validate_internal(resource, context);
-        let result = timeout(max_duration, validation_future)
-            .await
-            .map_err(|_| ValidationError::new(
-                "VALIDATION_TIMEOUT",
-                "Validation exceeded maximum allowed time",
-            ))??;
-
-        // Cache successful results
-        if let Some(cache) = &self.cache {
-            if result.is_valid() {
-                cache.put(resource, context, &result).await;
-            }
-        }
-
-        Ok(result)
-    }
-
-    async fn validate_internal(
-        &self,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) -> Result<ValidationResult, ValidationError> {
-        let mut validation_result = ValidationResult::new();
-        let applicable_rules = self.get_applicable_rules(resource, context);
-
-        for rule in applicable_rules {
-            if !rule.enabled {
-                continue;
-            }
-
-            match self.evaluate_rule(rule, resource, context).await {
-                Ok(rule_result) => {
-                    validation_result.merge(rule_result);
-                    
-                    // Fail fast if enabled and we have errors
-                    if self.config.global_settings.fail_fast && !validation_result.errors.is_empty() {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    validation_result.add_error(e);
-                    if self.config.global_settings.fail_fast {
-                        break;
-                    }
-                }
-            }
-        }
-
-        Ok(validation_result)
-    }
-
-    fn get_applicable_rules(
-        &self,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) -> Vec<&ValidationRule> {
-        let mut applicable_rules: Vec<&ValidationRule> = self.config.rules
-            .iter()
-            .filter(|rule| {
-                // Filter by resource type
-                rule.resource_types.is_empty() || 
-                rule.resource_types.contains(&resource.resource_type())
-            })
-            .filter(|rule| {
-                // Filter by operation
-                rule.operations.is_empty() || 
-                rule.operations.contains(&context.operation.to_string())
-            })
-            .collect();
-
-        // Sort by priority (higher priority first)
-        applicable_rules.sort_by(|a, b| b.priority.cmp(&a.priority));
-        applicable_rules
-    }
-
-    async fn evaluate_rule(
-        &self,
-        rule: &ValidationRule,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) -> Result<ValidationResult, ValidationError> {
-        let mut rule_result = ValidationResult::new();
-
-        // Evaluate all conditions (AND logic)
-        let conditions_met = self.evaluate_conditions(&rule.conditions, resource, context).await?;
-
-        if conditions_met {
-            // Execute actions
-            for action in &rule.actions {
-                self.execute_action(action, rule, resource, context, &mut rule_result).await?;
-            }
-        }
-
-        Ok(rule_result)
-    }
-
-    async fn evaluate_conditions(
-        &self,
-        conditions: &[RuleCondition],
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) -> Result<bool, ValidationError> {
-        for condition in conditions {
-            let condition_met = self.evaluate_condition(condition, resource, context).await?;
-            let final_result = if condition.negate { !condition_met } else { condition_met };
-            
-            if !final_result {
-                return Ok(false); // AND logic - all conditions must be true
-            }
-        }
-        
-        Ok(true)
-    }
-
-    async fn evaluate_condition(
-        &self,
-        condition: &RuleCondition,
-        resource: &dyn ScimResource,
-        _context: &ValidationContext,
-    ) -> Result<bool, ValidationError> {
-        let field_value = self.extract_field_value(&condition.field, resource)?;
-
-        match &condition.operator {
-            ConditionOperator::Equals => {
-                Ok(self.compare_values(&field_value, &condition.value, condition.case_sensitive))
-            }
-            ConditionOperator::NotEquals => {
-                Ok(!self.compare_values(&field_value, &condition.value, condition.case_sensitive))
-            }
-            ConditionOperator::Contains => {
-                self.evaluate_contains(&field_value, &condition.value, condition.case_sensitive)
-            }
-            ConditionOperator::StartsWith => {
-                self.evaluate_starts_with(&field_value, &condition.value, condition.case_sensitive)
-            }
-            ConditionOperator::EndsWith => {
-                self.evaluate_ends_with(&field_value, &condition.value, condition.case_sensitive)
-            }
-            ConditionOperator::Regex => {
-                self.evaluate_regex(&field_value, &condition.value)
-            }
-            ConditionOperator::Length => {
-                self.evaluate_length(&field_value, &condition.value)
-            }
-            ConditionOperator::GreaterThan => {
-                self.evaluate_greater_than(&field_value, &condition.value)
-            }
-            ConditionOperator::LessThan => {
-                self.evaluate_less_than(&field_value, &condition.value)
-            }
-            ConditionOperator::In => {
-                self.evaluate_in(&field_value, &condition.value, condition.case_sensitive)
-            }
-            ConditionOperator::NotIn => {
-                Ok(!self.evaluate_in(&field_value, &condition.value, condition.case_sensitive)?)
-            }
-            ConditionOperator::Exists => {
-                Ok(!field_value.is_null())
-            }
-            ConditionOperator::NotExists => {
-                Ok(field_value.is_null())
-            }
-        }
-    }
-
-    fn extract_field_value(
-        &self,
-        field_path: &str,
-        resource: &dyn ScimResource,
-    ) -> Result<serde_json::Value, ValidationError> {
-        let resource_json = serde_json::to_value(resource)
-            .map_err(|e| ValidationError::new(
-                "FIELD_EXTRACTION_ERROR",
-                &format!("Failed to serialize resource: {}", e),
-            ))?;
-
-        self.extract_nested_value(&resource_json, field_path)
-    }
-
-    fn extract_nested_value(
-        &self,
-        value: &serde_json::Value,
-        path: &str,
-    ) -> Result<serde_json::Value, ValidationError> {
-        let parts: Vec<&str> = path.split('.').collect();
-        let mut current = value;
-
-        for part in parts {
-            // Handle array access like "emails[0].value"
-            if let Some(bracket_pos) = part.find('[') {
-                let field_name = &part[..bracket_pos];
-                let index_part = &part[bracket_pos + 1..part.len() - 1];
-                let index: usize = index_part.parse()
-                    .map_err(|_| ValidationError::new(
-                        "INVALID_ARRAY_INDEX",
-                        &format!("Invalid array index: {}", index_part),
-                    ))?;
-
-                current = current.get(field_name)
-                    .and_then(|v| v.as_array())
-                    .and_then(|arr| arr.get(index))
-                    .unwrap_or(&serde_json::Value::Null);
-            } else {
-                current = current.get(part).unwrap_or(&serde_json::Value::Null);
-            }
-        }
-
-        Ok(current.clone())
-    }
-
-    // Condition evaluation helper methods
-    fn compare_values(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-        case_sensitive: bool,
-    ) -> bool {
-        if !case_sensitive {
-            if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
-                return field_str.to_lowercase() == condition_str.to_lowercase();
-            }
-        }
-        field_value == condition_value
-    }
-
-    fn evaluate_contains(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-        case_sensitive: bool,
-    ) -> Result<bool, ValidationError> {
-        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
-            if case_sensitive {
-                Ok(field_str.contains(condition_str))
-            } else {
-                Ok(field_str.to_lowercase().contains(&condition_str.to_lowercase()))
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn evaluate_starts_with(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-        case_sensitive: bool,
-    ) -> Result<bool, ValidationError> {
-        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
-            if case_sensitive {
-                Ok(field_str.starts_with(condition_str))
-            } else {
-                Ok(field_str.to_lowercase().starts_with(&condition_str.to_lowercase()))
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn evaluate_ends_with(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-        case_sensitive: bool,
-    ) -> Result<bool, ValidationError> {
-        if let (Some(field_str), Some(condition_str)) = (field_value.as_str(), condition_value.as_str()) {
-            if case_sensitive {
-                Ok(field_str.ends_with(condition_str))
-            } else {
-                Ok(field_str.to_lowercase().ends_with(&condition_str.to_lowercase()))
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn evaluate_regex(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-    ) -> Result<bool, ValidationError> {
-        if let (Some(field_str), Some(pattern_str)) = (field_value.as_str(), condition_value.as_str()) {
-            let regex = regex::Regex::new(pattern_str)
-                .map_err(|e| ValidationError::new(
-                    "INVALID_REGEX",
-                    &format!("Invalid regex pattern: {}", e),
-                ))?;
-            Ok(regex.is_match(field_str))
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn evaluate_length(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-    ) -> Result<bool, ValidationError> {
-        let field_length = match field_value {
-            serde_json::Value::String(s) => s.len(),
-            serde_json::Value::Array(arr) => arr.len(),
-            _ => return Ok(false),
-        };
-
-        if let Some(expected_length) = condition_value.as_u64() {
-            Ok(field_length == expected_length as usize)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn evaluate_greater_than(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-    ) -> Result<bool, ValidationError> {
-        match (field_value.as_f64(), condition_value.as_f64()) {
-            (Some(field_num), Some(condition_num)) => Ok(field_num > condition_num),
-            _ => Ok(false),
-        }
-    }
-
-    fn evaluate_less_than(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-    ) -> Result<bool, ValidationError> {
-        match (field_value.as_f64(), condition_value.as_f64()) {
-            (Some(field_num), Some(condition_num)) => Ok(field_num < condition_num),
-            _ => Ok(false),
-        }
-    }
-
-    fn evaluate_in(
-        &self,
-        field_value: &serde_json::Value,
-        condition_value: &serde_json::Value,
-        case_sensitive: bool,
-    ) -> Result<bool, ValidationError> {
-        if let Some(values_array) = condition_value.as_array() {
-            for value in values_array {
-                if self.compare_values(field_value, value, case_sensitive) {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
-    }
-
-    async fn execute_action(
-        &self,
-        action: &ValidationAction,
-        rule: &ValidationRule,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-        result: &mut ValidationResult,
-    ) -> Result<(), ValidationError> {
-        match action {
-            ValidationAction::Block { message } => {
-                let error = ValidationError::new(
-                    &format!("RULE_VIOLATION_{}", rule.id.to_uppercase()),
-                    message,
-                ).with_severity(ValidationSeverity::Error);
-                result.add_error(error);
-            }
-            ValidationAction::Warn { message } => {
-                let warning = ValidationError::new(
-                    &format!("RULE_WARNING_{}", rule.id.to_uppercase()),
-                    message,
-                ).with_severity(ValidationSeverity::Warning);
-                result.add_warning(warning);
-            }
-            ValidationAction::Log { level, message } => {
-                self.log_validation_event(level, message, rule, resource, context).await;
-            }
-            ValidationAction::Transform { field, transformation } => {
-                // Transform actions would modify the resource
-                // This is advanced functionality that requires careful implementation
-                self.apply_transformation(field, transformation, resource, result).await?;
-            }
-            ValidationAction::Notify { recipients, template } => {
-                self.send_notification(recipients, template, rule, resource, context).await?;
-            }
-        }
-        Ok(())
-    }
-
-    async fn log_validation_event(
-        &self,
-        level: &str,
-        message: &str,
-        rule: &ValidationRule,
-        resource: &dyn ScimResource,
-        context: &ValidationContext,
-    ) {
-        // Implementation would depend on your logging system
-        match level {
-            "error" => log::error!("Validation rule '{}': {} (resource: {}, tenant: {})", 
-                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
-            "warn" => log::warn!("Validation rule '{}': {} (resource: {}, tenant: {})", 
-                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
-            "info" => log::info!("Validation rule '{}': {} (resource: {}, tenant: {})", 
-                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
-            _ => log::debug!("Validation rule '{}': {} (resource: {}, tenant: {})", 
-                rule.name, message, resource.id().unwrap_or("unknown"), context.tenant_id),
-        }
-    }
-
-    async fn apply_transformation(
-        &self,
-        _field: &str,
-        _transformation: &str,
-        _resource: &dyn ScimResource,
-        _result: &mut ValidationResult,
-    ) -> Result<(), ValidationError> {
-        // Transformation implementation would be complex and resource-specific
-        // For now, we'll just log that a transformation was requested
-        log::info!("Transformation requested but not implemented");
-        Ok(())
-    }
-
-    async fn send_notification(
-        &self,
-        _recipients: &[String],
-        _template: &str,
-        _rule: &ValidationRule,
-        _resource: &dyn ScimResource,
-        _context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Notification implementation would depend on your notification system
-        log::info!("Notification requested but not implemented");
-        Ok(())
-    }
-}
+// Option 3: Load schemas from file directory
+let registry = SchemaRegistry::from_schema_dir("./schemas")?;
 ```
 
-## Configuration Examples
+### Embedded vs File-Based Schemas
 
-### Sample Validation Configuration
-
-```yaml
-# validation-config.yaml
-tenant_id: "company-123"
-
-global_settings:
-  max_validation_time_ms: 5000
-  fail_fast: false
-  enable_external_validation: true
-  cache_validation_results: true
-  cache_ttl_seconds: 300
-
-rules:
-  - id: "email_domain_check"
-    name: "Email Domain Validation"
-    description: "Ensure users have company email domains"
-    enabled: true
-    severity: "Error"
-    resource_types: ["User"]
-    operations: ["create", "update"]
-    priority: 100
-    conditions:
-      - field: "emails[0].value"
-        operator: "Regex"
-        value: ".*@(company\\.com|subsidiary\\.com)$"
-        case_sensitive: false
-        negate: false
-    actions:
-      - Block:
-          message: "Users must have a company email address (@company.com or @subsidiary.com)"
-
-  - id: "manager_hierarchy_check"
-    name: "Manager Hierarchy Validation"
-    description: "Prevent circular manager relationships"
-    enabled: true
-    severity: "Error"
-    resource_types: ["User"]
-    operations: ["update", "patch"]
-    priority: 90
-    conditions:
-      - field: "enterpriseUser.manager.value"
-        operator: "Exists"
-        value: null
-        case_sensitive: false
-        negate: false
-    actions:
-      - Block:
-          message: "Manager assignment would create a circular reference"
-      - Log:
-          level: "warn"
-          message: "Attempted circular manager assignment detected"
-
-  - id: "contractor_end_date"
-    name: "Contractor End Date Required"
-    description: "Contractors must have employment end date"
-    enabled: true
-    severity: "Error"
-    resource_types: ["User"]
-    operations: ["create", "update"]
-    priority: 80
-    conditions:
-      - field: "enterpriseUser.employeeType"
-        operator: "Equals"
-        value: "Contractor"
-        case_sensitive: false
-        negate: false
-      - field: "enterpriseUser.employmentEndDate"
-        operator: "NotExists"
-        value: null
-        case_sensitive: false
-        negate: false
-    actions:
-      - Block:
-          message: "Contractors must have an employment end date specified"
-
-  - id: "vip_user_notification"
-    name: "VIP User Notification"
-    description: "Notify security team when VIP users are modified"
-    enabled: true
-    severity: "Info"
-    resource_types: ["User"]
-    operations: ["create", "update", "delete"]
-    priority: 50
-    conditions:
-      - field: "enterpriseUser.vipStatus"
-        operator: "Equals"
-        value: true
-        case_sensitive: false
-        negate: false
-    actions:
-      - Log:
-          level: "info"
-          message: "VIP user account modified"
-      - Notify:
-          recipients: ["security@company.com", "compliance@company.com"]
-          template: "vip_user_modification"
-
-  - id: "username_format"
-    name: "Username Format Validation"
-    description: "Enforce username format standards"
-    enabled: true
-    severity: "Warning"
-    resource_types: ["User"]
-    operations: ["create", "update"]
-    priority: 70
-    conditions:
-      - field: "userName"
-        operator: "Regex"
-        value: "^[a-z]+\\.[a-z]+$"
-        case_sensitive: false
-        negate: true
-    actions:
-      - Warn:
-          message: "Username should follow format: firstname.lastname (lowercase, no numbers or special characters)"
-
-field_validators:
-  phoneNumbers:
-    validator_type: "PhoneNumberValidator"
-    enabled: true
-    config:
-      allowed_countries: ["US", "CA", "GB"]
-      external_validation: true
-
-  "enterpriseUser:ssn":
-    validator_type: "SsnValidator"
-    enabled: true
-    config:
-      allow_itin: false
-      check_uniqueness: true
-
-external_validators:
-  - name: "hr_system"
-    url: "https://hr.company.com/api/validate"
-    timeout_ms: 3000
-    retry_count: 2
-    headers:
-      Authorization: "Bearer ${HR_API_TOKEN}"
-      Content-Type: "application/json"
-```
-
-### Loading Configuration
-
+**Embedded Schemas (Default)**
 ```rust
-use serde_yaml;
-use std::fs;
-
-pub struct ConfigurationLoader;
-
-impl ConfigurationLoader {
-    pub fn load_from_file(file_path: &str) -> Result<ValidationConfig, Box<dyn std::error::Error>> {
-        let config_content = fs::read_to_string(file_path)?;
-        let config: ValidationConfig = serde_yaml::from_str(&config_content)?;
-        Ok(config)
-    }
-
-    pub fn load_from_env() -> Result<ValidationConfig, Box<dyn std::error::Error>> {
-        let config_path = std::env::var("VALIDATION_CONFIG_PATH")
-            .unwrap_or_else(|_| "validation-config.yaml".to_string());
-        Self::load_from_file(&config_path)
-    }
-
-    pub async fn load_from_database(
-        tenant_id: &str,
-        storage: &dyn StorageProvider,
-    ) -> Result<ValidationConfig, Box<dyn std::error::Error>> {
-        // Load configuration from database
-        let config_json = storage.get_tenant_config(tenant_id, "validation").await?;
-        let config: ValidationConfig = serde_json::from_str(&config_json)?;
-        Ok(config)
-    }
-}
-```
-
-## Dynamic Rule Management
-
-### Rule Management API
-
-```rust
-use scim_server::validation::{ValidationConfig, ValidationRule, RuleEngine};
-
-pub struct ValidationRuleManager {
-    storage: Box<dyn StorageProvider>,
-    rule_engines: std::sync::RwLock<HashMap<String, RuleEngine>>, // tenant_id -> RuleEngine
-}
-
-impl ValidationRuleManager {
-    pub fn new(storage: Box<dyn StorageProvider>) -> Self {
-        Self {
-            storage,
-            rule_engines: std::sync::RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub async fn add_rule(
-        &self,
-        tenant_id: &str,
-        rule: ValidationRule,
-    ) -> Result<(), ValidationError> {
-        // Validate rule configuration
-        self.validate_rule_config(&rule)?;
-
-        // Save to storage
-        self.storage.save_validation_rule(tenant_id, &rule).await?;
-
-        // Reload configuration for tenant
-        self.reload_tenant_config(tenant_id).await?;
-
-        Ok(())
-    }
-
-    pub async fn update_rule(
-        &self,
-        tenant_id: &str,
-        rule_id: &str,
-        updated_rule: ValidationRule,
-    ) -> Result<(), ValidationError> {
-        if updated_rule.id != rule_id {
-            return Err(ValidationError::new(
-                "RULE_ID_MISMATCH",
-                "Rule ID in path does not match rule ID in body",
-            ));
-        }
-
-        self.validate_rule_config(&updated_rule)?;
-        self.storage.update_validation_rule(tenant_id, &updated_rule).await?;
-        self.reload_tenant_config(tenant_id).await?;
-
-        Ok(())
-    }
-
-    pub async fn delete_rule(
-        &self,
-        tenant_id: &str,
-        rule_id: &str,
-    ) -> Result<(), ValidationError> {
-        self.storage.delete_validation_rule(tenant_id, rule_id).await?;
-        self.reload_tenant_config(tenant_id).await?;
-        Ok(())
-    }
-
-    pub async fn toggle_rule(
-        &self,
-        tenant_id: &str,
-        rule_id: &str,
-        enabled: bool,
-    ) -> Result<(), ValidationError> {
-        self.storage.toggle_validation_rule(tenant_id, rule_id, enabled).await?;
-        self.reload_tenant_config(tenant_id).await?;
-        Ok(())
-    }
-
-    pub async fn get_rule_engine(&self, tenant_id: &str) -> Result<RuleEngine, ValidationError> {
-        // Check if we have a cached rule engine
-        {
-            let engines = self.rule_engines.read().unwrap();
-            if let Some(engine) = engines.get(tenant_id) {
-                return Ok(engine.clone());
-            }
-        }
-
-        // Load configuration and create new engine
-        let config = self.load_tenant_config(tenant_id).await?;
-        let engine = RuleEngine::new(config);
-
-        // Cache the engine
-        {
-            let mut engines = self.rule_engines.write().unwrap();
-            engines.insert(tenant_id.to_string(), engine.clone());
-        }
-
-        Ok(engine)
-    }
-
-    async fn reload_tenant_config(&self, tenant_id: &str) -> Result<(), ValidationError> {
-        let config = self.load_tenant_config(tenant_id).await?;
-        let engine = RuleEngine::new(config);
-
-        let mut engines = self.rule_engines.write().unwrap();
-        engines.insert(tenant_id.to_string(), engine);
-
-        Ok(())
-    }
-
-    async fn load_tenant_config(&self, tenant_id: &str) -> Result<ValidationConfig, ValidationError> {
-        self.storage.get_validation_config(tenant_id).await
-            .map_err(|e| ValidationError::new(
-                "CONFIG_LOAD_ERROR",
-                &format!("Failed to load validation config: {}", e),
-            ))
-    }
-
-    fn validate_rule_config(&self, rule: &ValidationRule) -> Result<(), ValidationError> {
-        // Validate rule ID
-        if rule.id.is_empty() {
-            return Err(ValidationError::new(
-                "INVALID_RULE_ID",
-                "Rule ID cannot be empty",
-            ));
-        }
-
-        // Validate conditions
-        for condition in &rule.conditions {
-            if condition.field.is_empty() {
-                return Err(ValidationError::new(
-                    "INVALID_CONDITION_FIELD",
-                    "Condition field cannot be empty",
-                ));
-            }
-
-            // Validate regex patterns
-            if matches!(condition.operator, ConditionOperator::Regex) {
-                if let Some(pattern) = condition.value.as_str() {
-                    regex::Regex::new(pattern).map_err(|e| ValidationError::new(
-                        "INVALID_REGEX_PATTERN",
-                        &format!("Invalid regex pattern: {}", e),
-                    ))?;
-                }
-            }
-        }
-
-        // Validate actions
-        if rule.actions.is_empty() {
-            return Err(ValidationError::new(
-                "NO_ACTIONS_DEFINED",
-                "Rule must have at least one action",
-            ));
-        }
-
-        Ok(())
-    }
-}
-```
-
-## Usage Examples
-
-### Basic Usage
-
-```rust
-use scim_server::validation::{ValidationRuleManager, RuleEngine};
+use scim_server::SchemaRegistry;
 
 #[tokio::main]
-async fn main() -> Result<(), Box
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Uses built-in SCIM 2.0 core schemas
+    let registry = SchemaRegistry::new()?;
+    
+    // Always includes:
+    // - urn:ietf:params:scim:schemas:core:2.0:User
+    // - urn:ietf:params:scim:schemas:core:2.0:Group
+    
+    println!("Available schemas: {}", registry.get_schemas().len());
+    Ok(())
+}
+```
+
+**File-Based Schemas**
+```rust
+use scim_server::SchemaRegistry;
+use std::path::Path;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load schemas from directory containing User.json and Group.json
+    let schema_dir = Path::new("./custom-schemas");
+    let registry = SchemaRegistry::from_schema_dir(schema_dir)?;
+    
+    println!("Loaded schemas from directory: {:?}", schema_dir);
+    Ok(())
+}
+```
+
+## Operation Context Configuration
+
+Validation behavior can be configured by specifying the operation context:
+
+```rust
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    // Configure validation for different operations
+    let contexts = [
+        OperationContext::Create,  // No 'id' field allowed
+        OperationContext::Update,  // 'id' field required
+        OperationContext::Patch,   // 'id' field required, partial updates
+    ];
+    
+    for context in contexts {
+        match registry.validate_json_resource_with_context("User", &user_data, context) {
+            Ok(_) => println!("✅ Validation passed for {:?}", context),
+            Err(e) => println!("❌ Validation failed for {:?}: {}", context, e),
+        }
+    }
+    
+    Ok(())
+}
+```
+
+## Provider Integration Configuration
+
+When using resource providers, validation is automatically configured:
+
+```rust
+use scim_server::{StandardResourceProvider, InMemoryStorage, RequestContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Providers automatically use embedded schema validation
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("config-example".to_string());
+    
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    // Validation happens automatically during resource operations
+    let user = provider.create_resource("User", user_data, &context).await?;
+    println!("User created with automatic validation: {}", 
+             user.get_id().unwrap_or("unknown"));
+    
+    Ok(())
+}
+```
+
+## Error Handling Configuration
+
+Configure how validation errors are handled in your application:
+
+```rust
+use scim_server::{SchemaRegistry, ValidationError, schema::OperationContext};
+use serde_json::json;
+
+struct ValidationConfig {
+    fail_fast: bool,
+    detailed_errors: bool,
+    log_validation_errors: bool,
+}
+
+impl ValidationConfig {
+    fn new() -> Self {
+        Self {
+            fail_fast: true,
+            detailed_errors: true,
+            log_validation_errors: false,
+        }
+    }
+}
+
+fn validate_with_config(
+    registry: &SchemaRegistry,
+    resource_type: &str,
+    data: &serde_json::Value,
+    context: OperationContext,
+    config: &ValidationConfig,
+) -> Result<(), String> {
+    match registry.validate_json_resource_with_context(resource_type, data, context) {
+        Ok(_) => Ok(()),
+        Err(validation_error) => {
+            if config.log_validation_errors {
+                eprintln!("Validation error logged: {}", validation_error);
+            }
+            
+            let error_message = if config.detailed_errors {
+                match validation_error {
+                    ValidationError::MissingRequiredAttribute { attribute } => {
+                        format!("Required field '{}' is missing", attribute)
+                    },
+                    ValidationError::InvalidAttributeType { attribute, expected, actual } => {
+                        format!("Field '{}' has wrong type: expected {}, got {}", 
+                               attribute, expected, actual)
+                    },
+                    ValidationError::MissingSchemas => {
+                        "Missing 'schemas' field".to_string()
+                    },
+                    ValidationError::EmptySchemas => {
+                        "Empty 'schemas' array".to_string()
+                    },
+                    ValidationError::UnknownSchemaUri { uri } => {
+                        format!("Unknown schema URI: {}", uri)
+                    },
+                    ValidationError::Custom { message } => message,
+                    _ => format!("Validation error: {}", validation_error)
+                }
+            } else {
+                "Validation failed".to_string()
+            };
+            
+            if config.fail_fast {
+                return Err(error_message);
+            }
+            
+            // Could collect errors instead of failing immediately
+            eprintln!("Warning: {}", error_message);
+            Ok(())
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    let config = ValidationConfig::new();
+    
+    let invalid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"]
+        // Missing required userName
+    });
+    
+    match validate_with_config(
+        &registry, 
+        "User", 
+        &invalid_user, 
+        OperationContext::Create, 
+        &config
+    ) {
+        Ok(_) => println!("Validation passed"),
+        Err(e) => println!("Validation failed: {}", e),
+    }
+    
+    Ok(())
+}
+```
+
+## Schema Directory Structure
+
+When using file-based schema loading, organize schemas in this structure:
+
+```
+schemas/
+├── User.json          # Core User schema
+├── Group.json         # Core Group schema
+└── extensions/        # Optional: future schema extensions
+    ├── Enterprise.json
+    └── Custom.json
+```
+
+Example usage:
+```rust
+use scim_server::SchemaRegistry;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // This expects User.json and Group.json in the schemas directory
+    let registry = SchemaRegistry::from_schema_dir("./schemas")?;
+    
+    println!("Loaded {} schemas from directory", registry.get_schemas().len());
+    
+    // Verify required schemas are present
+    let user_schema = registry.get_user_schema();
+    let group_schema = registry.get_group_schema();
+    
+    println!("User schema: {}", user_schema.name);
+    println!("Group schema: {}", group_schema.name);
+    
+    Ok(())
+}
+```
+
+## Configuration Best Practices
+
+### 1. Use Embedded Schemas by Default
+
+```rust
+// ✅ Recommended: Works reliably without file dependencies
+let registry = SchemaRegistry::new()?;
+
+// ❌ Avoid unless you need custom schemas
+let registry = SchemaRegistry::from_schema_dir("./schemas")?;
+```
+
+### 2. Handle Schema Loading Errors
+
+```rust
+use scim_server::SchemaRegistry;
+
+fn create_registry() -> Result<SchemaRegistry, String> {
+    SchemaRegistry::new()
+        .map_err(|e| format!("Failed to create schema registry: {}", e))
+}
+
+// Or with fallback
+fn create_registry_with_fallback() -> SchemaRegistry {
+    SchemaRegistry::new()
+        .or_else(|_| SchemaRegistry::with_embedded_schemas())
+        .expect("Failed to create schema registry with any method")
+}
+```
+
+### 3. Configure Error Handling Early
+
+```rust
+use scim_server::{SchemaRegistry, ValidationError};
+
+struct AppConfig {
+    registry: SchemaRegistry,
+    validation_config: ValidationConfig,
+}
+
+impl AppConfig {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self {
+            registry: SchemaRegistry::new()?,
+            validation_config: ValidationConfig::new(),
+        })
+    }
+    
+    fn validate_resource(
+        &self,
+        resource_type: &str,
+        data: &serde_json::Value,
+    ) -> Result<(), ValidationError> {
+        self.registry.validate_json_resource_with_context(
+            resource_type,
+            data,
+            scim_server::schema::OperationContext::Create,
+        )
+    }
+}
+```
+
+## Limitations
+
+SCIM Server 0.3.7 validation configuration is limited to:
+
+- **Schema source selection** (embedded vs file-based)
+- **Operation context specification** (Create/Update/Patch)
+- **Error handling strategy** (application-level configuration)
+
+**Not Available:**
+- Custom validation rules
+- Tenant-specific validation
+- External validator integration
+- Dynamic rule configuration
+- Validation pipeline customization
+- Field-level validation overrides
+
+## Migration from Earlier Versions
+
+If you have code expecting advanced validation configuration APIs that don't exist:
+
+```rust
+// ❌ This API does not exist in 0.3.7
+// let config = ValidationConfig::builder()
+//     .add_rule(ValidationRule::new())
+//     .build();
+
+// ✅ Use actual validation capabilities
+let registry = SchemaRegistry::new()?;
+registry.validate_json_resource_with_context(
+    "User",
+    &user_data,
+    OperationContext::Create
+)?;
+```
+
+## Future Configuration
+
+Advanced validation configuration features like custom rules, external validators, and tenant-specific validation are planned for future releases. The current schema-based validation provides a solid foundation that will be extended with additional configuration capabilities.
+
+## Next Steps
+
+- [Basic Validation](./basic.md) - Working with validation in practice
+- [Field-Level Validation](./field-level.md) - Understanding attribute-specific validation  
+- [Advanced Validation](./advanced.md) - Current limitations and future plans

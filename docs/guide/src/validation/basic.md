@@ -1,536 +1,493 @@
 # Basic Validation
 
-This guide covers implementing simple, synchronous validation rules for common business requirements. These validators typically perform local checks without external dependencies.
+This guide covers practical validation scenarios using SCIM Server's built-in schema validation capabilities. You'll learn how to validate resources, handle validation errors, and integrate validation into your applications.
 
-## Simple Business Rule Validator
+## Quick Start
 
-Here's a comprehensive example of a basic validator that enforces common organizational policies:
-
-```rust
-use scim_server::validation::{CustomValidator, ValidationContext, ValidationError};
-use scim_server::models::{User, Group};
-use regex::Regex;
-use async_trait::async_trait;
-
-pub struct BusinessRuleValidator {
-    employee_id_pattern: Regex,
-    allowed_domains: Vec<String>,
-    password_policy: PasswordPolicy,
-}
-
-#[derive(Clone)]
-pub struct PasswordPolicy {
-    pub min_length: usize,
-    pub require_uppercase: bool,
-    pub require_lowercase: bool,
-    pub require_numbers: bool,
-    pub require_special_chars: bool,
-    pub forbidden_patterns: Vec<Regex>,
-}
-
-impl BusinessRuleValidator {
-    pub fn new() -> Self {
-        Self {
-            employee_id_pattern: Regex::new(r"^EMP\d{6}$").unwrap(),
-            allowed_domains: vec![
-                "company.com".to_string(),
-                "subsidiary.com".to_string(),
-            ],
-            password_policy: PasswordPolicy {
-                min_length: 12,
-                require_uppercase: true,
-                require_lowercase: true,
-                require_numbers: true,
-                require_special_chars: true,
-                forbidden_patterns: vec![
-                    Regex::new(r"password").unwrap(),
-                    Regex::new(r"123456").unwrap(),
-                    Regex::new(r"qwerty").unwrap(),
-                ],
-            },
-        }
-    }
-}
-
-#[async_trait]
-impl CustomValidator for BusinessRuleValidator {
-    async fn validate_user(
-        &self,
-        user: &User,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Validate employee ID format
-        if let Some(employee_id) = user.external_id.as_ref() {
-            if !self.employee_id_pattern.is_match(employee_id) {
-                return Err(ValidationError::new(
-                    "INVALID_EMPLOYEE_ID",
-                    "Employee ID must follow format EMP123456",
-                ).with_field("externalId"));
-            }
-        }
-
-        // Validate email domain
-        if let Some(emails) = &user.emails {
-            for (index, email) in emails.iter().enumerate() {
-                if let Some(domain) = email.value.split('@').nth(1) {
-                    if !self.allowed_domains.contains(&domain.to_lowercase()) {
-                        return Err(ValidationError::new(
-                            "INVALID_EMAIL_DOMAIN",
-                            &format!("Email domain '{}' is not allowed", domain),
-                        ).with_field(&format!("emails[{}].value", index)));
-                    }
-                }
-            }
-        }
-
-        // Validate password policy (if password is being set)
-        if let Some(password) = user.password.as_ref() {
-            self.validate_password_policy(password)?;
-        }
-
-        // Validate name requirements
-        if user.name.is_none() {
-            return Err(ValidationError::new(
-                "MISSING_NAME",
-                "User must have a name",
-            ).with_field("name"));
-        }
-
-        // Validate username format
-        if let Some(username) = &user.username {
-            if username.len() < 3 {
-                return Err(ValidationError::new(
-                    "USERNAME_TOO_SHORT",
-                    "Username must be at least 3 characters",
-                ).with_field("userName"));
-            }
-            
-            if username.contains(' ') {
-                return Err(ValidationError::new(
-                    "USERNAME_INVALID_CHARS",
-                    "Username cannot contain spaces",
-                ).with_field("userName"));
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn validate_group(
-        &self,
-        group: &Group,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Validate group display name
-        if group.display_name.is_empty() {
-            return Err(ValidationError::new(
-                "EMPTY_GROUP_NAME",
-                "Group display name cannot be empty",
-            ).with_field("displayName"));
-        }
-
-        // Validate group name format
-        if group.display_name.len() > 64 {
-            return Err(ValidationError::new(
-                "GROUP_NAME_TOO_LONG",
-                "Group display name cannot exceed 64 characters",
-            ).with_field("displayName"));
-        }
-
-        // Check for reserved group names
-        let reserved_names = vec!["admin", "root", "system", "administrator"];
-        if reserved_names.contains(&group.display_name.to_lowercase().as_str()) {
-            return Err(ValidationError::new(
-                "RESERVED_GROUP_NAME",
-                &format!("'{}' is a reserved group name", group.display_name),
-            ).with_field("displayName"));
-        }
-
-        // Validate member limit
-        if let Some(members) = &group.members {
-            if members.len() > 1000 {
-                return Err(ValidationError::new(
-                    "TOO_MANY_MEMBERS",
-                    "Group cannot have more than 1000 members",
-                ).with_field("members"));
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl BusinessRuleValidator {
-    fn validate_password_policy(&self, password: &str) -> Result<(), ValidationError> {
-        let policy = &self.password_policy;
-
-        // Check minimum length
-        if password.len() < policy.min_length {
-            return Err(ValidationError::new(
-                "PASSWORD_TOO_SHORT",
-                &format!("Password must be at least {} characters", policy.min_length),
-            ).with_field("password"));
-        }
-
-        // Check character requirements
-        if policy.require_uppercase && !password.chars().any(|c| c.is_uppercase()) {
-            return Err(ValidationError::new(
-                "PASSWORD_MISSING_UPPERCASE",
-                "Password must contain at least one uppercase letter",
-            ).with_field("password"));
-        }
-
-        if policy.require_lowercase && !password.chars().any(|c| c.is_lowercase()) {
-            return Err(ValidationError::new(
-                "PASSWORD_MISSING_LOWERCASE",
-                "Password must contain at least one lowercase letter",
-            ).with_field("password"));
-        }
-
-        if policy.require_numbers && !password.chars().any(|c| c.is_numeric()) {
-            return Err(ValidationError::new(
-                "PASSWORD_MISSING_NUMBER",
-                "Password must contain at least one number",
-            ).with_field("password"));
-        }
-
-        if policy.require_special_chars && !password.chars().any(|c| "!@#$%^&*()".contains(c)) {
-            return Err(ValidationError::new(
-                "PASSWORD_MISSING_SPECIAL",
-                "Password must contain at least one special character",
-            ).with_field("password"));
-        }
-
-        // Check forbidden patterns
-        for pattern in &policy.forbidden_patterns {
-            if pattern.is_match(&password.to_lowercase()) {
-                return Err(ValidationError::new(
-                    "PASSWORD_FORBIDDEN_PATTERN",
-                    "Password contains forbidden pattern",
-                ).with_field("password"));
-            }
-        }
-
-        Ok(())
-    }
-}
-```
-
-## Department-Based Validation
-
-Validate users based on their department or role:
+The simplest way to validate SCIM resources is using the `SchemaRegistry`:
 
 ```rust
-use scim_server::validation::{CustomValidator, ValidationContext, ValidationError};
-use std::collections::HashMap;
-
-pub struct DepartmentValidator {
-    department_rules: HashMap<String, DepartmentRules>,
-}
-
-#[derive(Clone)]
-pub struct DepartmentRules {
-    pub required_attributes: Vec<String>,
-    pub allowed_email_domains: Vec<String>,
-    pub max_group_memberships: usize,
-    pub requires_manager: bool,
-}
-
-impl DepartmentValidator {
-    pub fn new() -> Self {
-        let mut department_rules = HashMap::new();
-        
-        // IT Department rules
-        department_rules.insert("IT".to_string(), DepartmentRules {
-            required_attributes: vec!["employeeNumber".to_string(), "title".to_string()],
-            allowed_email_domains: vec!["company.com".to_string()],
-            max_group_memberships: 20,
-            requires_manager: true,
-        });
-        
-        // HR Department rules  
-        department_rules.insert("HR".to_string(), DepartmentRules {
-            required_attributes: vec!["employeeNumber".to_string(), "title".to_string(), "phoneNumber".to_string()],
-            allowed_email_domains: vec!["company.com".to_string()],
-            max_group_memberships: 10,
-            requires_manager: true,
-        });
-        
-        // Contractor rules
-        department_rules.insert("CONTRACTOR".to_string(), DepartmentRules {
-            required_attributes: vec!["contractEndDate".to_string()],
-            allowed_email_domains: vec!["contractor.company.com".to_string()],
-            max_group_memberships: 5,
-            requires_manager: false,
-        });
-
-        Self { department_rules }
-    }
-}
-
-#[async_trait]
-impl CustomValidator for DepartmentValidator {
-    async fn validate_user(
-        &self,
-        user: &User,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Get user's department from custom attributes
-        let department = user.extension_attributes
-            .as_ref()
-            .and_then(|attrs| attrs.get("department"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("UNKNOWN");
-
-        if let Some(rules) = self.department_rules.get(department) {
-            // Check required attributes
-            for required_attr in &rules.required_attributes {
-                if !user.extension_attributes
-                    .as_ref()
-                    .map(|attrs| attrs.contains_key(required_attr))
-                    .unwrap_or(false) {
-                    return Err(ValidationError::new(
-                        "MISSING_REQUIRED_ATTRIBUTE",
-                        &format!("Department {} requires attribute '{}'", department, required_attr),
-                    ).with_field(&format!("enterpriseUser:{}", required_attr)));
-                }
-            }
-
-            // Validate email domain for department
-            if let Some(emails) = &user.emails {
-                for (index, email) in emails.iter().enumerate() {
-                    if let Some(domain) = email.value.split('@').nth(1) {
-                        if !rules.allowed_email_domains.contains(&domain.to_lowercase()) {
-                            return Err(ValidationError::new(
-                                "INVALID_DEPARTMENT_EMAIL_DOMAIN",
-                                &format!("Department {} does not allow email domain '{}'", department, domain),
-                            ).with_field(&format!("emails[{}].value", index)));
-                        }
-                    }
-                }
-            }
-
-            // Check manager requirement
-            if rules.requires_manager {
-                let has_manager = user.extension_attributes
-                    .as_ref()
-                    .and_then(|attrs| attrs.get("manager"))
-                    .is_some();
-                    
-                if !has_manager {
-                    return Err(ValidationError::new(
-                        "MISSING_MANAGER",
-                        &format!("Department {} requires a manager to be assigned", department),
-                    ).with_field("enterpriseUser:manager"));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn validate_group(
-        &self,
-        group: &Group,
-        _context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Basic group validation for department-based rules
-        Ok(())
-    }
-}
-```
-
-## Attribute Format Validation
-
-Validate specific attribute formats beyond basic schema validation:
-
-```rust
-pub struct AttributeFormatValidator {
-    phone_regex: Regex,
-    ssn_regex: Regex,
-    employee_id_regex: Regex,
-}
-
-impl AttributeFormatValidator {
-    pub fn new() -> Self {
-        Self {
-            phone_regex: Regex::new(r"^\+1-\d{3}-\d{3}-\d{4}$").unwrap(),
-            ssn_regex: Regex::new(r"^\d{3}-\d{2}-\d{4}$").unwrap(), 
-            employee_id_regex: Regex::new(r"^[A-Z]{2}\d{6}$").unwrap(),
-        }
-    }
-
-    fn validate_phone_number(&self, phone: &str) -> Result<(), ValidationError> {
-        if !self.phone_regex.is_match(phone) {
-            return Err(ValidationError::new(
-                "INVALID_PHONE_FORMAT",
-                "Phone number must be in format +1-XXX-XXX-XXXX",
-            ));
-        }
-        Ok(())
-    }
-
-    fn validate_ssn(&self, ssn: &str) -> Result<(), ValidationError> {
-        if !self.ssn_regex.is_match(ssn) {
-            return Err(ValidationError::new(
-                "INVALID_SSN_FORMAT", 
-                "SSN must be in format XXX-XX-XXXX",
-            ));
-        }
-
-        // Additional SSN validation rules
-        let parts: Vec<&str> = ssn.split('-').collect();
-        if parts.len() == 3 {
-            // Check for invalid area numbers
-            if let Ok(area) = parts[0].parse::<u32>() {
-                if area == 0 || area == 666 || area >= 900 {
-                    return Err(ValidationError::new(
-                        "INVALID_SSN_AREA",
-                        "Invalid SSN area number",
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl CustomValidator for AttributeFormatValidator {
-    async fn validate_user(
-        &self,
-        user: &User,
-        _context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Validate phone numbers
-        if let Some(phone_numbers) = &user.phone_numbers {
-            for (index, phone) in phone_numbers.iter().enumerate() {
-                self.validate_phone_number(&phone.value)
-                    .map_err(|mut e| {
-                        e.field_path = Some(format!("phoneNumbers[{}].value", index));
-                        e
-                    })?;
-            }
-        }
-
-        // Validate custom attributes
-        if let Some(attrs) = &user.extension_attributes {
-            // Validate SSN if present
-            if let Some(ssn_value) = attrs.get("ssn") {
-                if let Some(ssn_str) = ssn_value.as_str() {
-                    self.validate_ssn(ssn_str)
-                        .map_err(|mut e| {
-                            e.field_path = Some("enterpriseUser:ssn".to_string());
-                            e
-                        })?;
-                }
-            }
-
-            // Validate employee ID
-            if let Some(emp_id_value) = attrs.get("employeeNumber") {
-                if let Some(emp_id_str) = emp_id_value.as_str() {
-                    if !self.employee_id_regex.is_match(emp_id_str) {
-                        return Err(ValidationError::new(
-                            "INVALID_EMPLOYEE_ID_FORMAT",
-                            "Employee ID must be in format XX123456",
-                        ).with_field("enterpriseUser:employeeNumber"));
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn validate_group(
-        &self,
-        _group: &Group,
-        _context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        Ok(())
-    }
-}
-```
-
-## Usage Example
-
-Here's how to register and use these basic validators:
-
-```rust
-use scim_server::ScimServerBuilder;
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let server = ScimServerBuilder::new()
-        .with_provider(my_provider)
-        .add_validator(BusinessRuleValidator::new())
-        .add_validator(DepartmentValidator::new())
-        .add_validator(AttributeFormatValidator::new())
-        .build();
-
-    // Start server
-    server.run().await?;
+    let registry = SchemaRegistry::new()?;
+    
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    // Validate the user data
+    registry.validate_json_resource_with_context(
+        "User",
+        &user_data,
+        OperationContext::Create
+    )?;
+    
+    println!("User data is valid!");
     Ok(())
 }
 ```
 
-## Testing Basic Validators
+## Validation Patterns
+
+### 1. Pre-Validation Pattern
+
+Validate data before attempting to create/update resources:
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use scim_server::models::{User, Name, Email};
+use scim_server::{SchemaRegistry, StandardResourceProvider, InMemoryStorage, RequestContext};
+use scim_server::schema::OperationContext;
+use serde_json::json;
 
-    #[tokio::test]
-    async fn test_business_rule_validation() {
-        let validator = BusinessRuleValidator::new();
-        let context = ValidationContext::default();
+async fn create_user_safely(
+    user_data: serde_json::Value
+) -> Result<scim_server::Resource, Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    
+    // Step 1: Pre-validate the data
+    registry.validate_json_resource_with_context(
+        "User",
+        &user_data,
+        OperationContext::Create
+    )?;
+    
+    // Step 2: If validation passes, create the resource
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("validation-example".to_string());
+    
+    let user = provider.create_resource("User", user_data, &context).await?;
+    
+    Ok(user)
+}
+```
 
-        // Test valid user
-        let mut user = User::default();
-        user.username = Some("john.doe".to_string());
-        user.external_id = Some("EMP123456".to_string());
-        user.name = Some(Name {
-            formatted: Some("John Doe".to_string()),
-            family_name: Some("Doe".to_string()),
-            given_name: Some("John".to_string()),
-            ..Default::default()
-        });
-        user.emails = Some(vec![Email {
-            value: "john.doe@company.com".to_string(),
-            primary: Some(true),
-            ..Default::default()
-        }]);
+### 2. Error Handling Pattern
 
-        assert!(validator.validate_user(&user, &context).await.is_ok());
+Handle specific validation errors with appropriate responses:
 
-        // Test invalid employee ID
-        user.external_id = Some("INVALID123".to_string());
-        let result = validator.validate_user(&user, &context).await;
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().code, "INVALID_EMPLOYEE_ID");
+```rust
+use scim_server::{SchemaRegistry, ValidationError, schema::OperationContext};
+use serde_json::json;
+
+fn validate_and_handle_errors(user_data: serde_json::Value) -> Result<(), String> {
+    let registry = SchemaRegistry::new()
+        .map_err(|e| format!("Failed to create registry: {}", e))?;
+    
+    match registry.validate_json_resource_with_context(
+        "User",
+        &user_data,
+        OperationContext::Create
+    ) {
+        Ok(_) => {
+            println!("✅ Validation successful");
+            Ok(())
+        },
+        Err(validation_error) => {
+            let error_message = match validation_error {
+                ValidationError::MissingRequiredAttribute { attribute } => {
+                    format!("❌ Missing required field: '{}'", attribute)
+                },
+                ValidationError::InvalidAttributeType { attribute, expected, actual } => {
+                    format!("❌ Wrong type for '{}': expected {}, got {}", attribute, expected, actual)
+                },
+                ValidationError::MissingSchemas => {
+                    "❌ Missing 'schemas' field - this is required for all SCIM resources".to_string()
+                },
+                ValidationError::EmptySchemas => {
+                    "❌ The 'schemas' array cannot be empty".to_string()
+                },
+                ValidationError::UnknownSchemaUri { uri } => {
+                    format!("❌ Unknown schema URI: '{}'", uri)
+                },
+                ValidationError::Custom { message } => {
+                    format!("❌ Validation failed: {}", message)
+                },
+                _ => format!("❌ Validation error: {}", validation_error)
+            };
+            
+            eprintln!("{}", error_message);
+            Err(error_message)
+        }
     }
+}
 
-    #[tokio::test]
-    async fn test_password_policy() {
-        let validator = BusinessRuleValidator::new();
-        
-        // Test weak password
-        let weak_password = "password123";
-        let result = validator.validate_password_policy(weak_password);
-        assert!(result.is_err());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Test with valid data
+    let valid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    validate_and_handle_errors(valid_user)?;
+    
+    // Test with invalid data
+    let invalid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"]
+        // Missing required userName
+    });
+    
+    let _ = validate_and_handle_errors(invalid_user); // Will print error message
+    
+    Ok(())
+}
+```
 
-        // Test strong password
-        let strong_password = "MySecure123!Password";
-        let result = validator.validate_password_policy(strong_password);
-        assert!(result.is_ok());
+## Common Validation Scenarios
+
+### User Validation Examples
+
+```rust
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    
+    // ✅ Valid minimal user
+    let minimal_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    registry.validate_json_resource_with_context(
+        "User", &minimal_user, OperationContext::Create
+    )?;
+    println!("✅ Minimal user validated");
+    
+    // ✅ Valid complete user
+    let complete_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "bob@example.com",
+        "name": {
+            "givenName": "Bob",
+            "familyName": "Smith",
+            "formatted": "Bob Smith"
+        },
+        "displayName": "Bob Smith",
+        "emails": [
+            {
+                "value": "bob@example.com",
+                "type": "work",
+                "primary": true
+            }
+        ],
+        "phoneNumbers": [
+            {
+                "value": "+1-555-123-4567",
+                "type": "work"
+            }
+        ],
+        "active": true
+    });
+    
+    registry.validate_json_resource_with_context(
+        "User", &complete_user, OperationContext::Create
+    )?;
+    println!("✅ Complete user validated");
+    
+    // ❌ Invalid user - missing userName
+    let invalid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "displayName": "Charlie Brown"
+        // Missing required userName
+    });
+    
+    match registry.validate_json_resource_with_context(
+        "User", &invalid_user, OperationContext::Create
+    ) {
+        Ok(_) => println!("❌ This should have failed!"),
+        Err(e) => println!("✅ Correctly caught error: {}", e),
+    }
+    
+    Ok(())
+}
+```
+
+### Group Validation Examples
+
+```rust
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    
+    // ✅ Valid minimal group
+    let minimal_group = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "displayName": "Engineering Team"
+    });
+    
+    registry.validate_json_resource_with_context(
+        "Group", &minimal_group, OperationContext::Create
+    )?;
+    println!("✅ Minimal group validated");
+    
+    // ✅ Valid group with members
+    let group_with_members = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "displayName": "Development Team",
+        "members": [
+            {
+                "value": "user-123",
+                "display": "Alice Smith",
+                "type": "User"
+            },
+            {
+                "value": "user-456", 
+                "display": "Bob Jones",
+                "type": "User"
+            }
+        ]
+    });
+    
+    registry.validate_json_resource_with_context(
+        "Group", &group_with_members, OperationContext::Create
+    )?;
+    println!("✅ Group with members validated");
+    
+    // ✅ Minimal group - displayName is optional per the schema
+    let minimal_group = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
+        // displayName is optional (though recommended)
+    });
+    
+    match registry.validate_json_resource_with_context(
+        "Group", &minimal_group, OperationContext::Create
+    ) {
+        Ok(_) => println!("✅ Minimal group validation passed"),
+        Err(e) => println!("❌ Minimal group validation failed: {}", e),
+    }
+    
+    Ok(())
+}
+```
+
+## Operation Context Validation
+
+Different operations have different validation requirements:
+
+```rust
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = SchemaRegistry::new()?;
+    
+    // Create operation - no 'id' field allowed
+    let create_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com"
+    });
+    
+    registry.validate_json_resource_with_context(
+        "User", &create_data, OperationContext::Create
+    )?;
+    println!("✅ Create validation passed");
+    
+    // Update operation - requires 'id' field
+    let update_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "id": "user-123",
+        "userName": "alice@example.com",
+        "displayName": "Alice Smith"
+    });
+    
+    registry.validate_json_resource_with_context(
+        "User", &update_data, OperationContext::Update
+    )?;
+    println!("✅ Update validation passed");
+    
+    // Patch operation - also requires 'id' field
+    let patch_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "id": "user-123",
+        "displayName": "Alice Johnson" // Only updating display name
+    });
+    
+    registry.validate_json_resource_with_context(
+        "User", &patch_data, OperationContext::Patch
+    )?;
+    println!("✅ Patch validation passed");
+    
+    Ok(())
+}
+```
+
+## Integration with Resource Providers
+
+Validation is automatically applied when using resource providers:
+
+```rust
+use scim_server::{StandardResourceProvider, InMemoryStorage, RequestContext, ResourceProvider};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("validation-test".to_string());
+    
+    // This will automatically validate before creating
+    let valid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com",
+        "displayName": "Alice Smith"
+    });
+    
+    match provider.create_resource("User", valid_user, &context).await {
+        Ok(user) => {
+            println!("✅ User created successfully: {}", 
+                     user.get_username().unwrap_or("unknown"));
+        },
+        Err(e) => {
+            println!("❌ Failed to create user: {}", e);
+        }
+    }
+    
+    // This will fail validation
+    let invalid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "displayName": "Bob Smith"
+        // Missing required userName
+    });
+    
+    match provider.create_resource("User", invalid_user, &context).await {
+        Ok(_) => {
+            println!("❌ This should have failed validation!");
+        },
+        Err(e) => {
+            println!("✅ Validation correctly prevented creation: {}", e);
+        }
+    }
+    
+    Ok(())
+}
+```
+
+## Best Practices
+
+### 1. Validate Early and Often
+
+```rust
+// Validate as soon as you receive data
+fn process_user_request(request_data: serde_json::Value) -> Result<(), String> {
+    let registry = SchemaRegistry::new()
+        .map_err(|e| format!("Registry error: {}", e))?;
+    
+    // Validate immediately
+    registry.validate_json_resource_with_context(
+        "User", 
+        &request_data, 
+        OperationContext::Create
+    ).map_err(|e| format!("Validation failed: {}", e))?;
+    
+    // Continue processing knowing data is valid
+    Ok(())
+}
+```
+
+### 2. Provide Helpful Error Messages
+
+```rust
+use scim_server::ValidationError;
+
+fn user_friendly_error(error: ValidationError) -> String {
+    match error {
+        ValidationError::MissingRequiredAttribute { attribute } => {
+            match attribute.as_str() {
+                "userName" => "Username is required. Please provide a valid username.".to_string(),
+                "displayName" => "Display name is missing (though it's optional for groups).".to_string(),
+                _ => format!("Required field '{}' is missing.", attribute)
+            }
+        },
+        ValidationError::InvalidAttributeType { attribute, expected, .. } => {
+            format!("The field '{}' must be a {}. Please check your data format.", attribute, expected)
+        },
+        ValidationError::MissingSchemas => {
+            "Missing 'schemas' field. All SCIM resources must include a 'schemas' array.".to_string()
+        },
+        _ => format!("Validation error: {}", error)
     }
 }
 ```
 
+### 3. Handle Different Resource Types
+
+```rust
+async fn validate_resource(
+    resource_type: &str,
+    data: &serde_json::Value,
+    operation: OperationContext
+) -> Result<(), ValidationError> {
+    let registry = SchemaRegistry::new()?;
+    
+    match resource_type {
+        "User" | "Group" => {
+            registry.validate_json_resource_with_context(
+                resource_type,
+                data,
+                operation
+            )
+        },
+        _ => Err(ValidationError::Custom {
+            message: format!("Unsupported resource type: {}", resource_type)
+        })
+    }
+}
+```
+
+## Common Validation Errors
+
+### Missing Required Fields
+
+```rust
+// This will fail - missing userName
+let user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "displayName": "John Doe"
+});
+// Error: ValidationError::MissingRequiredAttribute { attribute: "userName" }
+```
+
+### Wrong Data Types
+
+```rust
+// This will fail - active should be boolean, not string
+let user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john@example.com",
+    "active": "true"  // Should be: true
+});
+// Error: ValidationError::InvalidAttributeType
+```
+
+### Missing or Invalid Schemas
+
+```rust
+// This will fail - missing schemas array
+let user = json!({
+    "userName": "john@example.com"
+});
+// Error: ValidationError::MissingSchemas
+
+// This will fail - empty schemas array
+let user = json!({
+    "schemas": [],
+    "userName": "john@example.com"
+});
+// Error: ValidationError::EmptySchemas
+```
+
 ## Next Steps
 
-- [Advanced Validation](./advanced.md) - External system integration and complex logic
-- [Field-Level Validation](./field-level.md) - Granular attribute validation
-- [Configuration](./configuration.md) - Dynamic validation rules
+- [Field-Level Validation](./field-level.md) - Understand how specific attributes are validated
+- [Configuration](./configuration.md) - Learn about validation configuration options

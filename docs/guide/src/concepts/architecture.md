@@ -87,26 +87,16 @@ The SCIM Server core provides enterprise-grade capabilities that would take mont
 Choose your data storage strategy without changing your application code:
 
 ### Development Options
-- **In-Memory Storage**: Fast prototyping and testing
-- **SQLite**: Local file-based persistence
-- **Mock Providers**: Testing and simulation
+### Currently Available
+- **In-Memory Storage**: Fast prototyping and testing (✅ [`InMemoryStorage`](https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html))
 
-### Enterprise Options
-- **PostgreSQL**: ACID compliance with advanced features
-- **MySQL**: Reliable relational database
-- **SQL Server**: Enterprise Microsoft integration
-
-### Cloud-Native Options
-- **DynamoDB**: AWS NoSQL for massive scale
-- **MongoDB**: Document-based flexible schemas
-- **Redis**: High-performance caching layer
-- **S3**: Object storage for archival
-
-### Custom Providers
-- **Trait-Based**: Implement the `StorageProvider` trait
-- **Async Support**: Full async/await compatibility
+### Custom Storage Providers
+- **Trait-Based**: Implement the [`StorageProvider`](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html) trait
+- **Async Support**: Full async/await compatibility 
 - **Error Handling**: Rich error types and recovery
 - **Testing**: Built-in test utilities
+
+> **Roadmap Note**: Additional storage providers (PostgreSQL, MySQL, DynamoDB, etc.) are planned for future releases. Currently, only in-memory storage is implemented. You can implement custom storage providers by implementing the `StorageProvider` trait.
 
 ## Value Proposition: Complexity Reduction
 

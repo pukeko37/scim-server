@@ -192,32 +192,31 @@ cargo --version
 <h3 id="option-1-using-cargo-recommended"><a class="header" href="#option-1-using-cargo-recommended">Option 1: Using Cargo (Recommended)</a></h3>
 <p>Add SCIM Server to your <code>Cargo.toml</code> dependencies:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "=0.3.2"
+scim-server = "0.3.7"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
 <blockquote>
-<p><strong>⚠️ Version Pinning</strong>: Use exact version pinning (<code>=0.3.2</code>) during active development to avoid breaking changes. See <a href="../reference/versioning.html">Version Strategy</a> for details.</p>
+<p><strong>⚠️ Version Pinning</strong>: Use flexible versioning (<code>0.3.7</code>) to get patch fixes automatically. For exact version control, use <code>=0.3.7</code>. See <a href="../reference/versioning.html">Version Strategy</a> for details.</p>
 </blockquote>
 <h3 id="option-2-using-cargo-add-command"><a class="header" href="#option-2-using-cargo-add-command">Option 2: Using Cargo Add Command</a></h3>
-<pre><code class="language-bash">cargo add scim-server@=0.3.2
+<pre><code class="language-bash">cargo add scim-server@0.3.7
 cargo add tokio --features full
 cargo add serde_json
 </code></pre>
 <h2 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h2>
 <p>SCIM Server provides several optional features to reduce compile time and binary size:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = { version = "=0.3.2", features = ["mcp", "auth", "logging"] }
+scim-server = { version = "0.3.7", features = ["mcp"] }
 </code></pre>
 <p>Available features:</p>
 <div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Default</th></tr></thead><tbody>
-<tr><td><code>mcp</code></td><td>Model Context Protocol for AI integration</td><td>❌</td></tr>
-<tr><td><code>auth</code></td><td>Compile-time authentication system</td><td>❌</td></tr>
-<tr><td><code>logging</code></td><td>Enhanced logging capabilities</td><td>❌</td></tr>
-<tr><td><code>serde</code></td><td>JSON serialization support</td><td>✅</td></tr>
-<tr><td><code>async</code></td><td>Async runtime support</td><td>✅</td></tr>
+<tr><td><code>mcp</code></td><td>Model Context Protocol for AI integration (includes async-trait and rust-mcp-sdk)</td><td>❌</td></tr>
+<tr><td><code>async-trait</code></td><td>Async trait support (included with mcp)</td><td>❌</td></tr>
+<tr><td><code>rust-mcp-sdk</code></td><td>MCP SDK dependency (included with mcp)</td><td>❌</td></tr>
 </tbody></table>
 </div>
+<p>Note: Only the <code>mcp</code> feature is currently available. This enables AI integration capabilities through the Model Context Protocol.</p>
 <h2 id="development-dependencies"><a class="header" href="#development-dependencies">Development Dependencies</a></h2>
 <p>For development and testing, you may want additional dependencies:</p>
 <pre><code class="language-toml">[dev-dependencies]
@@ -227,12 +226,13 @@ uuid = { version = "1.0", features = ["v4"] }
 </code></pre>
 <h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
 <p>Create a simple test to verify your installation:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use scim_server::{
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
+    StandardResourceProvider,
+    InMemoryStorage,
     RequestContext,
+    ResourceProvider,  // Required trait for create_resource method
 };
 use serde_json::json;
 
@@ -258,63 +258,12 @@ async fn test_installation() {
 <p>Run the test:</p>
 <pre><code class="language-bash">cargo test test_installation
 </code></pre>
-<h2 id="ide-setup"><a class="header" href="#ide-setup">IDE Setup</a></h2>
-<h3 id="visual-studio-code"><a class="header" href="#visual-studio-code">Visual Studio Code</a></h3>
-<p>For the best development experience with VS Code:</p>
-<ol>
-<li>Install the <a href="https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer">rust-analyzer extension</a></li>
-<li>Install the <a href="https://marketplace.visualstudio.com/items?itemName=bungcip.better-toml">Better TOML extension</a></li>
-</ol>
-<h3 id="intellij-idea--clion"><a class="header" href="#intellij-idea--clion">IntelliJ IDEA / CLion</a></h3>
-<p>Install the <a href="https://plugins.jetbrains.com/plugin/8182-rust">Rust plugin</a> for full Rust support.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <p>Now that you have SCIM Server installed, you're ready to:</p>
 <ol>
 <li><strong><a href="./first-server.html">Create Your First Server</a></strong> - Build a basic SCIM server</li>
 <li><strong><a href="./basic-operations.html">Learn Basic Operations</a></strong> - Understand CRUD operations</li>
-<li><strong><a href="../../examples/">Explore Examples</a></strong> - See working code samples</li>
 </ol>
-<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
-<h3 id="common-installation-issues"><a class="header" href="#common-installation-issues">Common Installation Issues</a></h3>
-<p><strong>Rust version too old</strong>:</p>
-<pre><code class="language-bash">rustup update stable
-</code></pre>
-<p><strong>Compilation errors</strong>:</p>
-<ul>
-<li>Ensure you're using exact version pinning (<code>=0.3.2</code>)</li>
-<li>Check that all required features are enabled</li>
-<li>Verify tokio features include <code>"full"</code> or at minimum <code>"rt-multi-thread", "macros"</code></li>
-</ul>
-<p><strong>Performance issues during compilation</strong>:</p>
-<ul>
-<li>Consider disabling unused features</li>
-<li>Use <code>cargo build --release</code> for optimized builds</li>
-<li>Increase available RAM for compilation</li>
-</ul>
-<h3 id="getting-help"><a class="header" href="#getting-help">Getting Help</a></h3>
-<p>If you encounter issues:</p>
-<ol>
-<li>Check the <a href="../how-to/troubleshooting.html">Troubleshooting Guide</a></li>
-<li>Search existing <a href="https://github.com/pukeko37/scim-server/issues">GitHub Issues</a></li>
-<li>Create a new issue with your system details and error messages</li>
-</ol>
-<h2 id="platform-specific-notes"><a class="header" href="#platform-specific-notes">Platform-Specific Notes</a></h2>
-<h3 id="windows"><a class="header" href="#windows">Windows</a></h3>
-<p>No special requirements. SCIM Server works on all Windows versions supported by Rust.</p>
-<h3 id="macos"><a class="header" href="#macos">macOS</a></h3>
-<p>No special requirements. Works on both Intel and Apple Silicon Macs.</p>
-<h3 id="linux"><a class="header" href="#linux">Linux</a></h3>
-<p>Works on all major Linux distributions. If using system packages instead of rustup:</p>
-<p><strong>Ubuntu/Debian</strong>:</p>
-<pre><code class="language-bash">sudo apt update
-sudo apt install build-essential
-</code></pre>
-<p><strong>CentOS/RHEL/Fedora</strong>:</p>
-<pre><code class="language-bash">sudo yum groupinstall "Development Tools"
-# or for newer versions:
-sudo dnf groupinstall "Development Tools"
-</code></pre>
-<p>You're now ready to build with SCIM Server! 🚀</p>
 
                     </main>
 

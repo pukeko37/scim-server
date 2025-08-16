@@ -91,26 +91,29 @@ SCIM defines standard HTTP operations for resource management:
 
 | Operation | HTTP Method | Purpose | Status |
 |-----------|-------------|---------|---------|
-| **Create** | POST | Add new users or groups | ✅ Implemented |
-| **Read** | GET | Retrieve specific resources | ✅ Implemented |
-| **Replace** | PUT | Replace entire resource | ✅ Implemented |
-| **Update** | PATCH | Modify specific attributes | ✅ Implemented |
-| **Delete** | DELETE | Remove resources | ✅ Implemented |
-| **Search** | GET | Query resources with filters | ⚠️ Limited (pagination only) |
-| **Bulk** | POST | Perform multiple operations | ❌ Not implemented |
+| **Create** | POST | Add new users or groups | ✅ Implemented ([`create_resource`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.create_resource)) |
+| **Read** | GET | Retrieve specific resources | ✅ Implemented ([`get_resource`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.get_resource)) |
+| **Replace/Update** | PUT/PATCH | Replace or modify resources | ✅ Implemented ([`update_resource`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.update_resource)) |
+| **Delete** | DELETE | Remove resources | ✅ Implemented ([`delete_resource`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.delete_resource)) |
+| **List** | GET | Query resources with filters | ✅ Implemented ([`list_resources`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.list_resources)) |
+| **Search** | GET | Find by attribute | ✅ Implemented ([`find_resource_by_attribute`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#tymethod.find_resource_by_attribute)) |
+| **Bulk** | POST | Perform multiple operations | ❌ Not implemented (use individual calls) |
 
 ## SCIM Endpoints
 
-A SCIM server exposes these standard endpoints:
+The SCIM specification defines these standard endpoints. This library provides the business logic for these operations through the [`ResourceProvider`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) trait - you'll need to map them to HTTP endpoints in your web framework:
 
 ### Resource Endpoints
 ```
-GET    /Users                    # List all users
-POST   /Users                    # Create new user
-GET    /Users/{id}               # Get specific user
-PUT    /Users/{id}               # Replace user
-PATCH  /Users/{id}               # Update user
-DELETE /Users/{id}               # Delete user
+GET    /Users                    # List all users (list_resources)
+POST   /Users                    # Create new user (create_resource)
+GET    /Users/{id}               # Get specific user (get_resource)
+PUT    /Users/{id}               # Replace user (update_resource)
+PATCH  /Users/{id}              # Update user (update_resource)
+DELETE /Users/{id}              # Delete user (delete_resource)
+```
+
+> **Note**: This library provides the SCIM business logic layer. You'll need to integrate it with a web framework like [Axum](https://github.com/tokio-rs/axum), [Warp](https://github.com/seanmonstar/warp), or [Actix Web](https://actix.rs/) to handle HTTP requests and responses.
 
 GET    /Groups                   # List all groups
 POST   /Groups                   # Create new group
@@ -210,13 +213,15 @@ Common error types:
 While the SCIM 2.0 specification includes bulk operations for efficiency, this library currently requires individual API calls for each operation:
 
 ```rust
+use scim_server::{ResourceProvider, RequestContext};
+
 // Current approach: Individual operations
 async fn create_multiple_users(
     provider: &impl ResourceProvider,
-    tenant_id: &str,
+    _tenant_id: &str,
     users: Vec<serde_json::Value>
-) -> Result<Vec<ScimUser>, Box<dyn std::error::Error>> {
-    let context = RequestContext::new("batch-create", None);
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+    let context = RequestContext::new("batch-create".to_string());
     let mut created_users = Vec::new();
     
     for user_data in users {

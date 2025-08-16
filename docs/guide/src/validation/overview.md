@@ -1,280 +1,280 @@
 # Validation Overview
 
-This section covers the validation architecture and concepts in the SCIM Server library. While the library provides comprehensive built-in validation based on SCIM schemas, you can extend it with custom validation for business rules, compliance requirements, and organization-specific constraints.
+SCIM Server provides built-in schema validation to ensure resources conform to SCIM 2.0 specifications. This validation is automatically applied when creating, updating, or patching resources.
 
-## What is Custom Validation?
+## What is SCIM Validation?
 
-Custom validation in SCIM Server allows you to:
-
-- **Enforce business rules** - Complex validation logic beyond schema constraints
-- **Implement compliance requirements** - GDPR, HIPAA, or industry-specific rules
-- **Add organization-specific constraints** - Custom attribute validation
-- **Integrate with external systems** - Real-time validation against external APIs
-- **Implement cross-field validation** - Dependencies between multiple attributes
+SCIM Server validates resources against their defined schemas to ensure:
+- **Required attributes are present** - userName for Users (displayName is optional for Groups)
+- **Data types are correct** - strings, numbers, booleans, arrays as expected
+- **Schema compliance** - resources match their SCIM schema definitions
+- **Attribute constraints** - uniqueness, canonical values, and format requirements
 
 ## Validation Architecture
 
-### Validation Pipeline
+### Schema-Based Validation
 
-The SCIM Server validation pipeline processes requests in this order:
-
-1. **Schema Validation** - Built-in SCIM schema compliance
-2. **Type Validation** - Data type checking and format validation
-3. **Custom Validation** - Your business logic
-4. **Storage Validation** - Database constraints and uniqueness checks
+All validation in SCIM Server is performed through the `SchemaRegistry`, which validates resources against SCIM 2.0 schemas:
 
 ```rust
-use scim_server::validation::{
-    ValidationPipeline, 
-    ValidatorChain, 
-    SchemaValidator,
-    CustomValidator,
-    ValidationResult
+use scim_server::{SchemaRegistry, schema::OperationContext};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create schema registry
+    let schema_registry = SchemaRegistry::new()?;
+    
+    // Validate user data
+    let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "alice@example.com",
+        "name": {
+            "givenName": "Alice",
+            "familyName": "Smith"
+        }
+    });
+    
+    // Perform validation
+    schema_registry.validate_json_resource_with_context(
+        "User",                    // Resource type
+        &user_data,               // Resource data
+        OperationContext::Create  // Operation being performed
+    )?;
+    
+    println!("User data is valid!");
+    Ok(())
+}
+```
+
+### Operation Contexts
+
+Validation behavior differs based on the operation being performed:
+
+```rust
+use scim_server::schema::OperationContext;
+
+// Different validation rules apply for different operations
+let operations = [
+    OperationContext::Create,  // Requires all mandatory fields, no 'id' allowed
+    OperationContext::Update,  // Requires 'id' field, full resource replacement
+    OperationContext::Patch,   // Requires 'id' field, partial updates
+];
+```
+
+## Validation Errors
+
+When validation fails, SCIM Server returns detailed error information:
+
+### ValidationError Types
+
+```rust
+use scim_server::ValidationError;
+
+// Common validation errors you might encounter:
+
+// Missing required attribute
+let error = ValidationError::MissingRequiredAttribute {
+    attribute: "userName".to_string()
 };
 
-let validation_pipeline = ValidationPipeline::builder()
-    .add_validator(SchemaValidator::new())
-    .add_validator(TypeValidator::new())
-    .add_validator(CustomBusinessRuleValidator::new())
-    .add_validator(ComplianceValidator::new())
-    .build();
+// Wrong data type
+let error = ValidationError::InvalidAttributeType {
+    attribute: "active".to_string(),
+    expected: "boolean".to_string(),
+    actual: "string".to_string(),
+};
+
+// Custom validation message
+let error = ValidationError::Custom {
+    message: "Email domain not allowed".to_string()
+};
 ```
 
-### Core Components
-
-The validation system consists of several key components:
-
-#### ValidationContext
-Provides context information during validation:
+### Handling Validation Errors
 
 ```rust
-pub struct ValidationContext {
-    pub tenant_id: String,
-    pub operation: Operation,
-    pub resource_type: ResourceType,
-    pub authenticated_user: Option<String>,
-    pub client_info: ClientInfo,
-    pub timestamp: DateTime<Utc>,
-}
+use scim_server::{SchemaRegistry, schema::OperationContext, ValidationError};
 
-pub enum Operation {
-    Create,
-    Update,
-    Patch,
-    Delete,
-    BulkCreate,
-    BulkUpdate,
-}
-```
+let schema_registry = SchemaRegistry::new()?;
 
-#### ValidationError
-Represents validation failures with detailed information:
-
-```rust
-pub struct ValidationError {
-    pub code: String,
-    pub message: String,
-    pub field_path: Option<String>,
-    pub severity: ValidationSeverity,
-    pub details: Option<serde_json::Value>,
-}
-
-impl ValidationError {
-    pub fn new(code: &str, message: &str) -> Self {
-        Self {
-            code: code.to_string(),
-            message: message.to_string(),
-            field_path: None,
-            severity: ValidationSeverity::Error,
-            details: None,
-        }
-    }
-
-    pub fn with_field(mut self, field_path: &str) -> Self {
-        self.field_path = Some(field_path.to_string());
-        self
-    }
-
-    pub fn with_severity(mut self, severity: ValidationSeverity) -> Self {
-        self.severity = severity;
-        self
-    }
-}
-```
-
-### Custom Validator Trait
-
-Implement the `CustomValidator` trait for your validation logic:
-
-```rust
-use scim_server::validation::{CustomValidator, ValidationContext, ValidationError};
-use scim_server::models::{User, Group};
-use async_trait::async_trait;
-
-#[async_trait]
-pub trait CustomValidator: Send + Sync {
-    /// Validate a user during creation or update
-    async fn validate_user(
-        &self,
-        user: &User,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError>;
-    
-    /// Validate a group during creation or update
-    async fn validate_group(
-        &self,
-        group: &Group,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError>;
-    
-    /// Validate patch operations before applying
-    async fn validate_patch_operations(
-        &self,
-        resource_type: &str,
-        resource_id: &str,
-        operations: &[PatchOperation],
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError>;
-    
-    /// Custom validation for batch operations (individual operations in sequence)
-    async fn validate_batch_operation(
-        &self,
-        resource_type: &str,
-        operation_type: &str,
-        data: &serde_json::Value,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        // Default implementation - override if needed
-        // Validate each operation individually since bulk operations aren't implemented
-        match operation_type {
-            "CREATE" => self.validate_create(resource_type, data, context).await,
-            "UPDATE" => self.validate_update(resource_type, data, context).await,
-            "PATCH" => {
-                // For patch operations, extract patch operations from data
-                if let Ok(operations) = serde_json::from_value::<Vec<PatchOperation>>(data.clone()) {
-                    self.validate_patch(resource_type, &operations, context).await
-                } else {
-                    Err(ValidationError::InvalidData("Invalid patch operations".to_string()))
-                }
+match schema_registry.validate_json_resource_with_context(
+    "User",
+    &invalid_data,
+    OperationContext::Create
+) {
+    Ok(_) => println!("Validation passed!"),
+    Err(validation_error) => {
+        match validation_error {
+            ValidationError::MissingRequiredAttribute { attribute } => {
+                println!("Missing required field: {}", attribute);
             },
-            _ => Ok(())
-        }
-    }
-}
-```
-
-## Validation Strategies
-
-### 1. Synchronous vs Asynchronous
-
-- **Synchronous validation** - Fast, local checks (regex, length, format)
-- **Asynchronous validation** - External API calls, database lookups
-
-### 2. Fail-Fast vs Collect-All
-
-- **Fail-Fast** - Stop on first validation error
-- **Collect-All** - Gather all validation errors before failing
-
-### 3. Severity Levels
-
-```rust
-pub enum ValidationSeverity {
-    Error,   // Blocks the operation
-    Warning, // Logs but allows operation  
-    Info,    // Informational only
-}
-```
-
-## Integration Points
-
-### Server Configuration
-
-Register validators during server startup:
-
-```rust
-use scim_server::ScimServerBuilder;
-
-let server = ScimServerBuilder::new()
-    .with_provider(my_provider)
-    .add_validator(BusinessRuleValidator::new())
-    .add_validator(ComplianceValidator::new())
-    .build();
-```
-
-### Tenant-Specific Validation
-
-Different validation rules per tenant:
-
-```rust
-pub struct TenantValidatorRegistry {
-    validators: HashMap<String, Vec<Box<dyn CustomValidator>>>,
-}
-
-impl TenantValidatorRegistry {
-    pub async fn validate_for_tenant(
-        &self,
-        tenant_id: &str,
-        user: &User,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        if let Some(validators) = self.validators.get(tenant_id) {
-            for validator in validators {
-                validator.validate_user(user, context).await?;
+            ValidationError::InvalidAttributeType { attribute, expected, actual } => {
+                println!("Wrong type for {}: expected {}, got {}", attribute, expected, actual);
+            },
+            ValidationError::Custom { message } => {
+                println!("Validation failed: {}", message);
+            },
+            _ => {
+                println!("Validation error: {}", validation_error);
             }
         }
-        Ok(())
     }
 }
 ```
 
-## Error Handling
+## Integration with Providers
 
-### Validation Error Aggregation
+Resource providers automatically validate data during operations:
 
 ```rust
-pub struct ValidationResult {
-    pub errors: Vec<ValidationError>,
-    pub warnings: Vec<ValidationError>,
-}
+use scim_server::{StandardResourceProvider, InMemoryStorage, RequestContext};
+use serde_json::json;
 
-impl ValidationResult {
-    pub fn is_valid(&self) -> bool {
-        self.errors.is_empty()
-    }
-
-    pub fn add_error(&mut self, error: ValidationError) {
-        match error.severity {
-            ValidationSeverity::Error => self.errors.push(error),
-            ValidationSeverity::Warning => self.warnings.push(error),
-            ValidationSeverity::Info => { /* Log only */ }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("validation-example".to_string());
+    
+    // This will automatically validate the user data
+    let invalid_user = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        // Missing required userName field
+        "name": {
+            "givenName": "Bob"
         }
+    });
+    
+    // This will fail with a validation error
+    match provider.create_resource("User", invalid_user, &context).await {
+        Ok(_) => println!("User created successfully"),
+        Err(e) => println!("Failed to create user: {}", e),
+    }
+    
+    Ok(())
+}
+```
+
+## Common Validation Scenarios
+
+### User Validation
+
+```rust
+// Valid user - will pass validation
+let valid_user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "alice@example.com",    // Required
+    "name": {
+        "givenName": "Alice",
+        "familyName": "Smith"
+    },
+    "emails": [
+        {
+            "value": "alice@example.com",
+            "primary": true
+        }
+    ],
+    "active": true
+});
+
+// Invalid user - missing userName
+let invalid_user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "name": {
+        "givenName": "Bob"
+    }
+    // Missing required userName field
+});
+```
+
+### Group Validation
+
+```rust
+// Valid group with displayName - will pass validation
+let group_with_display_name = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+    "displayName": "Engineering Team",  // Optional but recommended
+    "members": [
+        {
+            "value": "user-id-123",
+            "display": "Alice Smith",
+            "type": "User"
+        }
+    ]
+});
+
+// Minimal group - also valid (displayName is optional in the schema)
+let minimal_group = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
+    // displayName is optional per the Group schema
+});
+```
+
+## Validation Best Practices
+
+### 1. Always Handle Validation Errors
+
+```rust
+// Don't ignore validation errors
+match provider.create_resource("User", user_data, &context).await {
+    Ok(user) => {
+        println!("User created: {}", user.get_id().unwrap_or("unknown"));
+    },
+    Err(e) => {
+        eprintln!("Failed to create user: {}", e);
+        // Handle the error appropriately
+        return Err(e.into());
     }
 }
 ```
 
-### Client Error Response
+### 2. Validate Before Operations
 
-Validation errors are returned as SCIM-compliant error responses:
+```rust
+// Validate data before attempting operations
+let schema_registry = SchemaRegistry::new()?;
 
-```json
-{
-  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
-  "status": "400",
-  "scimType": "invalidValue",
-  "detail": "Validation failed",
-  "errors": [
-    {
-      "code": "INVALID_EMAIL_DOMAIN",
-      "message": "Email domain 'example.com' is not allowed",
-      "field": "emails[0].value"
-    }
-  ]
+// Pre-validate to catch errors early
+schema_registry.validate_json_resource_with_context(
+    "User",
+    &user_data,
+    OperationContext::Create
+)?;
+
+// Now attempt the operation
+let user = provider.create_resource("User", user_data, &context).await?;
+```
+
+### 3. Provide Clear Error Messages
+
+```rust
+match validation_result {
+    Err(ValidationError::MissingRequiredAttribute { attribute }) => {
+        return Err(format!("Required field '{}' is missing. Please provide this field and try again.", attribute));
+    },
+    Err(ValidationError::InvalidAttributeType { attribute, expected, .. }) => {
+        return Err(format!("Field '{}' must be of type '{}'. Please check your data format.", attribute, expected));
+    },
+    _ => {}
 }
 ```
+
+## Current Limitations
+
+SCIM Server 0.3.7 provides comprehensive schema validation but has some limitations:
+
+- **No custom validation rules** - Only SCIM schema validation is supported
+- **No tenant-specific validation** - Same validation rules apply to all tenants  
+- **No validation hooks** - Cannot add custom business logic validation
+- **No validation configuration** - Validation rules are fixed by SCIM schemas
+
+## Future Extensibility
+
+Custom validation pipelines, business rule validation, and tenant-specific validation rules are planned for future releases. The current schema validation provides a solid foundation that will be extended with additional validation capabilities.
 
 ## Next Steps
 
-- [Basic Validation](./basic.md) - Simple business rule validators
-- [Advanced Validation](./advanced.md) - External integrations and complex logic
-- [Field-Level Validation](./field-level.md) - Custom attribute validators
-- [Configuration](./configuration.md) - Configurable validation rules
+- [Basic Validation](./basic.md) - Working with validation in practice
+- [Field-Level Validation](./field-level.md) - Understanding attribute-specific validation
+- [Configuration](./configuration.md) - Validation configuration options

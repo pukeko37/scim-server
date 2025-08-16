@@ -31,7 +31,7 @@ The SCIM Server library takes SCIM implementation to the next level with:
 
 The SCIM Server follows a clean three-layer architecture:
 
-```
+```text
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   HTTP Layer    │    │   SCIM Server    │    │   Storage       │
 │                 │    │                  │    │                 │

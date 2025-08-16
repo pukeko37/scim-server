@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2025-08-16
+
+### Fixed
+- **CRITICAL: Schema Discovery Runtime Failure** - Fixed `SchemaDiscovery::new()` failing with `SchemaLoadError` for "Core" schema
+  - Embedded core SCIM schemas (User, Group, ServiceProviderConfig) directly in the library
+  - `SchemaDiscovery::new()` now uses embedded schemas by default, eliminating external file dependencies
+  - `SchemaRegistry::new()` updated to use embedded schemas for better reliability
+  - Added `SchemaRegistry::with_embedded_schemas()` method for explicit embedded schema usage
+  - `SchemaRegistry::from_schema_dir()` still available for loading custom schemas from files
+
+### Changed
+- **Documentation**: Updated Schema Discovery tutorial examples to use proper error handling instead of `.unwrap()`
+- **Documentation**: Fixed schema-validator examples to use generic paths instead of hardcoded "schemas/" directory
+- **BREAKING**: `SchemaRegistry::new()` now uses embedded schemas instead of loading from "schemas/" directory
+  - This fixes the critical runtime failure but changes the default behavior
+  - Users who need file-based schema loading should use `SchemaRegistry::from_schema_dir("path")` explicitly
+
+### Added
+- New embedded schemas module (`schema::embedded`) with hardcoded core SCIM schemas
+- `SchemaRegistry::with_embedded_schemas()` method for explicit embedded schema initialization
+
 ## [Unreleased]
 
 ### Added
@@ -18,6 +39,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.3.7] - 2025-08-16
+
+### Fixed
+- **Documentation**: Fixed critical issues identified in getting started guide
+  - Updated version references from 0.3.2/0.3.6 to 0.3.7 throughout documentation
+  - Added missing `ResourceProvider` trait import in installation verification example
+  - Corrected feature flags documentation to show only actual features (`mcp` only)
+  - Removed references to non-existent `auth` and `logging` features
+  - Fixed ASCII art diagram in introduction to prevent mdbook test failures
+  - Cleaned up example code to eliminate compilation warnings
+- **Documentation**: Fixed critical issues identified in core concepts guide
+  - Fixed `RequestContext::new()` API inconsistencies across all code examples
+  - Corrected implementation status table with accurate method links to docs.rs
+  - Updated architecture documentation to reflect actual storage provider implementations
+  - Removed misleading claims about PostgreSQL, MySQL, DynamoDB support (only InMemory currently implemented)
+  - Added proper API documentation links throughout concepts section
+  - Fixed compilation errors in bulk operation examples
+- **Documentation**: Fixed critical issues identified in custom resources tutorial
+  - Replaced non-existent `ScimResource` trait usage with correct `Resource` type
+  - Fixed schema definition to use direct struct initialization instead of non-existent builder pattern
+  - Corrected `ResourceMeta` to `Meta` and updated import statements
+  - Rewrote provider implementation to use actual `ResourceProvider` trait API
+  - Fixed `AttributeDefinition` API structure (`type_` → `data_type`, removed non-existent fields)
+  - Added complete working example with proper field types and comprehensive test coverage
+  - Resolved all 28 compilation errors identified in independent testing
+  - Tutorial now provides end-to-end implementation path from schema to working provider
+- **Documentation**: Fixed critical issues identified in authentication tutorial
+  - Replaced deprecated `InMemoryProvider` with current `StandardResourceProvider<InMemoryStorage>` API
+  - Fixed `ScimServer::builder()` to correct `ScimServer::new()` constructor
+  - Added comprehensive dependencies section with required Cargo.toml entries
+  - Added missing `scim_routes()` function definition for complete working example
+  - Updated all import statements to use correct current API
+- **Code Quality**: All documentation examples now compile and run without warnings
+
+### Changed
+- **Documentation**: Switched from exact version pinning to flexible versioning in examples
+- **Examples**: Improved installation verification test with minimal, clean imports
 
 ## [0.3.6] - 2025-08-16
 

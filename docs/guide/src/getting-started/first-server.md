@@ -24,7 +24,7 @@ Add the required dependencies to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "0.3.2"
+scim-server = "0.3.7"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 anyhow = "1.0"
@@ -37,12 +37,12 @@ Create your first SCIM server in `src/main.rs`:
 ```rust
 use scim_server::{
     ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::{RequestContext, ResourceProvider},
+    StandardResourceProvider,
+    InMemoryStorage,
+    RequestContext, ResourceProvider,
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    schema::SchemaRegistry,
-    resource::ScimOperation,
+    SchemaRegistry,
+    ScimOperation,
 };
 use serde_json::json;
 
@@ -59,9 +59,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create SCIM server with provider
     let mut server = ScimServer::new(provider)?;
     
+    // Create schema registry (needed for both user and group schemas)
+    let schema_registry = SchemaRegistry::new()?;
+    
     // Register User resource type
-    let user_schema = SchemaRegistry::new()?.get_core_user_schema()?;
-    let user_handler = create_user_resource_handler(user_schema);
+    let user_schema = schema_registry.get_user_schema();
+    let user_handler = create_user_resource_handler(user_schema.clone());
     server.register_resource_type(
         "User",
         user_handler,
@@ -76,8 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     
     // Register Group resource type
-    let group_schema = SchemaRegistry::new()?.get_core_group_schema()?;
-    let group_handler = create_group_resource_handler(group_schema);
+    let group_schema = schema_registry.get_group_schema();
+    let group_handler = create_group_resource_handler(group_schema.clone());
     server.register_resource_type(
         "Group",
         group_handler,
@@ -195,7 +198,7 @@ match retrieved_user {
     Some(user) => {
         println!("✅ Retrieved user: {} ({})", 
                  user.get_username().unwrap_or("unknown"),
-                 user.get_display_name().unwrap_or("unknown"));
+                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
     }
     None => {
         println!("❌ User not found");
@@ -234,7 +237,7 @@ let updated_user = server.update_resource("User", user_id, updated_data, &contex
 
 println!("✅ Updated user: {} ({})", 
          updated_user.get_username().unwrap_or("unknown"),
-         updated_user.get_display_name().unwrap_or("unknown"));
+         updated_user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
 ```
 
 ## Step 5: Working with Groups
@@ -261,7 +264,7 @@ let group_data = json!({
 let group = server.create_resource("Group", group_data, &context).await?;
 
 println!("✅ Created group: {} (ID: {})", 
-         group.get_display_name().unwrap_or("unknown"),
+         group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
          group.get_id().unwrap_or("unknown"));
 ```
 
@@ -280,7 +283,7 @@ println!("✅ Found {} users:", users.len());
 for user in &users {
     println!("  - {} ({})", 
              user.get_username().unwrap_or("unknown"),
-             user.get_display_name().unwrap_or("unknown"));
+             user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
 }
 
 println!("\n📋 Listing all groups...");
@@ -290,7 +293,7 @@ let groups = server.list_resources("Group", None, &context).await?;
 println!("✅ Found {} groups:", groups.len());
 for group in &groups {
     println!("  - {} (ID: {})", 
-             group.get_display_name().unwrap_or("unknown"),
+             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
              group.get_id().unwrap_or("unknown"));
 }
 ```
@@ -316,7 +319,7 @@ match found_user {
     Some(user) => {
         println!("✅ Found user by username: {} ({})", 
                  user.get_username().unwrap_or("unknown"),
-                 user.get_display_name().unwrap_or("unknown"));
+                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
     }
     None => {
         println!("❌ User not found");
@@ -329,7 +332,7 @@ match found_user {
 Finally, let's demonstrate multi-tenant capabilities:
 
 ```rust
-use scim_server::TenantContext;
+use scim_server::resource::TenantContext;
 
 // ... after search operations ...
 
@@ -376,12 +379,12 @@ Here's the complete working example:
 ```rust
 use scim_server::{
     ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::{RequestContext, TenantContext, ResourceProvider},
+    StandardResourceProvider,
+    InMemoryStorage,
+    RequestContext, TenantContext, ResourceProvider,
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    schema::SchemaRegistry,
-    resource::ScimOperation,
+    SchemaRegistry,
+    ScimOperation,
 };
 use serde_json::json;
 
@@ -398,9 +401,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create SCIM server with provider
     let mut server = ScimServer::new(provider)?;
     
+    // Create schema registry (needed for both user and group schemas)
+    let schema_registry = SchemaRegistry::new()?;
+    
     // Register User resource type
-    let user_schema = SchemaRegistry::new()?.get_core_user_schema()?;
-    let user_handler = create_user_resource_handler(user_schema);
+    let user_schema = schema_registry.get_user_schema();
+    let user_handler = create_user_resource_handler(user_schema.clone());
     server.register_resource_type(
         "User",
         user_handler,
@@ -415,8 +421,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     
     // Register Group resource type
-    let group_schema = SchemaRegistry::new()?.get_core_group_schema()?;
-    let group_handler = create_group_resource_handler(group_schema);
+    let group_schema = schema_registry.get_group_schema();
+    let group_handler = create_group_resource_handler(group_schema.clone());
     server.register_resource_type(
         "Group",
         group_handler,
@@ -475,7 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let group = server.create_resource("Group", group_data, &context).await?;
     
     println!("✅ Created group: {} (ID: {})", 
-             group.get_display_name().unwrap_or("unknown"),
+             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
              group.get_id().unwrap_or("unknown"));
     
     // List resources
@@ -490,30 +496,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Next Steps
-
-Now that you have a working SCIM server, you can:
-
-1. **[Add Authentication](../tutorials/authentication-setup.md)** - Secure your SCIM endpoints
-2. **[Implement Custom Resources](../tutorials/custom-resources.md)** - Extend beyond Users and Groups
-3. **[Deploy for Production](../advanced/production-deployment.md)** - Scale your SCIM server
-4. **[Add Database Storage](../providers/basic.md)** - Replace in-memory storage with persistence
-5. **[Set up Multi-Tenancy](../tutorials/multi-tenant-deployment.md)** - Support multiple customers
-
-## Troubleshooting
-
-### Common Issues
-
-**Compilation Errors**
-- Make sure you're using the correct version: `scim-server = "0.3.2"`
-- Ensure all required features are enabled
-
-**Runtime Errors**
-- Check that all resource types are registered before use
-- Verify request contexts are properly created
-
-**Resource Not Found**
-- Ensure you're using the correct tenant context
-- Check that the resource was created successfully
-
-For more help, see the [Troubleshooting Guide](../how-to/troubleshooting.md).
