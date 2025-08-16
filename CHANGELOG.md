@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.7] - 2025-08-16
 
-### Fixed
+### Documentation Overhaul 📚
+- **Major Documentation Cleanup**: Removed 73,000+ lines of outdated and fictional content
+- **Removed Fictional Content**: Deleted 6 tutorial files (181KB) containing non-existent API references
+- **Streamlined Structure**: Simplified to essential Getting Started content only
+- **Professional Framework**: Established comprehensive library structure (User Guide, Advanced, Examples, Reference)
+- **Link Verification**: All documentation links verified working - zero broken references
+- **Content Accuracy**: Removed misleading claims about unimplemented features
+
+### Critical Bug Fixes 🐛
 - **CRITICAL: Schema Discovery Runtime Failure** - Fixed `SchemaDiscovery::new()` failing with `SchemaLoadError` for "Core" schema
   - Embedded core SCIM schemas (User, Group, ServiceProviderConfig) directly in the library
   - `SchemaDiscovery::new()` now uses embedded schemas by default, eliminating external file dependencies
@@ -16,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `SchemaRegistry::from_schema_dir()` still available for loading custom schemas from files
 
 ### Changed
+- **Documentation**: Completely restructured for accuracy and clarity
+- **Documentation**: Removed IDE setup, troubleshooting, and next steps sections from Getting Started
 - **Documentation**: Updated Schema Discovery tutorial examples to use proper error handling instead of `.unwrap()`
 - **Documentation**: Fixed schema-validator examples to use generic paths instead of hardcoded "schemas/" directory
 - **BREAKING**: `SchemaRegistry::new()` now uses embedded schemas instead of loading from "schemas/" directory
@@ -25,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - New embedded schemas module (`schema::embedded`) with hardcoded core SCIM schemas
 - `SchemaRegistry::with_embedded_schemas()` method for explicit embedded schema initialization
+- Clean documentation baseline for future API-accurate content development
+
+### Removed
+- Fictional tutorial content (authentication-setup.md, custom-resources.md, framework-integration.md, mcp-integration.md, multi-tenant-deployment.md, performance-optimization.md)
+- Misleading advanced topics (monitoring.md, production-deployment.md, security.md)
+- Inaccurate how-to guides (migrate-versions.md, troubleshooting.md)
+- Broken reference documentation (api-endpoints.md, configuration.md, scim-compliance.md)
+- External schema files (Group.json, User.json, ServiceProviderConfig.json)
 
 ## [Unreleased]
 
