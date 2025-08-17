@@ -4,49 +4,87 @@ Welcome to the comprehensive guide for the SCIM Server library! This guide will 
 
 ## What is SCIM Server?
 
-SCIM Server is a comprehensive Rust library that implements the SCIM 2.0 (System for Cross-domain Identity Management) protocol. It provides a type-safe, high-performance foundation for building identity provisioning and management systems.
+SCIM Server is a comprehensive Rust library for building SCIM 2.0-compliant identity provisioning systems. It serves as both an integration framework for connecting data sources to applications and a complete solution for enterprise identity management.
+
+The library implements the SCIM 2.0 protocol—the industry standard for automating user provisioning between identity providers and applications. SCIM 2.0 provides a unified REST API that eliminates custom integrations and enables seamless synchronization across systems.
 
 ### Why SCIM?
 
-SCIM is the industry standard for automating user provisioning between identity providers and applications. Instead of building custom APIs for user management, SCIM provides:
+SCIM (System for Cross-domain Identity Management) was designed by the IETF to solve the fundamental challenge of identity management in multi-domain scenarios—particularly enterprise-to-cloud and inter-cloud environments. As defined in RFC 7643 and RFC 7644, SCIM addresses the cost and complexity of user management operations that plague modern organizations.
 
-- **Standardized Operations**: Consistent CRUD operations across all systems
-- **Rich Filtering**: Powerful query capabilities for finding users and groups
-- **Bulk Operations**: Efficient handling of large-scale provisioning tasks
-- **Schema Validation**: Automatic validation against well-defined schemas
-- **Interoperability**: Works with existing identity providers and applications
+Before SCIM, every identity integration required custom development, proprietary APIs, and ongoing maintenance. Organizations faced manual provisioning overhead, security gaps from delayed deprovisioning, and compliance risks from inconsistent access controls. SCIM transforms this by providing a standardized HTTP-based protocol that reduces integration complexity while applying proven authentication, authorization, and privacy models.
+
+The protocol's emphasis on simplicity of development and integration makes it practical for real-world deployment, while its extensible schema model allows organizations to define custom attributes and entirely new resource types beyond the standard User and Group schemas—all while maintaining interoperability across identity providers and applications.
 
 ### Why This Library?
 
-The SCIM Server library takes SCIM implementation to the next level with:
+This library transforms complex enterprise provisioning into straightforward implementation:
 
-- **🛡️ Type Safety**: Leverage Rust's type system to prevent runtime errors
-- **🏢 Multi-Tenancy**: Built-in support for multiple organizations
-- **⚡ Performance**: Async-first design with minimal overhead
-- **🔌 Flexibility**: Framework-agnostic with pluggable storage
-- **🤖 AI Integration**: Built-in Model Context Protocol support
-- **🔄 Concurrency Control**: ETag-based optimistic locking
+- **Standardized Operations**: Consistent CRUD operations across all systems with RFC 7643/7644 compliance
+- **Rich Filtering**: Powerful query capabilities using standardized filter syntax (`userName eq "alice@example.com"`)
+- **Custom Resources**: Define new resource types beyond Users and Groups while maintaining SCIM compliance
+- **Type Safety**: Compile-time guarantees prevent invalid operations
+- **Multi-Tenancy**: Built-in tenant isolation and context management
+- **Performance**: Async-first architecture with minimal overhead
+- **Flexibility**: Framework-agnostic with pluggable storage
+- **AI Integration**: Model Context Protocol support for AI agents
 
 ## Architecture Overview
 
-The SCIM Server follows a clean three-layer architecture:
+The SCIM Server follows a clean trait-based architecture with clear separation of concerns:
 
 ```text
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   HTTP Layer    │    │   SCIM Server    │    │   Storage       │
+│  Client Layer   │    │   SCIM Server    │    │ Resource Layer  │
 │                 │    │                  │    │                 │
-│  • Axum         │───▶│  • Validation    │───▶│  • In-Memory    │
-│  • Warp         │    │  • Operations    │    │  • Database     │
-│  • Actix        │    │  • Multi-tenant  │    │  • Custom       │
+│  • MCP AI       │───▶│  • Operations    │───▶│ ResourceProvider│
+│  • Web Framework│    │  • Multi-tenant  │    │      trait      │
 │  • Custom       │    │  • Type Safety   │    │                 │
+│                 │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
+                              │                          │
+                              ▼                          ▼
+                       ┌──────────────────┐    ┌─────────────────┐
+                       │ Schema System    │    │ Storage Layer   │
+                       │                  │    │                 │
+                       │ • SchemaRegistry │    │ StorageProvider │
+                       │ • Validation     │    │      trait      │
+                       │ • Value Objects  │    │  • In-Memory    │
+                       │ • Extensions     │    │  • Database     │
+                       └──────────────────┘    │  • Custom       │
+                                               └─────────────────┘
 ```
 
-**HTTP Layer**: Your choice of web framework handles HTTP requests and responses.
+**Client Layer**: Integration points for different client types (AI agents, web frameworks, custom clients).
 
-**SCIM Server**: The core library handles SCIM protocol logic, validation, multi-tenancy, and type safety.
+**SCIM Server**: Core orchestration with operation handling and multi-tenant context.
 
-**Storage**: Pluggable storage providers handle data persistence, from simple in-memory stores to enterprise databases.
+**Resource Layer**: `ResourceProvider` trait abstracts SCIM resource operations from storage.
+
+**Schema System**: Dynamic schema registry with validation and extensible value objects.
+
+**Storage Layer**: `StorageProvider` trait for pluggable data persistence backends.
+
+### Trait-Based Design
+
+The architecture is built around key traits that provide clear contracts and pluggability:
+
+- **`ResourceProvider`**: Core abstraction for SCIM resource operations (create, read, update, delete, list)
+- **`StorageProvider`**: Pure data persistence layer separated from SCIM protocol concerns
+- **`SchemaConstructible`**: Enables dynamic value object creation from schema definitions
+- **`ValueObject`**: Type-safe SCIM attribute handling with schema validation
+- **`TenantResolver`**: Multi-tenant context resolution from authentication credentials
+
+This separation allows you to implement storage backends, custom authentication, and schema extensions independently while maintaining type safety and SCIM compliance.
+
+### Key Features
+
+- **Schema Extensions**: Define custom attributes and resource types while maintaining SCIM compliance
+- **ETag Concurrency**: Automatic optimistic locking with conditional operations and conflict detection
+- **Observability**: Structured logging with request IDs, tenant context, and performance metrics
+- **Auto-Discovery**: Runtime capability detection and ServiceProviderConfig generation
+- **Framework Support**: Works with Axum, Warp, Actix, and other web frameworks
+- **Enterprise Integration**: Seamless compatibility with Okta, Azure Entra, Google Workspace, and other identity providers
 
 ## Value Proposition
 
