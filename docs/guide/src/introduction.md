@@ -4,9 +4,9 @@ Welcome to the comprehensive guide for the SCIM Server library! This guide will 
 
 ## What is SCIM Server?
 
-SCIM Server is a comprehensive Rust library for building SCIM 2.0-compliant identity provisioning systems. It serves as both an integration framework for connecting data sources to applications and a complete solution for enterprise identity management.
+SCIM Server is a comprehensive Rust library providing modular components for building SCIM 2.0-compliant systems. Rather than a monolithic solution, it offers composable building blocks that you combine to construct whatever identity provisioning system your application needs.
 
-The library implements the SCIM 2.0 protocol—the industry standard for automating user provisioning between identity providers and applications. SCIM 2.0 provides a unified REST API that eliminates custom integrations and enables seamless synchronization across systems.
+The library uses the SCIM 2.0 protocol as a framework to standardize the validation and processing of provisioning data. Instead of rolling your own SCIM implementation, you get enterprise-ready building blocks: resource providers, storage abstractions, schema validation, multi-tenant context management, and extensible value objects.
 
 ### Why SCIM?
 
@@ -16,18 +16,18 @@ Before SCIM, every identity integration required custom development, proprietary
 
 The protocol's emphasis on simplicity of development and integration makes it practical for real-world deployment, while its extensible schema model allows organizations to define custom attributes and entirely new resource types beyond the standard User and Group schemas—all while maintaining interoperability across identity providers and applications.
 
-### Why This Library?
+### Why These Components?
 
-This library transforms complex enterprise provisioning into straightforward implementation:
+This library provides the essential building blocks you need without the complexity of building them yourself:
 
-- **Standardized Operations**: Consistent CRUD operations across all systems with RFC 7643/7644 compliance
-- **Rich Filtering**: Powerful query capabilities using standardized filter syntax (`userName eq "alice@example.com"`)
-- **Custom Resources**: Define new resource types beyond Users and Groups while maintaining SCIM compliance
-- **Type Safety**: Compile-time guarantees prevent invalid operations
-- **Multi-Tenancy**: Built-in tenant isolation and context management
-- **Performance**: Async-first architecture with minimal overhead
-- **Flexibility**: Framework-agnostic with pluggable storage
-- **AI Integration**: Model Context Protocol support for AI agents
+- **ResourceProvider Trait**: Abstract interface for SCIM resource operations, implement once for any storage backend
+- **Schema System**: RFC 7643/7644 compliant validation with extensible custom schemas and value objects  
+- **Multi-Tenant Components**: Context management and tenant isolation built into the core abstractions
+- **Storage Abstraction**: Pluggable backends through the StorageProvider trait - use in-memory, database, or custom
+- **Type Safety**: Compile-time guarantees through Rust's type system and schema-driven value objects
+- **Concurrency Control**: ETag-based optimistic locking components for production deployment
+- **Protocol Compliance**: All the complex SCIM protocol handling so you focus on your application logic
+- **AI Integration**: Model Context Protocol components for AI agent discovery and interaction
 
 ## Architecture Overview
 
@@ -55,60 +55,60 @@ The SCIM Server follows a clean trait-based architecture with clear separation o
                                                └─────────────────┘
 ```
 
-**Client Layer**: Integration points for different client types (AI agents, web frameworks, custom clients).
+**Client Layer**: Your integration points - compose these components into web endpoints, AI tools, or custom applications.
 
-**SCIM Server**: Core orchestration with operation handling and multi-tenant context.
+**SCIM Server**: Orchestration component that coordinates resource operations using your provider implementations.
 
-**Resource Layer**: `ResourceProvider` trait abstracts SCIM resource operations from storage.
+**Resource Layer**: `ResourceProvider` trait - implement this interface for your data model, or use the provided `StandardResourceProvider` for common scenarios.
 
-**Schema System**: Dynamic schema registry with validation and extensible value objects.
+**Schema System**: Schema registry and validation components - extend with custom schemas and value objects.
 
-**Storage Layer**: `StorageProvider` trait for pluggable data persistence backends.
+**Storage Layer**: `StorageProvider` trait - plug in any persistence backend (database, cloud storage, etc.).
 
-### Trait-Based Design
+### Component Architecture
 
-The architecture is built around key traits that provide clear contracts and pluggability:
+The library is built around composable traits that you implement for your specific needs:
 
-- **`ResourceProvider`**: Core abstraction for SCIM resource operations (create, read, update, delete, list)
-- **`StorageProvider`**: Pure data persistence layer separated from SCIM protocol concerns
-- **`SchemaConstructible`**: Enables dynamic value object creation from schema definitions
-- **`ValueObject`**: Type-safe SCIM attribute handling with schema validation
-- **`TenantResolver`**: Multi-tenant context resolution from authentication credentials
+- **`ResourceProvider`**: Your main integration point - implement SCIM operations for your data model, or use `StandardResourceProvider` for typical use cases
+- **`StorageProvider`**: Persistence abstraction - use the provided `InMemoryStorage` for development, or connect to any database or custom backend
+- **`SchemaConstructible`**: Extension point for custom SCIM attributes and value objects
+- **`ValueObject`**: Type-safe components for SCIM attribute validation and serialization
+- **`TenantResolver`**: Multi-tenant components for resolving tenant context from authentication
 
-This separation allows you to implement storage backends, custom authentication, and schema extensions independently while maintaining type safety and SCIM compliance.
+Mix and match these components to build exactly what you need - use the out-of-the-box implementations for rapid development, or implement custom traits for specialized requirements. Scale from simple single-tenant systems to complex multi-tenant platforms with custom schemas and AI integration.
 
 ### Key Features
 
-- **Schema Extensions**: Define custom attributes and resource types while maintaining SCIM compliance
-- **ETag Concurrency**: Automatic optimistic locking with conditional operations and conflict detection
-- **Observability**: Structured logging with request IDs, tenant context, and performance metrics
-- **Auto-Discovery**: Runtime capability detection and ServiceProviderConfig generation
-- **Framework Support**: Works with Axum, Warp, Actix, and other web frameworks
-- **Enterprise Integration**: Seamless compatibility with Okta, Azure Entra, Google Workspace, and other identity providers
+- **Schema Extension Components**: Build custom SCIM attributes and resource types while maintaining protocol compliance
+- **Concurrency Control Components**: ETag-based optimistic locking for production-grade conflict resolution
+- **Observability Components**: Structured logging with request tracing and tenant context
+- **Discovery Components**: Automatic capability detection and ServiceProviderConfig generation
+- **Framework Agnostic**: Components work with any web framework - Axum, Warp, Actix, or custom HTTP handling
+- **Enterprise Ready**: Protocol compliance ensures compatibility with Okta, Azure Entra, Google Workspace, and other SCIM clients
 
-## Value Proposition
+## Component Benefits
 
-Instead of building provisioning logic into every application, the SCIM Server centralizes complexity:
+Instead of implementing SCIM protocol complexity from scratch, compose these proven components:
 
-| **Without SCIM Server** | **With SCIM Server** |
+| **Building From Scratch** | **Using SCIM Server Components** |
 |-------------------------|----------------------|
-| ❌ Custom validation in each app | ✅ Centralized validation engine |
-| ❌ Manual concurrency control | ✅ Automatic ETag versioning |
-| ❌ Manual schema management | ✅ Dynamic schema registry |
-| ❌ Ad-hoc API endpoints | ✅ Standardized SCIM protocol |
-| ❌ Build multi-tenancy from scratch | ✅ Built-in tenant isolation |
+| ❌ Implement RFC 7643/7644 compliance | ✅ RFC-compliant validation components |
+| ❌ Build concurrency control systems | ✅ ETag-based optimistic locking components |
+| ❌ Create extensible schema systems | ✅ Dynamic schema registry and value objects |
+| ❌ Design multi-tenant architectures | ✅ Multi-tenant context and isolation components |
+| ❌ Handle SCIM protocol edge cases | ✅ Battle-tested protocol implementation |
 
-**Result**: Your applications focus on business logic while SCIM Server handles all provisioning complexity.
+**Result**: Combine pre-built components to create exactly the SCIM system your application needs.
 
-## Who Should Use This Guide?
+## Who Should Use This Library?
 
-This guide is designed for:
+This component library is designed for:
 
-- **Rust Developers** building identity-aware applications
-- **System Architects** designing multi-tenant SaaS platforms
-- **DevOps Engineers** automating user provisioning workflows
-- **AI Engineers** integrating identity management with AI tools
-- **Security Engineers** implementing enterprise identity solutions
+- **Rust Developers** who need SCIM components in their applications
+- **System Architects** designing identity systems with pluggable components
+- **Library Authors** building higher-level identity abstractions
+- **AI Tool Builders** who need SCIM protocol components for agent integration
+- **Enterprise Developers** requiring RFC-compliant identity provisioning components
 
 ## How to Use This Guide
 
@@ -133,14 +133,14 @@ The guide is organized into progressive sections:
 
 ## What You'll Learn
 
-By the end of this guide, you'll be able to:
+By the end of this guide, you'll understand how to:
 
-- Set up and configure SCIM Server for your use case
-- Implement multi-tenant identity provisioning systems
-- Handle complex scenarios like custom resources and authentication
-- Integrate with web frameworks and AI tools
-- Deploy production-ready SCIM services
-- Troubleshoot common issues and optimize performance
+- Compose SCIM Server components for your specific requirements
+- Implement the ResourceProvider trait for your application's data model
+- Create custom schema extensions and value objects
+- Build multi-tenant systems using the provided context components
+- Integrate SCIM components with web frameworks and AI tools
+- Deploy production systems using the concurrency and observability components
 
 ## Getting Help
 
