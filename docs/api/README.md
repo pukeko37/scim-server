@@ -35,7 +35,8 @@ Multi-tenant support with flexible tenant resolution.
 ### [`providers`](providers.md)
 Storage backend implementations and interfaces.
 
-- **[`InMemoryProvider`](providers.md#inmemoryprovider)** - In-memory storage for testing
+- **[`StandardResourceProvider`](providers.md#standardresourceprovider)** - Standard provider implementation
+- **[`InMemoryStorage`](providers.md#inmemorystorage)** - In-memory storage for testing
 - **[`ResourceProvider`](providers.md#resourceprovider)** - Core provider trait
 - **[`ListQuery`](providers.md#listquery)** - Query parameters for resource listing
 
@@ -51,16 +52,21 @@ Comprehensive error handling with detailed error types.
 ### Creating a Basic Server
 
 ```rust
-use scim_server::{ScimServer, providers::InMemoryProvider, create_user_resource_handler};
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+    resource::provider::ResourceProvider,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create provider and server
-    let provider = InMemoryProvider::new();
-    let mut server = ScimServer::new(provider);
+    // Create storage and provider
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     
-    // Register resource handlers
-    server.register_resource_handler("User", create_user_resource_handler());
+    // Create request context
+    let context = RequestContext::new("example-request".to_string());
     
     Ok(())
 }
@@ -69,11 +75,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Creating Resources
 
 ```rust
-use scim_server::resource::{Resource, RequestContext};
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+    resource::provider::ResourceProvider,
+};
 use serde_json::json;
 
 async fn create_user_example() -> Result<(), Box<dyn std::error::Error>> {
-    let context = RequestContext::with_generated_id();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("create-example".to_string());
     
     let user_data = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -90,8 +103,8 @@ async fn create_user_example() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let resource = Resource::from_json("User".to_string(), user_data)?;
-    println!("Created user: {}", resource.id().unwrap().as_str());
+    let resource = provider.create_resource("User", user_data, &context).await?;
+    println!("Created user: {}", resource.get_id().unwrap());
     
     Ok(())
 }
@@ -259,17 +272,17 @@ fn handle_errors_example() -> ValidationResult<()> {
 use scim_server::{ResourceProvider, RequestContext, ScimOperation};
 use serde_json::json;
 
-async fn crud_examples<P: ResourceProvider>(
-    provider: &P,
+async fn crud_examples(
+    provider: &StandardResourceProvider<InMemoryStorage>,
     context: &RequestContext
-) -> Result<(), P::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     // CREATE
     let user_data = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "userName": "new.user@example.com"
     });
     let created = provider.create_resource("User", user_data, context).await?;
-    let user_id = created.id().unwrap().as_str();
+    let user_id = created.get_id().unwrap();
     
     // READ
     let retrieved = provider.get_resource("User", user_id, context).await?;
@@ -293,10 +306,10 @@ async fn crud_examples<P: ResourceProvider>(
 ```rust
 use scim_server::{ResourceProvider, ListQuery};
 
-async fn list_examples<P: ResourceProvider>(
-    provider: &P,
+async fn list_examples(
+    provider: &StandardResourceProvider<InMemoryStorage>,
     context: &RequestContext
-) -> Result<(), P::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     // List all users
     let all_users = provider.list_resources("User", None, context).await?;
     

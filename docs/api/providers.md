@@ -31,11 +31,11 @@ The provider system enables the SCIM server to work with different storage backe
 │              ResourceProvider Trait                     │
 │                 (Common Interface)                      │
 ├─────────────────────────────────────────────────────────┤
-│  InMemoryProvider  │  DatabaseProvider  │ CustomProvider │
-│                    │                    │                │
-│  ┌───────────────┐ │ ┌────────────────┐ │ ┌────────────┐ │
-│  │   HashMap     │ │ │  SQL Database  │ │ │ External   │ │
-│  │   Storage     │ │ │  Connection    │ │ │ API Client │ │
+│StandardResourceProvider│  DatabaseProvider  │ CustomProvider │
+│                        │                    │                │
+│  ┌───────────────────┐ │ ┌────────────────┐ │ ┌────────────┐ │
+│  │  InMemoryStorage  │ │ │  SQL Database  │ │ │ External   │ │
+│  │     Backend       │ │ │  Connection    │ │ │ API Client │ │
 │  └───────────────┘ │ └────────────────┘ │ └────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -196,27 +196,40 @@ println!("Found {} resources", results.total_results);
 
 ## Built-in Providers
 
-### InMemoryProvider
+### StandardResourceProvider with InMemoryStorage
 
-A HashMap-based provider suitable for development and testing:
+The current recommended approach using `StandardResourceProvider` with `InMemoryStorage` backend:
 
 ```rust
-use scim_server::providers::InMemoryProvider;
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+    resource::provider::ResourceProvider,
+};
 
 // Basic usage
-let provider = InMemoryProvider::new();
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
 
-// With configuration
-let provider = InMemoryProvider::builder()
-    .initial_capacity(1000)
-    .enable_persistence(false)
-    .build();
+// Create request context
+let context = RequestContext::new("example-request".to_string());
+
+// Use the provider
+let user_data = serde_json::json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john.doe@example.com"
+});
+
+let user = provider.create_resource("User", user_data, &context).await?;
 ```
 
 **Features:**
 - ✅ Fast read/write operations
 - ✅ Full SCIM query support
 - ✅ Thread-safe concurrent access
+- ✅ Type-safe resource operations
+- ✅ Standardized provider interface
 - ❌ Data not persisted across restarts
 - ❌ Memory usage grows with data size
 
@@ -225,27 +238,22 @@ let provider = InMemoryProvider::builder()
 - Small datasets that fit in memory
 - Temporary or cache-like storage
 - Unit test isolation
+- Quick prototyping
 
-**Configuration Options:**
+**Migration from InMemoryProvider:**
 
 ```rust
-pub struct InMemoryConfig {
-    pub initial_capacity: usize,
-    pub enable_persistence: bool,
-    pub persistence_file: Option<PathBuf>,
-    pub auto_save_interval: Option<Duration>,
-}
+// Old (deprecated)
+use scim_server::providers::InMemoryProvider;
+let provider = InMemoryProvider::new();
 
-impl Default for InMemoryConfig {
-    fn default() -> Self {
-        Self {
-            initial_capacity: 100,
-            enable_persistence: false,
-            persistence_file: None,
-            auto_save_interval: None,
-        }
-    }
-}
+// New (current)
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+};
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
 ```
 
 ### DatabaseProvider
@@ -346,7 +354,8 @@ fn create_provider_from_env() -> Result<Box<dyn ResourceProvider>> {
     
     match provider_type.as_str() {
         "memory" => {
-            Ok(Box::new(InMemoryProvider::new()))
+            let storage = InMemoryStorage::new();
+            Ok(Box::new(StandardResourceProvider::new(storage)))
         }
         "database" => {
             let db_url = env::var("DATABASE_URL")?;
@@ -752,7 +761,8 @@ mod provider_test_suite;
 
 #[tokio::test]
 async fn test_in_memory_provider_compliance() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     provider_test_suite::test_provider_compliance(provider).await;
 }
 
@@ -771,13 +781,17 @@ async fn test_database_provider_compliance() {
 ```rust
 // benches/provider_performance.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use scim_server::providers::{InMemoryProvider, DatabaseProvider};
+use scim_server::{
+    providers::{StandardResourceProvider, DatabaseProvider},
+    storage::InMemoryStorage,
+};
 
 fn bench_provider_operations(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     
+    let storage = InMemoryStorage::new();
     let providers: Vec<(&str, Box<dyn ResourceProvider>)> = vec![
-        ("memory", Box::new(InMemoryProvider::new())),
+        ("memory", Box::new(StandardResourceProvider::new(storage))),
         ("database", Box::new(rt.block_on(setup_test_db_provider()))),
     ];
     

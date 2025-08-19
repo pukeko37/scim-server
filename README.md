@@ -26,14 +26,22 @@ serde_json = "1.0"
 Create a basic SCIM server:
 
 ```rust
-use scim_server::{ScimServer, storage::InMemoryStorage};
+use scim_server::{
+    RequestContext,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    resource::provider::ResourceProvider,
+};
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create server with in-memory storage
+    // Create StandardResourceProvider with InMemoryStorage
     let storage = InMemoryStorage::new();
-    let server = ScimServer::new(storage).await?;
+    let provider = StandardResourceProvider::new(storage);
+    
+    // Create request context
+    let context = RequestContext::new("example-request-1".to_string());
     
     // Create a user
     let user_data = json!({
@@ -42,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "emails": [{"value": "john@example.com", "primary": true}]
     });
     
-    let user = server.create_user("tenant-1", user_data).await?;
+    let user = provider.create_resource("User", user_data, &context).await?;
     println!("Created user: {}", user.id);
     
     Ok(())
@@ -74,7 +82,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 | Resource | Description |
 |----------|-------------|
 | [User Guide](https://pukeko37.github.io/scim-server/) | Comprehensive tutorials and concepts |
-| [API Documentation](https://docs.rs/scim-server) | Detailed API reference with examples |
+| [API Documentation](https://docs.rs/scim-server/latest/scim_server/) | Detailed API reference with examples |
 | [Examples](examples/) | Copy-paste starting points for common use cases |
 | [CHANGELOG](CHANGELOG.md) | Version history and migration guides |
 
@@ -83,15 +91,24 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 1. **Start Here**: Follow the Quick Start above
 2. **Learn Concepts**: Read the [User Guide](https://pukeko37.github.io/scim-server/) 
 3. **See Examples**: Browse [examples/](examples/) for your use case
-4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server) for detailed API docs
+4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server/latest/scim_server/) for detailed API docs
 
 ## Common Use Cases
 
 ```rust
-// Multi-tenant server
-let server = ScimServer::new(storage)
-    .with_tenant("org1")
-    .await?;
+use scim_server::{
+    ScimServer,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+};
+
+// Multi-tenant server with StandardResourceProvider
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServer::new(provider)?;
+
+// Register tenant
+server.register_tenant("org1").await?;
 
 // Custom resource types
 server.register_schema(custom_schema).await?;
@@ -103,12 +120,30 @@ let app = Router::new()
 ```
 
 See [examples/](examples/) for complete working examples including:
-- Basic CRUD operations
+- Basic CRUD operations with `StandardResourceProvider`
 - Multi-tenant setups
 - Web framework integrations
 - Authentication patterns
 - ETag concurrency control
 - AI assistant integration
+
+## Migration from InMemoryProvider
+
+If you're upgrading from the deprecated `InMemoryProvider`, update your code:
+
+```rust
+// Old (deprecated)
+use scim_server::providers::InMemoryProvider;
+let provider = InMemoryProvider::new();
+
+// New (current)
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+};
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+```
 
 ## Contributing
 

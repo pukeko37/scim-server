@@ -279,11 +279,16 @@ pub struct ScimServer<P: ResourceProvider> {
 ### Construction
 
 ```rust
-use scim_server::{ScimServer, providers::InMemoryProvider};
+use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+};
 
 fn main() {
-    let provider = InMemoryProvider::new();
-    let server = ScimServer::new(provider);
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let context = RequestContext::new("example".to_string());
 }
 ```
 
@@ -293,15 +298,16 @@ fn main() {
 use scim_server::{create_user_resource_handler, create_group_resource_handler};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = InMemoryProvider::new();
-    let mut server = ScimServer::new(provider);
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider)?;
     
-    // Register built-in handlers
-    server.register_resource_handler("User", create_user_resource_handler());
-    server.register_resource_handler("Group", create_group_resource_handler());
+    // Register schemas for resource types
+    server.register_schema(user_schema).await?;
+    server.register_schema(group_schema).await?;
     
-    // Register custom handler
-    server.register_resource_handler("CustomResource", Box::new(MyCustomHandler));
+    // Register custom schema
+    server.register_schema(custom_schema).await?;
     
     Ok(())
 }
@@ -601,7 +607,7 @@ Most types implement `Send + Sync` for multi-threaded usage:
 // These can be safely shared between threads
 let resource: Resource = ...;  // Send + Sync
 let context: RequestContext = ...;  // Send + Sync
-let provider: InMemoryProvider = ...;  // Send + Sync
+let provider: StandardResourceProvider<InMemoryStorage> = ...;  // Send + Sync
 ```
 
 ### Shared State Patterns
@@ -611,10 +617,10 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 // Shared provider pattern
-type SharedProvider = Arc<RwLock<InMemoryProvider>>;
+type SharedProvider = Arc<RwLock<StandardResourceProvider<InMemoryStorage>>>;
 
 // Shared server pattern  
-type SharedServer = Arc<ScimServer<InMemoryProvider>>;
+type SharedServer = Arc<ScimServer<StandardResourceProvider<InMemoryStorage>>>;
 ```
 
 ## See Also
