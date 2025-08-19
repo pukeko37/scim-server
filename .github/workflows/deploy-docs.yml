@@ -5,26 +5,103 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: "latest"
 
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
       - name: Build mdBook
         run: |
           cd docs/guide
           mdbook build
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
+      - name: Generate Rust docs
+        run: cargo doc --no-deps --all-features
+
+      - name: Prepare deployment directory
+        run: |
+          mkdir -p deploy
+          # Copy mdBook output
+          cp -r docs/guide/book/* deploy/
+          # Copy Rust docs to api subdirectory
+          mkdir -p deploy/api
+          cp -r target/doc/* deploy/api/
+          # Create index.html that redirects to guide
+          cat > deploy/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>SCIM Server Documentation</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; }
+                  .nav { margin: 20px 0; }
+                  .nav a { margin-right: 20px; padding: 10px 15px;
+                          background: #0366d6; color: white; text-decoration: none;
+                          border-radius: 5px; }
+                  .nav a:hover { background: #0256c7; }
+              </style>
+          </head>
+          <body>
+              <h1>SCIM Server Documentation</h1>
+              <div class="nav">
+                  <a href="./guide/">User Guide</a>
+                  <a href="./api/scim_server/">API Documentation</a>
+                  <a href="https://docs.rs/scim-server">docs.rs</a>
+              </div>
+              <p>Welcome to the SCIM Server documentation. Choose from the links above:</p>
+              <ul>
+                  <li><strong>User Guide</strong> - Getting started tutorials and examples</li>
+                  <li><strong>API Documentation</strong> - Complete API reference</li>
+                  <li><strong>docs.rs</strong> - Official Rust documentation</li>
+              </ul>
+              <script>
+                  // Auto-redirect to guide after 3 seconds
+                  setTimeout(() => window.location.href = './guide/', 3000);
+              </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/guide/book
+          path: "./deploy"
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
