@@ -176,459 +176,245 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="your-first-scim-server"><a class="header" href="#your-first-scim-server">Your First SCIM Server</a></h1>
-<p>This tutorial walks you through creating your first SCIM server from scratch. By the end, you'll have a working SCIM server that can manage users and groups with full CRUD operations.</p>
-<h2 id="what-well-build"><a class="header" href="#what-well-build">What We'll Build</a></h2>
-<p>We'll create a simple SCIM server that:</p>
-<ul>
-<li>Manages users and groups</li>
-<li>Supports basic CRUD operations</li>
-<li>Uses in-memory storage for simplicity</li>
-<li>Includes proper error handling</li>
-<li>Demonstrates multi-tenant capabilities</li>
-</ul>
-<h2 id="step-1-project-setup"><a class="header" href="#step-1-project-setup">Step 1: Project Setup</a></h2>
-<p>First, create a new Rust project:</p>
+<p>Learn to build a working SCIM server in 10 minutes using this library.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
+<h3 id="1-create-a-new-project"><a class="header" href="#1-create-a-new-project">1. Create a New Project</a></h3>
 <pre><code class="language-bash">cargo new my-scim-server
 cd my-scim-server
 </code></pre>
-<p>Add the required dependencies to your <code>Cargo.toml</code>:</p>
+<h3 id="2-add-dependencies"><a class="header" href="#2-add-dependencies">2. Add Dependencies</a></h3>
 <pre><code class="language-toml">[dependencies]
 scim-server = "0.3.7"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
-anyhow = "1.0"
 </code></pre>
-<h2 id="step-2-basic-server-setup"><a class="header" href="#step-2-basic-server-setup">Step 2: Basic Server Setup</a></h2>
-<p>Create your first SCIM server in <code>src/main.rs</code>:</p>
+<h3 id="3-basic-server-15-lines"><a class="header" href="#3-basic-server-15-lines">3. Basic Server (15 lines)</a></h3>
 <pre><pre class="playground"><code class="language-rust">use scim_server::{
-    ScimServer,
-    StandardResourceProvider,
-    InMemoryStorage,
-    RequestContext, ResourceProvider,
-    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    SchemaRegistry,
-    ScimOperation,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
 };
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    println!("🚀 Starting SCIM Server...");
-    
-    // Create storage backend
-    let storage = InMemoryStorage::new();
-    
-    // Create resource provider with storage
-    let provider = StandardResourceProvider::new(storage);
-    
-    // Create SCIM server with provider
-    let mut server = ScimServer::new(provider)?;
-    
-    // Create schema registry (needed for both user and group schemas)
-    let schema_registry = SchemaRegistry::new()?;
-    
-    // Register User resource type
-    let user_schema = schema_registry.get_user_schema();
-    let user_handler = create_user_resource_handler(user_schema.clone());
-    server.register_resource_type(
-        "User",
-        user_handler,
-        vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Update,
-            ScimOperation::Delete,
-            ScimOperation::List,
-            ScimOperation::Search,
-        ],
-    )?;
-    
-    // Register Group resource type
-    let group_schema = schema_registry.get_group_schema();
-    let group_handler = create_group_resource_handler(group_schema.clone());
-    server.register_resource_type(
-        "Group",
-        group_handler,
-        vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Update,
-            ScimOperation::Delete,
-            ScimOperation::List,
-            ScimOperation::Search,
-        ],
-    )?;
-    
-    println!("✅ SCIM Server initialized successfully!");
-    
-    // We'll add operations here in the next steps
-    
-    Ok(())
-}</code></pre></pre>
-<p>Run this to verify everything works:</p>
-<pre><code class="language-bash">cargo run
-</code></pre>
-<p>You should see:</p>
-<pre><code>🚀 Starting SCIM Server...
-✅ SCIM Server initialized successfully!
-</code></pre>
-<h2 id="step-3-creating-your-first-user"><a class="header" href="#step-3-creating-your-first-user">Step 3: Creating Your First User</a></h2>
-<p>Now let's create a user. Add this after the server initialization:</p>
-<pre><pre class="playground"><code class="language-rust">#[tokio::main]
-async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // ... previous setup code ...
-    
-    println!("✅ SCIM Server initialized successfully!");
-    
-    // Create a request context for our operations
-    let context = RequestContext::with_generated_id();
-    
-    println!("\n📝 Creating a user...");
-    
-    // Define user data
+    // Create storage and provider - the foundation of your SCIM server
+    let storage = InMemoryStorage::new();  // Simple storage for development
+    let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
+
+    // Create a single-tenant request context - tracks this operation for logging
+    let context = RequestContext::new("demo".to_string());
     let user_data = json!({
-        "userName": "alice@example.com",
-        "name": {
-            "formatted": "Alice Smith",
-            "familyName": "Smith",
-            "givenName": "Alice"
-        },
-        "displayName": "Alice Smith",
-        "emails": [
-            {
-                "value": "alice@example.com",
-                "type": "work",
-                "primary": true
-            }
-        ],
-        "phoneNumbers": [
-            {
-                "value": "+1-555-123-4567",
-                "type": "work"
-            }
-        ],
+        "userName": "john.doe",
+        "emails": [{"value": "john@example.com", "primary": true}],
         "active": true
     });
-    
-    // Create the user
-    let user = server.create_resource("User", user_data, &amp;context).await?;
-    
-    println!("✅ Created user: {} (ID: {})", 
-             user.get_username().unwrap_or("unknown"),
-             user.get_id().unwrap_or("unknown"));
-    
+
+    let user = provider.create_resource("User", user_data, &amp;context).await?;
+    println!("Created user: {}", user.get_username().unwrap());
+
     Ok(())
 }</code></pre></pre>
-<p>Run this:</p>
+<h3 id="4-run-it"><a class="header" href="#4-run-it">4. Run It</a></h3>
 <pre><code class="language-bash">cargo run
+# Output: Created user: john.doe
 </code></pre>
-<p>You should see:</p>
-<pre><code>🚀 Starting SCIM Server...
-✅ SCIM Server initialized successfully!
-
-📝 Creating a user...
-✅ Created user: alice@example.com (ID: user_abc123)
-</code></pre>
-<h2 id="step-4-reading-and-updating-users"><a class="header" href="#step-4-reading-and-updating-users">Step 4: Reading and Updating Users</a></h2>
-<p>Let's add operations to read and update users:</p>
+<h2 id="core-operations"><a class="header" href="#core-operations">Core Operations</a></h2>
+<h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
+<p>For the following examples, we'll use this provider and context setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// ... after creating the user ...
+</span>use scim_server::{
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    RequestContext,
+};
+use serde_json::json;
 
-println!("\n📖 Reading the user...");
+// Create storage and provider - the foundation of your SCIM server
+let storage = InMemoryStorage::new();  // Simple storage for development
+let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
 
-// Get the user by ID
-let user_id = user.get_id().unwrap();
-let retrieved_user = server.get_resource("User", user_id, &amp;context).await?;
-
-match retrieved_user {
-    Some(user) =&gt; {
-        println!("✅ Retrieved user: {} ({})", 
-                 user.get_username().unwrap_or("unknown"),
-                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
-    }
-    None =&gt; {
-        println!("❌ User not found");
-    }
-}
-
-println!("\n📝 Updating the user...");
-
-// Update user data
-let updated_data = json!({
-    "id": user_id,
-    "userName": "alice@example.com",
+// Single-tenant RequestContext tracks each operation for logging
+let context = RequestContext::new("demo".to_string());
+<span class="boring">}</span></code></pre></pre>
+<p>All the following examples will use these <code>provider</code> and <code>context</code> variables.</p>
+<h3 id="creating-resources"><a class="header" href="#creating-resources">Creating Resources</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Use JSON to define user attributes following SCIM 2.0 schema
+let user_data = json!({
+    "userName": "alice.smith",
     "name": {
-        "formatted": "Alice Johnson",
-        "familyName": "Johnson",  // Changed last name
-        "givenName": "Alice"
+        "givenName": "Alice",
+        "familyName": "Smith"
     },
-    "displayName": "Alice Johnson",
-    "emails": [
-        {
-            "value": "alice@example.com",
-            "type": "work",
-            "primary": true
-        },
-        {
-            "value": "alice.johnson@personal.com",  // Added personal email
-            "type": "home",
-            "primary": false
-        }
-    ],
+    "emails": [{"value": "alice@company.com", "primary": true}],
     "active": true
 });
 
-// Update the user
-let updated_user = server.update_resource("User", user_id, updated_data, &amp;context).await?;
-
-println!("✅ Updated user: {} ({})", 
-         updated_user.get_username().unwrap_or("unknown"),
-         updated_user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
+// Create the user - provider handles validation and storage
+let user = provider.create_resource("User", user_data, &amp;context).await?;
+let user_id = user.get_id().unwrap();  // Get the auto-generated unique ID
 <span class="boring">}</span></code></pre></pre>
-<h2 id="step-5-working-with-groups"><a class="header" href="#step-5-working-with-groups">Step 5: Working with Groups</a></h2>
-<p>Let's create a group and manage membership:</p>
+<h3 id="reading-resources"><a class="header" href="#reading-resources">Reading Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// ... after updating the user ...
+</span>// Get user by ID - returns Option&lt;Resource&gt; (None if not found)
+let retrieved_user = provider.get_resource("User", &amp;user_id, &amp;context).await?;
 
-println!("\n👥 Creating a group...");
+if let Some(user) = retrieved_user {
+    println!("Found: {}", user.get_username().unwrap());
+}
 
+// Search by specific attribute value - useful for username lookups
+let found_user = provider
+    .find_resource_by_attribute("User", "userName", &amp;json!("alice.smith"), &amp;context)
+    .await?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="updating-resources"><a class="header" href="#updating-resources">Updating Resources</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Updates require the full resource data, including the ID
+let update_data = json!({
+    "id": user_id,
+    "userName": "alice.smith",
+    "name": {
+        "givenName": "Alice",
+        "familyName": "Johnson"  // Changed surname
+    },
+    "emails": [{"value": "alice@company.com", "primary": true}],
+    "active": false  // Deactivated
+});
+
+// Update replaces the entire resource with new data
+let updated_user = provider
+    .update_resource("User", &amp;user_id, update_data, &amp;context)
+    .await?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="listing-and-searching"><a class="header" href="#listing-and-searching">Listing and Searching</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// List all users - None means no pagination/filtering
+let all_users = provider.list_resources("User", None, &amp;context).await?;
+println!("Total users: {}", all_users.len());
+
+// Efficiently check existence without retrieving full data
+let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+println!("User exists: {}", exists);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="validation-and-error-handling"><a class="header" href="#validation-and-error-handling">Validation and Error Handling</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// The provider automatically validates data against SCIM schemas
+let invalid_user = json!({
+    "userName": "",  // Empty username - violates SCIM requirements
+    "emails": [{"value": "not-an-email"}],  // Invalid email format
+});
+
+// Always handle validation errors gracefully
+match provider.create_resource("User", invalid_user, &amp;context).await {
+    Ok(user) =&gt; println!("User created: {}", user.get_id().unwrap()),
+    Err(e) =&gt; println!("Validation failed: {}", e),  // Detailed error message
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="deleting-resources"><a class="header" href="#deleting-resources">Deleting Resources</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Delete a resource by ID
+provider.delete_resource("User", &amp;user_id, &amp;context).await?;
+
+// Verify deletion
+let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+println!("User still exists: {}", exists); // Should be false
+<span class="boring">}</span></code></pre></pre>
+<h2 id="working-with-groups"><a class="header" href="#working-with-groups">Working with Groups</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Groups can contain users as members - useful for access control
+// Create a group (assuming you have a user_id from previous examples)
 let group_data = json!({
-    "displayName": "Engineering Team",
-    "members": [
+    "displayName": "Engineering Team",  // Required: human-readable name
+    "members": [  // Optional: list of member references
         {
-            "value": user_id,
-            "display": "Alice Johnson",
-            "type": "User"
+            "value": user_id,  // Reference to the user's ID
+            "$ref": format!("https://example.com/v2/Users/{}", user_id),  // Full URI
+            "type": "User"  // Type of the referenced resource
         }
     ]
 });
 
-// Create the group
-let group = server.create_resource("Group", group_data, &amp;context).await?;
-
-println!("✅ Created group: {} (ID: {})", 
-         group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
-         group.get_id().unwrap_or("unknown"));
+// Using the context and user_id from previous examples
+// Create group just like users - same provider interface
+let group = provider.create_resource("Group", group_data, &amp;context).await?;
+println!("Created group: {}", group.get_attribute("displayName").unwrap());
 <span class="boring">}</span></code></pre></pre>
-<h2 id="step-6-listing-resources"><a class="header" href="#step-6-listing-resources">Step 6: Listing Resources</a></h2>
-<p>Add functionality to list users and groups:</p>
+<h2 id="multi-tenant-support"><a class="header" href="#multi-tenant-support">Multi-Tenant Support</a></h2>
+<p>For multi-tenant scenarios, you create explicit tenant contexts instead of using the default single-tenant setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// ... after creating the group ...
+</span>// Import TenantContext for multi-tenant operations
+use scim_server::resource::TenantContext;
 
-println!("\n📋 Listing all users...");
+// Create the same provider as before
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
 
-// List all users
-let users = server.list_resources("User", None, &amp;context).await?;
-println!("✅ Found {} users:", users.len());
-for user in &amp;users {
-    println!("  - {} ({})", 
-             user.get_username().unwrap_or("unknown"),
-             user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
-}
+// Multi-tenant contexts - each gets isolated data space
+let tenant_a = TenantContext::new("company-a".to_string(), "client-123".to_string());
+let tenant_a_context = RequestContext::with_tenant("req-a".to_string(), tenant_a);
 
-println!("\n📋 Listing all groups...");
+let tenant_b = TenantContext::new("company-b".to_string(), "client-456".to_string());
+let tenant_b_context = RequestContext::with_tenant("req-b".to_string(), tenant_b);
 
-// List all groups
-let groups = server.list_resources("Group", None, &amp;context).await?;
-println!("✅ Found {} groups:", groups.len());
-for group in &amp;groups {
-    println!("  - {} (ID: {})", 
-             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
-             group.get_id().unwrap_or("unknown"));
-}
+// Same provider, different tenants - data is completely isolated
+provider.create_resource("User", user_data.clone(), &amp;tenant_a_context).await?;
+provider.create_resource("User", user_data, &amp;tenant_b_context).await?;
+
+// Each tenant sees only their own data
+let tenant_a_users = provider.list_resources("User", None, &amp;tenant_a_context).await?;
+let tenant_b_users = provider.list_resources("User", None, &amp;tenant_b_context).await?;
+
+println!("Company A users: {}", tenant_a_users.len());
+println!("Company B users: {}", tenant_b_users.len());
 <span class="boring">}</span></code></pre></pre>
-<h2 id="step-7-search-operations"><a class="header" href="#step-7-search-operations">Step 7: Search Operations</a></h2>
-<p>Add search functionality:</p>
+<h2 id="provider-statistics"><a class="header" href="#provider-statistics">Provider Statistics</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// ... after listing resources ...
-
-println!("\n🔍 Searching for users...");
-
-// Search for user by username
-let found_user = server.find_resource_by_attribute(
-    "User",
-    "userName",
-    &amp;json!("alice@example.com"),
-    &amp;context,
-).await?;
-
-match found_user {
-    Some(user) =&gt; {
-        println!("✅ Found user by username: {} ({})", 
-                 user.get_username().unwrap_or("unknown"),
-                 user.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()));
-    }
-    None =&gt; {
-        println!("❌ User not found");
-    }
-}
+</span>// Useful for monitoring and debugging your SCIM server
+let stats = provider.get_stats().await;
+println!("Total tenants: {}", stats.tenant_count);  // Number of active tenants
+println!("Total resources: {}", stats.total_resources);  // Users + Groups + etc.
+println!("Resource types: {:?}", stats.resource_types);  // ["User", "Group", ...]
 <span class="boring">}</span></code></pre></pre>
-<h2 id="step-8-multi-tenant-operations"><a class="header" href="#step-8-multi-tenant-operations">Step 8: Multi-Tenant Operations</a></h2>
-<p>Finally, let's demonstrate multi-tenant capabilities:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use scim_server::resource::TenantContext;
-
-// ... after search operations ...
-
-println!("\n🏢 Multi-tenant operations...");
-
-// Create tenant-specific context
-let tenant_context = TenantContext::new(
-    "company-123".to_string(),
-    "app-456".to_string(),
-);
-let tenant_request_context = RequestContext::with_tenant_generated_id(tenant_context);
-
-// Create user in specific tenant
-let tenant_user_data = json!({
-    "userName": "bob@company123.com",
-    "name": {
-        "formatted": "Bob Wilson",
-        "familyName": "Wilson",
-        "givenName": "Bob"
-    },
-    "displayName": "Bob Wilson",
-    "active": true
-});
-
-let tenant_user = server.create_resource("User", tenant_user_data, &amp;tenant_request_context).await?;
-
-println!("✅ Created user in tenant: {} (ID: {})", 
-         tenant_user.get_username().unwrap_or("unknown"),
-         tenant_user.get_id().unwrap_or("unknown"));
-
-// Show tenant isolation
-let default_users = server.list_resources("User", None, &amp;context).await?;
-let tenant_users = server.list_resources("User", None, &amp;tenant_request_context).await?;
-
-println!("📊 Default tenant has {} users", default_users.len());
-println!("📊 Company-123 tenant has {} users", tenant_users.len());
-println!("✅ Tenant isolation working correctly!");
-<span class="boring">}</span></code></pre></pre>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<p>Here's the complete working example:</p>
-<pre><pre class="playground"><code class="language-rust">use scim_server::{
-    ScimServer,
-    StandardResourceProvider,
-    InMemoryStorage,
-    RequestContext, TenantContext, ResourceProvider,
-    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    SchemaRegistry,
-    ScimOperation,
-};
-use serde_json::json;
-
-#[tokio::main]
-async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    println!("🚀 Starting SCIM Server...");
-    
-    // Create storage backend
-    let storage = InMemoryStorage::new();
-    
-    // Create resource provider with storage
-    let provider = StandardResourceProvider::new(storage);
-    
-    // Create SCIM server with provider
-    let mut server = ScimServer::new(provider)?;
-    
-    // Create schema registry (needed for both user and group schemas)
-    let schema_registry = SchemaRegistry::new()?;
-    
-    // Register User resource type
-    let user_schema = schema_registry.get_user_schema();
-    let user_handler = create_user_resource_handler(user_schema.clone());
-    server.register_resource_type(
-        "User",
-        user_handler,
-        vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Update,
-            ScimOperation::Delete,
-            ScimOperation::List,
-            ScimOperation::Search,
-        ],
-    )?;
-    
-    // Register Group resource type
-    let group_schema = schema_registry.get_group_schema();
-    let group_handler = create_group_resource_handler(group_schema.clone());
-    server.register_resource_type(
-        "Group",
-        group_handler,
-        vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Update,
-            ScimOperation::Delete,
-            ScimOperation::List,
-            ScimOperation::Search,
-        ],
-    )?;
-    
-    println!("✅ SCIM Server initialized successfully!");
-    
-    // Create request context
-    let context = RequestContext::with_generated_id();
-    
-    // Create a user
-    let user_data = json!({
-        "userName": "alice@example.com",
-        "name": {
-            "formatted": "Alice Smith",
-            "familyName": "Smith",
-            "givenName": "Alice"
-        },
-        "displayName": "Alice Smith",
-        "emails": [
-            {
-                "value": "alice@example.com",
-                "type": "work",
-                "primary": true
-            }
-        ],
-        "active": true
-    });
-    
-    let user = server.create_resource("User", user_data, &amp;context).await?;
-    let user_id = user.get_id().unwrap();
-    
-    println!("✅ Created user: {} (ID: {})", 
-             user.get_username().unwrap_or("unknown"), user_id);
-    
-    // Create a group
-    let group_data = json!({
-        "displayName": "Engineering Team",
-        "members": [
-            {
-                "value": user_id,
-                "display": "Alice Smith",
-                "type": "User"
-            }
-        ]
-    });
-    
-    let group = server.create_resource("Group", group_data, &amp;context).await?;
-    
-    println!("✅ Created group: {} (ID: {})", 
-             group.get_name().map(|n| n.formatted.unwrap_or_default()).unwrap_or("unknown".to_string()),
-             group.get_id().unwrap_or("unknown"));
-    
-    // List resources
-    let users = server.list_resources("User", None, &amp;context).await?;
-    let groups = server.list_resources("Group", None, &amp;context).await?;
-    
-    println!("📊 Total: {} users, {} groups", users.len(), groups.len());
-    
-    println!("🎉 SCIM Server example completed successfully!");
-    
-    Ok(())
-}</code></pre></pre>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li><strong><a href="../http/overview.html">HTTP Server Integration</a></strong> - Add REST endpoints with Axum or Actix</li>
+<li><strong><a href="../multi-tenant/basics.html">Multi-tenant Setup</a></strong> - Advanced tenant isolation and management</li>
+<li><strong><a href="../advanced/overview.html">Advanced Features</a></strong> - Groups, custom schemas, bulk operations</li>
+<li><strong><a href="../storage/overview.html">Storage Backends</a></strong> - PostgreSQL, SQLite, and custom storage</li>
+</ul>
+<h2 id="complete-examples"><a class="header" href="#complete-examples">Complete Examples</a></h2>
+<p>See the <a href="../../../../examples/">examples directory</a> for full working implementations:</p>
+<ul>
+<li><strong><a href="../../../../examples/basic_usage.rs">basic_usage.rs</a></strong> - Complete CRUD operations</li>
+<li><strong><a href="../../../../examples/group_example.rs">group_example.rs</a></strong> - Group management with members</li>
+<li><strong><a href="../../../../examples/multi_tenant_example.rs">multi_tenant_example.rs</a></strong> - Tenant isolation patterns</li>
+</ul>
+<h2 id="running-examples"><a class="header" href="#running-examples">Running Examples</a></h2>
+<pre><code class="language-bash"># Run any example to see it in action
+cargo run --example basic_usage
+cargo run --example group_example
+</code></pre>
+<h2 id="key-concepts"><a class="header" href="#key-concepts">Key Concepts</a></h2>
+<ul>
+<li><strong><code>StandardResourceProvider</code></strong> - Main interface for SCIM operations</li>
+<li><strong><code>InMemoryStorage</code></strong> - Simple storage backend for development</li>
+<li><strong><code>RequestContext</code></strong> - Request tracking and tenant isolation</li>
+<li><strong>Resource Types</strong> - "User", "Group", or custom types</li>
+<li><strong>JSON Data</strong> - All resource data uses <code>serde_json::Value</code></li>
+</ul>
+<p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for most SCIM implementations.</p>
 
                     </main>
 
@@ -638,6 +424,9 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
+                            <a rel="next prefetch" href="../architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -649,6 +438,9 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                         <i class="fa fa-angle-left"></i>
                     </a>
 
+                    <a rel="next prefetch" href="../architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
             </nav>
 
         </div>

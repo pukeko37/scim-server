@@ -176,94 +176,65 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
-<p>This guide covers installing and setting up the SCIM Server library in your Rust project.</p>
+<p>This guide will get you up and running with the SCIM server library in under 5 minutes.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
-<p>Before you begin, ensure you have:</p>
 <ul>
 <li><strong>Rust 1.75 or later</strong> - <a href="https://rustup.rs/">Install Rust</a></li>
-<li><strong>Cargo</strong> - Comes with Rust installation</li>
-<li>Basic familiarity with Rust and async programming</li>
 </ul>
-<p>You can verify your Rust installation:</p>
+<p>To verify your installation:</p>
 <pre><code class="language-bash">rustc --version
 cargo --version
 </code></pre>
-<h2 id="adding-scim-server-to-your-project"><a class="header" href="#adding-scim-server-to-your-project">Adding SCIM Server to Your Project</a></h2>
-<h3 id="option-1-using-cargo-recommended"><a class="header" href="#option-1-using-cargo-recommended">Option 1: Using Cargo (Recommended)</a></h3>
-<p>Add SCIM Server to your <code>Cargo.toml</code> dependencies:</p>
+<h2 id="adding-the-dependency"><a class="header" href="#adding-the-dependency">Adding the Dependency</a></h2>
+<p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.3.7"
+scim-server = "=0.3.7"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
 <blockquote>
-<p><strong>⚠️ Version Pinning</strong>: Use flexible versioning (<code>0.3.7</code>) to get patch fixes automatically. For exact version control, use <code>=0.3.7</code>. See <a href="../reference/versioning.html">Version Strategy</a> for details.</p>
+<p><strong>Note</strong>: The library is under active development. Pin to exact versions for stability. Breaking changes are signaled by minor version increments until v1.0.</p>
 </blockquote>
-<h3 id="option-2-using-cargo-add-command"><a class="header" href="#option-2-using-cargo-add-command">Option 2: Using Cargo Add Command</a></h3>
-<pre><code class="language-bash">cargo add scim-server@0.3.7
-cargo add tokio --features full
-cargo add serde_json
-</code></pre>
-<h2 id="feature-flags"><a class="header" href="#feature-flags">Feature Flags</a></h2>
-<p>SCIM Server provides several optional features to reduce compile time and binary size:</p>
-<pre><code class="language-toml">[dependencies]
-scim-server = { version = "0.3.7", features = ["mcp"] }
-</code></pre>
-<p>Available features:</p>
-<div class="table-wrapper"><table><thead><tr><th>Feature</th><th>Description</th><th>Default</th></tr></thead><tbody>
-<tr><td><code>mcp</code></td><td>Model Context Protocol for AI integration (includes async-trait and rust-mcp-sdk)</td><td>❌</td></tr>
-<tr><td><code>async-trait</code></td><td>Async trait support (included with mcp)</td><td>❌</td></tr>
-<tr><td><code>rust-mcp-sdk</code></td><td>MCP SDK dependency (included with mcp)</td><td>❌</td></tr>
-</tbody></table>
-</div>
-<p>Note: Only the <code>mcp</code> feature is currently available. This enables AI integration capabilities through the Model Context Protocol.</p>
-<h2 id="development-dependencies"><a class="header" href="#development-dependencies">Development Dependencies</a></h2>
-<p>For development and testing, you may want additional dependencies:</p>
-<pre><code class="language-toml">[dev-dependencies]
-tokio-test = "0.4"
-serde_json = "1.0"
-uuid = { version = "1.0", features = ["v4"] }
-</code></pre>
 <h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
-<p>Create a simple test to verify your installation:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use scim_server::{
-    StandardResourceProvider,
-    InMemoryStorage,
-    RequestContext,
-    ResourceProvider,  // Required trait for create_resource method
+<p>Create a simple test to verify the installation works:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{
+    ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage,
+    RequestContext
 };
 use serde_json::json;
 
-#[tokio::test]
-async fn test_installation() {
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
+    let server = ScimServer::new(provider)?;
     let context = RequestContext::new("test".to_string());
-    
-    // Test creating a simple resource
+
     let user_data = json!({
-        "userName": "test.user",
-        "emails": [{"value": "test@example.com", "primary": true}]
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "john.doe",
+        "active": true
     });
-    
-    let user = provider.create_resource("User", user_data, &amp;context).await.unwrap();
-    
-    // If this compiles and runs, installation is successful!
-    println!("SCIM Server installed successfully!");
-    println!("Created test user: {}", user.get_username().unwrap_or("unknown"));
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Run the test:</p>
-<pre><code class="language-bash">cargo test test_installation
+
+    let user = server.create_resource("User", user_data, &amp;context).await?;
+    let retrieved = server.get_resource("User", user.get_id().unwrap(), &amp;context).await?;
+
+    assert_eq!(retrieved.get_attribute("active").unwrap(), &amp;json!(true));
+
+    Ok(())
+}</code></pre></pre>
+<p>Run with:</p>
+<pre><code class="language-bash">cargo run
 </code></pre>
+<p>If this runs without errors, your installation is working correctly!</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<p>Now that you have SCIM Server installed, you're ready to:</p>
-<ol>
-<li><strong><a href="./first-server.html">Create Your First Server</a></strong> - Build a basic SCIM server</li>
-<li><strong><a href="./basic-operations.html">Learn Basic Operations</a></strong> - Understand CRUD operations</li>
-</ol>
+<p>Once installation is complete, proceed to:</p>
+<ul>
+<li><a href="./first-server.html">Your First SCIM Server</a> - Build a complete working implementation</li>
+<li><a href="../configuration/basic-config.html">Configuration Guide</a> - Learn about storage backends and advanced setup</li>
+<li><a href="../api/overview.html">API Reference</a> - Explore all available operations</li>
+</ul>
+<p>For production deployments, see the <a href="../deployment/production.html">Production Setup Guide</a> for information about system requirements, databases, and scaling considerations.</p>
 
                     </main>
 
