@@ -9,10 +9,10 @@
 
 # User Guide
 
-# Advanced
+- [Architecture Overview](./architecture.md)
+
+# Advanced Topics
 
 # Examples
 
 # Reference
-
-
