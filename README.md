@@ -10,9 +10,9 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **⚠️ Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.3.7"`. Breaking changes are signaled by minor version increments until v1.0.
+> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.3.7"`. Breaking changes are signaled by minor version increments until v1.0.
 
-## ⚡ Quick Start
+## Quick Start
 
 Add to your `Cargo.toml`:
 
@@ -49,17 +49,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## ✨ Key Features
+## Key Features
 
-- 🛡️ **Type-Safe by Design** - Leverage Rust's type system to prevent runtime errors
-- 🏢 **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants  
-- 📋 **Full SCIM 2.0 Compliance** - Complete implementation of RFC 7643 and RFC 7644
-- ⚡ **High Performance** - Async-first with minimal overhead
-- 🔌 **Framework Agnostic** - Works with Axum, Warp, Actix, or any HTTP framework
-- 🤖 **AI-Ready** - Built-in Model Context Protocol for AI tool integration
-- 🔄 **ETag Concurrency Control** - Prevents lost updates in multi-client scenarios
+- **Type-Safe by Design** - Leverage Rust's type system to prevent runtime errors
+- **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants  
+- **Full SCIM 2.0 Compliance** - Complete implementation of RFC 7643 and RFC 7644
+- **High Performance** - Async-first with minimal overhead
+- **Framework Agnostic** - Works with Axum, Warp, Actix, or any HTTP framework
+- **AI-Ready** - Built-in Model Context Protocol for AI tool integration
+- **ETag Concurrency Control** - Prevents lost updates in multi-client scenarios
 
-## 🏗️ How It Works
+## How It Works
 
 The SCIM Server acts as intelligent middleware that handles provisioning complexity:
 
@@ -69,14 +69,14 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 - **SCIM Server**: Validation, schema management, multi-tenancy, concurrency control
 - **Storage**: In-memory, database, cloud, or custom providers
 
-## 📚 Documentation
+## Documentation
 
 | Resource | Description |
 |----------|-------------|
-| 📖 **[User Guide](https://pukeko37.github.io/scim-server/)** | Comprehensive tutorials and concepts |
-| 🔧 **[API Documentation](https://docs.rs/scim-server)** | Detailed API reference with examples |
-| 💡 **[Examples](examples/)** | Copy-paste starting points for common use cases |
-| 📋 **[CHANGELOG](CHANGELOG.md)** | Version history and migration guides |
+| [User Guide](https://pukeko37.github.io/scim-server/) | Comprehensive tutorials and concepts |
+| [API Documentation](https://docs.rs/scim-server) | Detailed API reference with examples |
+| [Examples](examples/) | Copy-paste starting points for common use cases |
+| [CHANGELOG](CHANGELOG.md) | Version history and migration guides |
 
 ### Learning Path
 
@@ -85,7 +85,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 3. **See Examples**: Browse [examples/](examples/) for your use case
 4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server) for detailed API docs
 
-## 🚀 Common Use Cases
+## Common Use Cases
 
 ```rust
 // Multi-tenant server
@@ -110,11 +110,11 @@ See [examples/](examples/) for complete working examples including:
 - ETag concurrency control
 - AI assistant integration
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [User Guide](https://pukeko37.github.io/scim-server/) for development information, or [open an issue](https://github.com/pukeko37/scim-server/issues) to discuss your ideas.
 
-## 📄 License
+## License
 
 Licensed under the [MIT License](LICENSE).
 
