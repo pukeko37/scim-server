@@ -8,7 +8,7 @@
 #[cfg(feature = "mcp")]
 use scim_server::{
     ScimServer, mcp_integration::ScimMcpServer, multi_tenant::ScimOperation,
-    providers::InMemoryProvider, resource_handlers::create_user_resource_handler,
+    providers::StandardResourceProvider, storage::InMemoryStorage, resource_handlers::create_user_resource_handler,
 };
 #[cfg(feature = "mcp")]
 use serde_json::json;
@@ -23,7 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=======================================\n");
 
     // 1. Setup SCIM server with MCP integration
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut scim_server = ScimServer::new(provider)?;
 
     // Register User resource type

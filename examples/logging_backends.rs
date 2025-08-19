@@ -4,7 +4,10 @@
 //! with the SCIM server, showing the flexibility of the log facade approach.
 
 use scim_server::{
-    InMemoryProvider, RequestContext, ScimOperation, ScimServer, create_user_resource_handler,
+    RequestContext,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    resource::provider::ResourceProvider,
 };
 use serde_json::json;
 
@@ -18,25 +21,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📝 Setting up SCIM server...");
 
-    // Create provider and server
-    let provider = InMemoryProvider::new();
-    let mut server = ScimServer::new(provider)?;
+    // Create StandardResourceProvider with InMemoryStorage
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
-    // Register User resource type
-    let user_schema = server
-        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
-        .unwrap()
-        .clone();
-    let user_handler = create_user_resource_handler(user_schema);
-    server.register_resource_type(
-        "User",
-        user_handler,
-        vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Delete,
-        ],
-    )?;
+    // Create a request context for our operations
+    let context = RequestContext::new("logging-backends-example".to_string());
 
     println!("✅ SCIM server configured\n");
 
@@ -70,11 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // This will produce env_logger output
-    let user = server.create_resource("User", user_data, &context).await?;
+    let user = provider.create_resource("User", user_data, &context).await?;
     let user_id = user.get_id().unwrap();
 
-    let _retrieved = server.get_resource("User", &user_id, &context).await?;
-    server.delete_resource("User", &user_id, &context).await?;
+    let _retrieved = provider.get_resource("User", user_id, &context).await?;
+    provider.delete_resource("User", user_id, &context).await?;
 
     println!("\n{}", "=".repeat(50));
 

@@ -5,7 +5,7 @@
 //! preferred logging backend (env_logger, tracing, slog, etc.).
 
 use scim_server::{
-    InMemoryProvider, RequestContext, ScimOperation, ScimServer, TenantContext,
+    providers::StandardResourceProvider, storage::InMemoryStorage, RequestContext, ScimOperation, ScimServer, TenantContext,
     create_user_resource_handler,
 };
 use serde_json::json;
@@ -33,7 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("========================================");
 
     // Create provider and server
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider)?;
 
     // Register User resource type

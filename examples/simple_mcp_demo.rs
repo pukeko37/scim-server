@@ -8,7 +8,8 @@ use scim_server::{
     ScimServer,
     mcp_integration::{McpServerInfo, ScimMcpServer},
     multi_tenant::ScimOperation,
-    providers::InMemoryProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource_handlers::create_user_resource_handler,
 };
 
@@ -25,7 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("========================\n");
 
     // 1. Create a basic SCIM server
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut scim_server = ScimServer::new(provider)?;
 
     // 2. Register User resource type

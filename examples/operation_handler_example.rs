@@ -8,7 +8,8 @@ use scim_server::{
     ScimServer,
     multi_tenant::ScimOperation,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
-    providers::InMemoryProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
     resource::TenantContext,
     resource_handlers::create_user_resource_handler,
 };
@@ -23,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================\n");
 
     // 1. Create the provider and server
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider)?;
 
     // 2. Register User resource type

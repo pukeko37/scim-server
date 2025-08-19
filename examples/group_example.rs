@@ -9,179 +9,29 @@
 //! Run with: cargo run --example group_example
 
 use scim_server::{
-    Resource,
-    resource::{ListQuery, RequestContext, ResourceProvider, ScimOperation},
+    RequestContext,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
+    resource::provider::ResourceProvider,
     resource_handlers::create_group_resource_handler,
     schema::SchemaRegistry,
     scim_server::ScimServer,
 };
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-/// Simple in-memory resource provider for demonstration
-#[derive(Debug)]
-struct InMemoryProvider {
-    resources: Arc<Mutex<HashMap<String, HashMap<String, Resource>>>>,
-}
-
-impl InMemoryProvider {
-    fn new() -> Self {
-        Self {
-            resources: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ProviderError(String);
-
-impl std::fmt::Display for ProviderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Provider error: {}", self.0)
-    }
-}
-
-impl std::error::Error for ProviderError {}
-
-impl ResourceProvider for InMemoryProvider {
-    type Error = ProviderError;
-
-    async fn create_resource(
-        &self,
-        resource_type: &str,
-        data: Value,
-        _context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
-        let id = format!("{}-{}", resource_type.to_lowercase(), uuid::Uuid::new_v4());
-        let mut resource_data = data;
-        resource_data["id"] = json!(id);
-
-        let resource = Resource::from_json(resource_type.to_string(), resource_data)
-            .map_err(|e| ProviderError(format!("Failed to create resource: {}", e)))?;
-
-        let mut resources = self.resources.lock().unwrap();
-        let type_resources = resources
-            .entry(resource_type.to_string())
-            .or_insert_with(HashMap::new);
-        type_resources.insert(id.clone(), resource.clone());
-
-        Ok(resource)
-    }
-
-    async fn get_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        _context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
-        let resources = self.resources.lock().unwrap();
-        if let Some(type_resources) = resources.get(resource_type) {
-            Ok(type_resources.get(id).cloned())
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn update_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        data: Value,
-        _context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
-        let mut resource_data = data;
-        resource_data["id"] = json!(id);
-
-        let resource = Resource::from_json(resource_type.to_string(), resource_data)
-            .map_err(|e| ProviderError(format!("Failed to update resource: {}", e)))?;
-
-        let mut resources = self.resources.lock().unwrap();
-        let type_resources = resources
-            .entry(resource_type.to_string())
-            .or_insert_with(HashMap::new);
-        type_resources.insert(id.to_string(), resource.clone());
-
-        Ok(resource)
-    }
-
-    async fn delete_resource(
-        &self,
-        resource_type: &str,
-        id: &str,
-        _context: &RequestContext,
-    ) -> Result<(), Self::Error> {
-        let mut resources = self.resources.lock().unwrap();
-        if let Some(type_resources) = resources.get_mut(resource_type) {
-            type_resources.remove(id);
-        }
-        Ok(())
-    }
-
-    async fn list_resources(
-        &self,
-        resource_type: &str,
-        _query: Option<&ListQuery>,
-        _context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error> {
-        let resources = self.resources.lock().unwrap();
-        if let Some(type_resources) = resources.get(resource_type) {
-            Ok(type_resources.values().cloned().collect())
-        } else {
-            Ok(Vec::new())
-        }
-    }
-
-    async fn find_resource_by_attribute(
-        &self,
-        resource_type: &str,
-        attribute: &str,
-        value: &Value,
-        _context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
-        let resources = self.resources.lock().unwrap();
-        if let Some(type_resources) = resources.get(resource_type) {
-            let matching = type_resources
-                .values()
-                .find(|resource| {
-                    if let Some(attr_value) = resource.get_attribute(attribute) {
-                        attr_value == value
-                    } else {
-                        false
-                    }
-                })
-                .cloned();
-            Ok(matching)
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn resource_exists(
-        &self,
-        resource_type: &str,
-        id: &str,
-        _context: &RequestContext,
-    ) -> Result<bool, Self::Error> {
-        let resources = self.resources.lock().unwrap();
-        if let Some(type_resources) = resources.get(resource_type) {
-            Ok(type_resources.contains_key(id))
-        } else {
-            Ok(false)
-        }
-    }
-}
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 SCIM Server Group Example");
     println!("=============================\n");
 
-    // 1. Create provider and server
-    let provider = InMemoryProvider::new();
+    // 1. Create StandardResourceProvider with InMemoryStorage
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    // 2. Create ScimServer
     let mut server = ScimServer::new(provider)?;
 
-    // 2. Load Group schema and register Group resource type
+    // 3. Load Group schema and register Group resource type
     let registry = SchemaRegistry::new()?;
     let group_schema = registry.get_group_schema().clone();
     let group_handler = create_group_resource_handler(group_schema);
@@ -190,21 +40,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Group",
         group_handler,
         vec![
-            ScimOperation::Create,
-            ScimOperation::Read,
-            ScimOperation::Update,
-            ScimOperation::Delete,
-            ScimOperation::List,
-            ScimOperation::Search,
+            scim_server::multi_tenant::ScimOperation::Create,
+            scim_server::multi_tenant::ScimOperation::Read,
+            scim_server::multi_tenant::ScimOperation::Update,
+            scim_server::multi_tenant::ScimOperation::Delete,
+            scim_server::multi_tenant::ScimOperation::List,
+            scim_server::multi_tenant::ScimOperation::Search,
         ],
     )?;
 
     println!("✅ Group resource type registered successfully");
 
-    // 3. Create test context
+    // 4. Create test context
     let context = RequestContext::new("group-example".to_string());
 
-    // 4. Demonstrate Group creation
+    // 5. Demonstrate Group creation
     println!("\n📝 Creating Groups...");
 
     let engineering_group = json!({
@@ -229,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Created Engineering Team: {}",
-        created_engineering.get_id().unwrap()
+        created_engineering.get_id().unwrap_or("unknown")
     );
 
     let marketing_group = json!({
@@ -249,10 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Created Marketing Team: {}",
-        created_marketing.get_id().unwrap()
+        created_marketing.get_id().unwrap_or("unknown")
     );
 
-    // 5. Demonstrate Group retrieval
+    // 6. Demonstrate Group retrieval
     println!("\n🔍 Retrieving Groups...");
 
     let engineering_id = created_engineering.get_id().unwrap();
@@ -261,23 +111,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     if let Some(group) = retrieved_group {
+        let display_name = group
+            .get_attribute("displayName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+
+        let member_count = group
+            .get_attribute("members")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.len())
+            .unwrap_or(0);
+
         println!(
             "✅ Retrieved group: {} with {} members",
-            group
-                .get_attribute("displayName")
-                .unwrap()
-                .as_str()
-                .unwrap(),
-            group
-                .get_attribute("members")
-                .unwrap()
-                .as_array()
-                .unwrap()
-                .len()
+            display_name,
+            member_count
         );
     }
 
-    // 6. Demonstrate Group listing
+    // 7. Demonstrate Group listing
     println!("\n📋 Listing all Groups...");
 
     let all_groups = server.list_resources("Group", &context).await?;
@@ -286,21 +138,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for group in &all_groups {
         let display_name = group
             .get_attribute("displayName")
-            .unwrap()
-            .as_str()
-            .unwrap();
-        let member_count = group
-            .get_attribute("members")
-            .map(|m| m.as_array().map(|a| a.len()).unwrap_or(0))
-            .unwrap_or(0);
-        println!("   • {} ({} members)", display_name, member_count);
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+
+        let id = group.get_id().unwrap_or("unknown");
+        println!("   📁 {}: {}", display_name, id);
     }
 
-    // 7. Demonstrate Group member addition (update)
-    println!("\n✏️  Updating Group membership...");
+    // 8. Demonstrate Group membership updates
+    println!("\n👥 Updating Group membership...");
 
-    let updated_engineering = json!({
-        "displayName": "Engineering Team",
+    let engineering_id = created_engineering.get_id().unwrap();
+    let updated_engineering_data = json!({
+        "id": engineering_id,
+        "displayName": "Engineering Team (Updated)",
         "members": [
             {
                 "value": "user-alice",
@@ -321,124 +172,131 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let updated_group = server
-        .update_resource("Group", &engineering_id, updated_engineering, &context)
+        .update_resource("Group", &engineering_id, updated_engineering_data, &context)
         .await?;
 
+    let updated_display_name = updated_group
+        .get_attribute("displayName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Unknown");
+
+    let updated_member_count = updated_group
+        .get_attribute("members")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or(0);
+
     println!(
-        "✅ Updated Engineering Team: now has {} members",
-        updated_group
-            .get_attribute("members")
-            .unwrap()
-            .as_array()
-            .unwrap()
-            .len()
+        "✅ Updated group: {} now has {} members",
+        updated_display_name,
+        updated_member_count
     );
 
-    // 8. Demonstrate nested group membership
-    println!("\n🎯 Creating nested Groups...");
+    // 9. Demonstrate Group member listing
+    println!("\n👤 Group members details...");
 
-    let management_group = json!({
-        "displayName": "Management",
-        "members": [
-            {
-                "value": &engineering_id,
-                "$ref": format!("https://example.com/v2/Groups/{}", engineering_id),
-                "type": "Group"
-            },
-            {
-                "value": created_marketing.get_id().unwrap(),
-                "$ref": format!("https://example.com/v2/Groups/{}", created_marketing.get_id().unwrap()),
-                "type": "Group"
+    if let Some(members) = updated_group.get_attribute("members").and_then(|v| v.as_array()) {
+        println!("📋 Members of {}:", updated_display_name);
+        for member in members {
+            if let Some(member_obj) = member.as_object() {
+                let user_id = member_obj.get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let user_type = member_obj.get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let user_ref = member_obj.get("$ref")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("no reference");
+
+                println!("   👤 {} ({}): {}", user_id, user_type, user_ref);
             }
-        ]
-    });
-
-    let created_management = server
-        .create_resource("Group", management_group, &context)
-        .await?;
-
-    println!(
-        "✅ Created Management group with nested groups: {}",
-        created_management.get_id().unwrap()
-    );
-
-    // 9. Demonstrate Group search
-    println!("\n🔎 Searching for Groups...");
-
-    let search_result = server
-        .find_resource_by_attribute("Group", "displayName", &json!("Engineering Team"), &context)
-        .await?;
-
-    match search_result {
-        Some(group) => println!(
-            "✅ Found group matching 'Engineering Team': {}",
-            group.get_id().unwrap()
-        ),
-        None => println!("❌ No groups found matching 'Engineering Team'"),
+        }
     }
 
-    // 10. Demonstrate schema validation
-    println!("\n🛡️  Testing Group validation...");
+    // 10. Demonstrate Group search by display name
+    println!("\n🔍 Searching Groups by display name...");
 
-    // Test invalid group (this should fail validation)
+    let found_group = server
+        .provider()
+        .find_resource_by_attribute(
+            "Group",
+            "displayName",
+            &json!("Marketing Team"),
+            &context
+        )
+        .await?;
+
+    match found_group {
+        Some(group) => {
+            let display_name = group
+                .get_attribute("displayName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
+            let id = group.get_id().unwrap_or("unknown");
+            println!("✅ Found group by display name: {} (ID: {})", display_name, id);
+        }
+        None => println!("❌ Group not found by display name"),
+    }
+
+    // 11. Demonstrate Group validation
+    println!("\n🔍 Group schema validation...");
+
     let invalid_group = json!({
-        "displayName": "Invalid Group",
-        "members": [
-            {
-                "value": "user-eve",
-                "$ref": "https://example.com/v2/Users/user-eve",
-                "type": "InvalidType"  // Invalid member type
-            }
-        ]
+        "displayName": "", // Invalid: empty display name
+        "members": "not-an-array" // Invalid: should be an array
     });
 
-    match server
-        .create_resource("Group", invalid_group, &context)
-        .await
-    {
-        Ok(_) => println!("⚠️  Invalid group was unexpectedly accepted"),
-        Err(e) => println!("✅ Validation correctly rejected invalid group: {}", e),
+    match server.create_resource("Group", invalid_group, &context).await {
+        Ok(_) => println!("⚠️  Validation should have failed"),
+        Err(e) => println!("✅ Validation correctly failed: {}", e),
     }
 
-    // 11. Demonstrate Group deletion
-    println!("\n🗑️  Cleaning up Groups...");
-
-    let management_id = created_management.get_id().unwrap();
-    server
-        .delete_resource("Group", &management_id, &context)
-        .await?;
-    println!("✅ Deleted Management group");
-
-    server
-        .delete_resource("Group", &engineering_id, &context)
-        .await?;
-    println!("✅ Deleted Engineering Team");
+    // 12. Test resource existence
+    println!("\n🔍 Testing resource existence...");
 
     let marketing_id = created_marketing.get_id().unwrap();
-    server
-        .delete_resource("Group", &marketing_id, &context)
+    let exists = server
+        .provider()
+        .resource_exists("Group", &marketing_id, &context)
         .await?;
+    println!("✅ Marketing group exists: {}", exists);
+
+    // 13. Demonstrate Group deletion
+    println!("\n🗑️  Deleting Groups...");
+
+    server.delete_resource("Group", &marketing_id, &context).await?;
     println!("✅ Deleted Marketing Team");
 
-    // 12. Final verification
-    let final_groups = server.list_resources("Group", &context).await?;
-    println!(
-        "\n📊 Final verification: {} groups remaining",
-        final_groups.len()
-    );
+    // Verify deletion
+    let exists_after = server
+        .provider()
+        .resource_exists("Group", &marketing_id, &context)
+        .await?;
+    println!("✅ Marketing group exists after deletion: {}", exists_after);
 
-    println!("\n🎉 Group example completed successfully!");
-    println!("\nThis example demonstrated:");
-    println!("   ✅ Group schema loading and validation");
-    println!("   ✅ Group resource registration");
-    println!("   ✅ Creating Groups with members");
-    println!("   ✅ Retrieving individual Groups");
-    println!("   ✅ Listing all Groups");
-    println!("   ✅ Updating Group membership");
-    println!("   ✅ Nested Group membership (Groups containing Groups)");
-    println!("   ✅ Searching Groups by attribute");
-    println!("   ✅ Schema validation for invalid Groups");
-    println!("   ✅ Deleting Groups");
+    // List remaining groups
+    let remaining_groups = server.list_resources("Group", &context).await?;
+    println!("📊 Groups remaining: {}", remaining_groups.len());
+
+    // 14. Provider statistics
+    println!("\n📊 Provider Statistics...");
+
+    let stats = server.provider().get_stats().await;
+    println!("📈 Provider Statistics:");
+    println!("   • Total tenants: {}", stats.tenant_count);
+    println!("   • Total resources: {}", stats.total_resources);
+    println!("   • Resource types: {:?}", stats.resource_types);
+    println!("   • Resource type count: {}", stats.resource_type_count);
+
+    println!("\n✅ Group Example Complete!");
+    println!("🎉 Successfully demonstrated:");
+    println!("   • Group creation with StandardResourceProvider and InMemoryStorage");
+    println!("   • Group retrieval and listing");
+    println!("   • Group membership management");
+    println!("   • Group search and validation");
+    println!("   • Group deletion and resource existence checks");
+    println!("   • Provider statistics");
 
     Ok(())
 }
