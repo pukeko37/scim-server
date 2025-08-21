@@ -218,11 +218,16 @@ impl ConsumedCredential {
 pub enum AuthenticationResult {
     /// Authentication succeeded with witness
     Success {
+        /// Proof of successful authentication
         witness: AuthenticationWitness,
+        /// The credential that was consumed during authentication
         consumed: ConsumedCredential,
     },
     /// Authentication failed
-    Failed { consumed: ConsumedCredential },
+    Failed {
+        /// The credential that was consumed during failed authentication
+        consumed: ConsumedCredential
+    },
 }
 
 /// Request context that can only be created with authentication proof
@@ -364,15 +369,19 @@ impl Default for AuthenticationValidator {
 #[derive(Debug, thiserror::Error)]
 pub enum AuthenticationError {
     #[error("Invalid credential provided")]
+    /// The provided credential is invalid or malformed
     InvalidCredential,
     #[error("Credential has been revoked")]
+    /// The credential has been revoked and is no longer valid
     CredentialRevoked,
     #[error("Authentication system unavailable")]
+    /// The authentication system is temporarily unavailable
     SystemUnavailable,
 }
 
 /// Type-safe authentication traits for providers
 pub trait AuthenticatedProvider {
+    /// Error type returned by authenticated operations
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// List resources with authenticated context (compile-time guaranteed)

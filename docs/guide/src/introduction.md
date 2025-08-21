@@ -79,13 +79,11 @@ The guide is organized into progressive sections:
 
 ### Learning Path
 
-**New to SCIM?** Start with [SCIM Protocol Overview](./concepts/scim-protocol.md) to understand the standard.
+**New to SCIM?** Start with the [Architecture Overview](./architecture.md) to understand the standard.
 
 **Ready to code?** Jump to [Your First SCIM Server](./getting-started/first-server.md) for hands-on experience.
 
-**Building production systems?** Read through [Core Concepts](./concepts/architecture.md) and [Advanced Topics](./advanced/production-deployment.md).
-
-**Solving specific problems?** Use the [How-To Guides](./how-to/troubleshooting.md) section.
+**Building production systems?** Read through [Installation](./getting-started/installation.md) and the examples in the GitHub repository.
 
 ## What You'll Learn
 

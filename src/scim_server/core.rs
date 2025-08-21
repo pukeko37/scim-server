@@ -14,7 +14,31 @@ use crate::schema_discovery::ServiceProviderConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Completely dynamic SCIM server with no hard-coded resource types
+/// Dynamic SCIM server for handling SCIM protocol operations.
+///
+/// The server coordinates between storage providers and SCIM protocol requirements,
+/// handling schema validation, resource lifecycle, and multi-tenant isolation.
+/// Resource types are registered at runtime, allowing for flexible configurations.
+///
+/// # Type Parameters
+///
+/// * `P` - The resource provider type that implements [`ResourceProvider`]
+///
+/// # Examples
+///
+/// ```rust
+/// use scim_server::{ScimServer, providers::InMemoryProvider};
+/// use scim_server::resource::ScimOperation;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let provider = InMemoryProvider::new();
+/// let mut server = ScimServer::new(provider)?;
+///
+/// // Register resource types dynamically
+/// // server.register_resource_type("User", handler, vec![ScimOperation::Create])?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct ScimServer<P> {
     pub(super) provider: P,
     pub(super) schema_registry: SchemaRegistry,
@@ -23,7 +47,20 @@ pub struct ScimServer<P> {
 }
 
 impl<P: ResourceProvider> ScimServer<P> {
-    /// Create a new SCIM server
+    /// Creates a new SCIM server with the given resource provider.
+    ///
+    /// Initializes the server with a schema registry containing standard SCIM schemas.
+    /// Resource types must be registered separately using [`register_resource_type`].
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - The resource provider for storage operations
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ScimError::Internal`] if the schema registry cannot be initialized.
+    ///
+    /// [`register_resource_type`]: Self::register_resource_type
     pub fn new(provider: P) -> Result<Self, ScimError> {
         let schema_registry = SchemaRegistry::new()
             .map_err(|e| ScimError::internal(format!("Failed to create schema registry: {}", e)))?;

@@ -23,28 +23,44 @@ pub enum ScimError {
 
     /// Resource not found errors
     #[error("Resource not found: {resource_type} with ID {id}")]
-    ResourceNotFound { resource_type: String, id: String },
+    ResourceNotFound {
+        /// The type of resource that was not found
+        resource_type: String,
+        /// The ID of the resource that was not found
+        id: String
+    },
 
     /// Schema not found errors
     #[error("Schema not found: {schema_id}")]
-    SchemaNotFound { schema_id: String },
+    SchemaNotFound {
+        /// The ID of the schema that was not found
+        schema_id: String
+    },
 
     /// Internal server errors
     #[error("Internal server error: {message}")]
-    Internal { message: String },
+    Internal {
+        /// Description of the internal error
+        message: String
+    },
 
     /// Invalid request format or parameters
     #[error("Invalid request: {message}")]
-    InvalidRequest { message: String },
+    InvalidRequest {
+        /// Description of what makes the request invalid
+        message: String
+    },
 
     /// Unsupported resource type
     #[error("Unsupported resource type: {0}")]
     UnsupportedResourceType(String),
 
     /// Unsupported operation for resource type
-    #[error("Unsupported operation '{operation}' for resource type '{resource_type}'")]
+    #[error("Unsupported operation {operation} for resource type {resource_type}")]
     UnsupportedOperation {
+        /// The resource type for which the operation is unsupported
         resource_type: String,
+        /// The operation that is not supported
         operation: String,
     },
 
@@ -69,53 +85,78 @@ pub enum ScimError {
 pub enum ValidationError {
     /// Required attribute is missing
     #[error("Required attribute '{attribute}' is missing")]
-    MissingRequiredAttribute { attribute: String },
+    MissingRequiredAttribute {
+        /// The name of the missing required attribute
+        attribute: String
+    },
 
     /// Attribute value doesn't match expected type
     #[error("Attribute '{attribute}' has invalid type, expected {expected}, got {actual}")]
     InvalidAttributeType {
+        /// The name of the attribute with invalid type
         attribute: String,
+        /// The expected type for this attribute
         expected: String,
+        /// The actual type that was provided
         actual: String,
     },
 
     /// Multi-valued attribute provided as single value
     #[error("Attribute '{attribute}' must be multi-valued (array)")]
-    ExpectedMultiValue { attribute: String },
+    ExpectedMultiValue {
+        /// The name of the attribute that should be multi-valued
+        attribute: String
+    },
 
     /// Single-valued attribute provided as array
     #[error("Attribute '{attribute}' must be single-valued (not array)")]
-    ExpectedSingleValue { attribute: String },
+    ExpectedSingleValue {
+        /// The name of the attribute that should be single-valued
+        attribute: String
+    },
 
     /// Attribute value violates uniqueness constraint
     #[error("Attribute '{attribute}' violates uniqueness constraint")]
-    UniquenesViolation { attribute: String },
+    UniquenesViolation {
+        /// The name of the attribute that violates uniqueness
+        attribute: String
+    },
 
     /// Invalid value for attribute with canonical values
     #[error("Attribute '{attribute}' has invalid value '{value}', allowed values: {allowed:?}")]
     InvalidCanonicalValue {
+        /// The name of the attribute with invalid canonical value
         attribute: String,
+        /// The invalid value that was provided
         value: String,
+        /// The list of allowed canonical values
         allowed: Vec<String>,
     },
 
     /// Complex attribute missing required sub-attributes
     #[error("Complex attribute '{attribute}' missing required sub-attribute '{sub_attribute}'")]
     MissingSubAttribute {
+        /// The name of the complex attribute
         attribute: String,
+        /// The name of the missing required sub-attribute
         sub_attribute: String,
     },
 
     /// Unknown attribute in resource
     #[error("Unknown attribute '{attribute}' in schema '{schema_id}'")]
     UnknownAttribute {
+        /// The name of the unknown attribute
         attribute: String,
+        /// The ID of the schema where the attribute was not found
         schema_id: String,
     },
 
     /// General validation error with custom message
     #[error("Validation failed: {message}")]
-    Custom { message: String },
+    Custom {
+        /// Custom validation error message
+        message: String
+    },
 
     /// Missing schemas attribute
     #[error("Missing required 'schemas' attribute")]
@@ -127,15 +168,24 @@ pub enum ValidationError {
 
     /// Invalid schema URI format
     #[error("Invalid schema URI format: {uri}")]
-    InvalidSchemaUri { uri: String },
+    InvalidSchemaUri {
+        /// The invalid schema URI
+        uri: String
+    },
 
     /// Unknown schema URI
     #[error("Unknown schema URI: {uri}")]
-    UnknownSchemaUri { uri: String },
+    UnknownSchemaUri {
+        /// The unknown schema URI
+        uri: String
+    },
 
     /// Duplicate schema URI
     #[error("Duplicate schema URI: {uri}")]
-    DuplicateSchemaUri { uri: String },
+    DuplicateSchemaUri {
+        /// The duplicated schema URI
+        uri: String
+    },
 
     /// Missing base schema
     #[error("Missing base schema for resource type")]
@@ -159,7 +209,10 @@ pub enum ValidationError {
 
     /// Invalid id format
     #[error("Invalid 'id' format: {id}")]
-    InvalidIdFormat { id: String },
+    InvalidIdFormat {
+        /// The invalid ID value that was provided
+        id: String
+    },
 
     /// Client provided id in creation
     #[error("Client cannot provide 'id' during resource creation")]
@@ -179,7 +232,10 @@ pub enum ValidationError {
 
     /// Invalid meta resource type
     #[error("Invalid 'meta.resourceType': {resource_type}")]
-    InvalidResourceType { resource_type: String },
+    InvalidResourceType {
+        /// The invalid resource type value
+        resource_type: String
+    },
 
     /// Client provided meta
     #[error("Client cannot provide read-only meta attributes")]
@@ -204,71 +260,132 @@ pub enum ValidationError {
     /// Invalid data type for attribute
     #[error("Attribute '{attribute}' has invalid type, expected {expected}, got {actual}")]
     InvalidDataType {
+        /// The name of the attribute with invalid data type
         attribute: String,
+        /// The expected data type
         expected: String,
+        /// The actual data type that was provided
         actual: String,
     },
 
     /// Invalid string format
     #[error("Attribute '{attribute}' has invalid string format: {details}")]
-    InvalidStringFormat { attribute: String, details: String },
+    InvalidStringFormat {
+        /// The name of the attribute with invalid string format
+        attribute: String,
+        /// Details about what makes the format invalid
+        details: String
+    },
 
     /// Invalid boolean value
     #[error("Attribute '{attribute}' has invalid boolean value: {value}")]
-    InvalidBooleanValue { attribute: String, value: String },
+    InvalidBooleanValue {
+        /// The name of the attribute with invalid boolean value
+        attribute: String,
+        /// The invalid boolean value that was provided
+        value: String
+    },
 
     /// Invalid decimal format
     #[error("Attribute '{attribute}' has invalid decimal format: {value}")]
-    InvalidDecimalFormat { attribute: String, value: String },
+    InvalidDecimalFormat {
+        /// The name of the attribute with invalid decimal format
+        attribute: String,
+        /// The invalid decimal value that was provided
+        value: String
+    },
 
     /// Invalid integer value
     #[error("Attribute '{attribute}' has invalid integer value: {value}")]
-    InvalidIntegerValue { attribute: String, value: String },
+    InvalidIntegerValue {
+        /// The name of the attribute with invalid integer value
+        attribute: String,
+        /// The invalid integer value that was provided
+        value: String
+    },
 
     /// Invalid datetime format
     #[error("Attribute '{attribute}' has invalid datetime format: {value}")]
-    InvalidDateTimeFormat { attribute: String, value: String },
+    InvalidDateTimeFormat {
+        /// The name of the attribute with invalid datetime format
+        attribute: String,
+        /// The invalid datetime value that was provided
+        value: String
+    },
 
     /// Invalid binary data
     #[error("Attribute '{attribute}' has invalid binary data: {details}")]
-    InvalidBinaryData { attribute: String, details: String },
+    InvalidBinaryData {
+        /// The name of the attribute with invalid binary data
+        attribute: String,
+        /// Details about what makes the binary data invalid
+        details: String
+    },
 
     /// Invalid reference URI
     #[error("Attribute '{attribute}' has invalid reference URI: {uri}")]
-    InvalidReferenceUri { attribute: String, uri: String },
+    InvalidReferenceUri {
+        /// The name of the attribute with invalid reference URI
+        attribute: String,
+        /// The invalid URI value that was provided
+        uri: String
+    },
 
     /// Invalid reference type
     #[error("Attribute '{attribute}' has invalid reference type: {ref_type}")]
-    InvalidReferenceType { attribute: String, ref_type: String },
+    InvalidReferenceType {
+        /// The name of the attribute with invalid reference type
+        attribute: String,
+        /// The invalid reference type that was provided
+        ref_type: String
+    },
 
     /// Broken reference
     #[error("Attribute '{attribute}' contains broken reference: {reference}")]
     BrokenReference {
+        /// The name of the attribute with broken reference
         attribute: String,
+        /// The broken reference value
         reference: String,
     },
 
     // Multi-valued Attribute Validation Errors (33-38)
     /// Single value provided for multi-valued attribute
     #[error("Attribute '{attribute}' must be multi-valued (array)")]
-    SingleValueForMultiValued { attribute: String },
+    SingleValueForMultiValued {
+        /// The name of the attribute that requires multiple values
+        attribute: String
+    },
 
     /// Array provided for single-valued attribute
     #[error("Attribute '{attribute}' must be single-valued (not array)")]
-    ArrayForSingleValued { attribute: String },
+    ArrayForSingleValued {
+        /// The name of the attribute that requires a single value
+        attribute: String
+    },
 
     /// Multiple primary values in multi-valued attribute
     #[error("Attribute '{attribute}' cannot have multiple primary values")]
-    MultiplePrimaryValues { attribute: String },
+    MultiplePrimaryValues {
+        /// The name of the attribute with multiple primary values
+        attribute: String
+    },
 
     /// Invalid multi-valued structure
     #[error("Attribute '{attribute}' has invalid multi-valued structure: {details}")]
-    InvalidMultiValuedStructure { attribute: String, details: String },
+    InvalidMultiValuedStructure {
+        /// The name of the attribute with invalid multi-valued structure
+        attribute: String,
+        /// Details about what makes the structure invalid
+        details: String
+    },
 
     /// Missing required sub-attribute in multi-valued
     #[error("Attribute '{attribute}' missing required sub-attribute '{sub_attribute}'")]
     MissingRequiredSubAttribute {
+        /// The name of the multi-valued attribute
         attribute: String,
+        /// The name of the missing required sub-attribute
         sub_attribute: String,
     },
 
@@ -276,7 +393,9 @@ pub enum ValidationError {
     /// Missing required sub-attributes in complex attribute
     #[error("Complex attribute '{attribute}' missing required sub-attributes: {missing:?}")]
     MissingRequiredSubAttributes {
+        /// The name of the complex attribute
         attribute: String,
+        /// The list of missing required sub-attributes
         missing: Vec<String>,
     },
 
