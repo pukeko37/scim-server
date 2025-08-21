@@ -26,7 +26,6 @@
 pub mod auth;
 pub mod error;
 #[cfg(feature = "mcp")]
-#[cfg_attr(docsrs, doc(cfg(feature = "mcp")))]
 pub mod mcp_integration;
 pub mod multi_tenant;
 pub mod operation_handler;

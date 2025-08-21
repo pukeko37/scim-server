@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2025-01-12
+
+### Fixed
+- **docs.rs Build**: Fixed documentation build failure by removing unstable `#[doc(cfg)]` attributes
+- **Stable Rust Compatibility**: Removed `#[cfg_attr(docsrs, doc(cfg(feature = "mcp")))]` that requires nightly features
+- **Documentation Accessibility**: Ensured documentation builds successfully on docs.rs with stable Rust
+
+This patch release fixes the remaining docs.rs build failure from v0.3.9 by removing all unstable documentation features.
+
 ## [0.3.9] - 2025-01-12
 
 ### Fixed
