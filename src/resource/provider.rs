@@ -1,87 +1,21 @@
 //! Resource provider trait for implementing SCIM data access.
 //!
 //! This module defines the core trait that users must implement to provide
-//! data storage and retrieval for SCIM resources. The design is async-first
-//! and provides comprehensive error handling with built-in ETag concurrency control.
+//! data storage and retrieval for SCIM resources. Supports both single-tenant
+//! and multi-tenant operations with automatic ETag concurrency control.
 //!
-//! ## ETag Concurrency Control
+//! # Key Types
 //!
-//! All ResourceProvider implementations automatically support conditional operations
-//! for optimistic concurrency control. The trait provides default implementations
-//! that work with any storage backend.
+//! - [`ResourceProvider`] - Main trait for implementing storage backends
+//! - [`ConditionalResult`] - Result type for conditional operations with version control
 //!
-//! ## Multi-Tenant Support
+//! # Examples
 //!
-//! The unified ResourceProvider supports both single-tenant and multi-tenant
-//! operations through the RequestContext. Single-tenant operations use
-//! context.tenant_context = None, while multi-tenant operations provide
-//! tenant information in context.tenant_context = Some(tenant_context).
+//! ```rust
+//! use scim_server::resource::ResourceProvider;
 //!
-//! ## Example Implementation
-//!
-//! ```rust,no_run
-//! use scim_server::resource::{
-//!     provider::ResourceProvider,
-//!     core::{RequestContext, Resource, ListQuery},
-//!     version::{ScimVersion, ConditionalResult},
-//!     conditional_provider::VersionedResource,
-//! };
-//! use serde_json::Value;
-//! use std::collections::HashMap;
-//! use std::sync::Arc;
-//! use tokio::sync::RwLock;
-//!
-//! #[derive(Clone)]
-//! struct MyProvider {
-//!     data: Arc<RwLock<HashMap<String, Resource>>>,
-//! }
-//!
-//! #[derive(Debug, thiserror::Error)]
-//! #[error("Provider error: {0}")]
-//! struct MyError(String);
-//!
-//! impl ResourceProvider for MyProvider {
-//!     type Error = MyError;
-//!
-//!     async fn create_resource(&self, resource_type: &str, data: Value, context: &RequestContext) -> Result<Resource, Self::Error> {
-//!         // Your implementation here
-//!         let resource = Resource::from_json(resource_type.to_string(), data)
-//!             .map_err(|e| MyError(e.to_string()))?;
-//!         let mut store = self.data.write().await;
-//!         let id = resource.get_id().unwrap_or("generated-id").to_string();
-//!         store.insert(id, resource.clone());
-//!         Ok(resource)
-//!     }
-//!
-//!     // ... implement other required methods ...
-//!     # async fn get_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-//!     #     Ok(None)
-//!     # }
-//!     # async fn update_resource(&self, _resource_type: &str, _id: &str, _data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
-//!     #     Err(MyError("Not implemented".to_string()))
-//!     # }
-//!     # async fn delete_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<(), Self::Error> {
-//!     #     Ok(())
-//!     # }
-//!     # async fn list_resources(&self, _resource_type: &str, _query: Option<&ListQuery>, _context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
-//!     #     Ok(vec![])
-//!     # }
-//!     # async fn find_resource_by_attribute(&self, _resource_type: &str, _attribute: &str, _value: &Value, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-//!     #     Ok(None)
-//!     # }
-//!     # async fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<bool, Self::Error> {
-//!     #     Ok(false)
-//!     # }
-//!
-//!     // Conditional operations are provided by default with automatic version checking
-//!     // Override for more efficient provider-specific implementations:
-//!     //
-//!     // async fn conditional_update(&self, resource_type: &str, id: &str, data: Value,
-//!     //                           expected_version: &ScimVersion, context: &RequestContext)
-//!     //                           -> Result<ConditionalResult<VersionedResource>, Self::Error> {
-//!     //     // Your optimized conditional update logic
-//!     // }
-//! }
+//! struct MyProvider;
+//! // Implement ResourceProvider for your storage backend
 //! ```
 
 use super::conditional_provider::VersionedResource;
@@ -101,6 +35,7 @@ use std::future::Future;
 /// The provider implementation can check `context.tenant_id()` to determine
 /// the effective tenant for the operation.
 pub trait ResourceProvider {
+    /// Error type returned by all provider operations
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Create a resource for the tenant specified in the request context.
