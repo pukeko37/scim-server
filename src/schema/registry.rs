@@ -123,6 +123,7 @@ impl SchemaRegistry {
         &self.core_user_schema
     }
 
+    /// Get the core Group schema.
     pub fn get_group_schema(&self) -> &Schema {
         &self.core_group_schema
     }

@@ -1,42 +1,21 @@
-//! Standard in-memory resource provider implementation.
+//! Thread-safe in-memory resource provider implementation.
 //!
-//! This module provides a production-ready in-memory implementation of the
-//! ResourceProvider trait that supports both single-tenant and multi-tenant
-//! operations through the unified RequestContext interface.
+//! This module provides an in-memory implementation of ResourceProvider
+//! with automatic tenant isolation and concurrent access support.
 //!
-//! # Features
+//! # Key Types
 //!
-//! * Thread-safe concurrent access with RwLock
-//! * Automatic tenant isolation when tenant context is provided
-//! * Fallback to "default" tenant for single-tenant operations
-//! * Comprehensive error handling
-//! * Resource metadata tracking (created/updated timestamps)
-//! * Duplicate detection for userName attributes
+//! - [`InMemoryProvider`] - Main provider with thread-safe storage
+//! - [`InMemoryStats`] - Resource statistics and performance metrics
+//! - [`InMemoryError`] - Provider-specific error types
 //!
-//! # Example Usage
+//! # Examples
 //!
 //! ```rust
 //! use scim_server::providers::InMemoryProvider;
-//! use scim_server::resource::{RequestContext, TenantContext, ResourceProvider};
-//! use serde_json::json;
 //!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let provider = InMemoryProvider::new();
-//!
-//! // Single-tenant operation
-//! let single_context = RequestContext::with_generated_id();
-//! let user_data = json!({
-//!     "userName": "john.doe",
-//!     "displayName": "John Doe"
-//! });
-//! let user = provider.create_resource("User", user_data.clone(), &single_context).await?;
-//!
-//! // Multi-tenant operation
-//! let tenant_context = TenantContext::new("tenant1".to_string(), "client1".to_string());
-//! let multi_context = RequestContext::with_tenant_generated_id(tenant_context);
-//! let tenant_user = provider.create_resource("User", user_data, &multi_context).await?;
-//! # Ok(())
-//! # }
+//! // Use with ScimServer for SCIM operations
 //! ```
 
 use crate::resource::{

@@ -1,32 +1,18 @@
-//! Operation Handler Foundation
+//! Framework-agnostic SCIM operation handler.
 //!
-//! This module provides a framework-agnostic operation handler that serves as the foundation
-//! for both HTTP and MCP integrations. It abstracts SCIM operations into structured
-//! request/response types while maintaining type safety and comprehensive error handling.
+//! This module provides structured request/response handling for SCIM operations
+//! with built-in ETag concurrency control and comprehensive error handling.
 //!
-//! ## ETag Concurrency Control
+//! # Key Types
 //!
-//! The operation handler provides built-in support for ETag-based conditional operations:
+//! - [`ScimOperationHandler`] - Main handler for processing SCIM operations
+//! - [`ScimOperationRequest`] - Structured request wrapper with validation
+//! - [`ScimOperationResponse`] - Response with metadata and ETag information
 //!
-//! - **Automatic Version Management**: All operations include version information in responses
-//! - **Conditional Updates**: Support for If-Match style conditional operations
-//! - **Conflict Detection**: Automatic detection and handling of version conflicts
-//! - **HTTP Compliance**: RFC 7232 compliant ETag headers in metadata
-//!
-//! ## Module Structure
-//!
-//! The operation handler is organized into focused modules:
-//!
-//! - `core` - Core types, handler struct, and main dispatcher
-//! - `handlers` - Operation-specific handlers (CRUD, query, schema, utility)
-//! - `builders` - Builder utilities for requests and queries
-//! - `errors` - Error handling utilities
-//!
-//! ## Example Usage
+//! # Examples
 //!
 //! ```rust,no_run
 //! use scim_server::operation_handler::{ScimOperationHandler, ScimOperationRequest};
-//! use scim_server::resource::version::ScimVersion;
 //! use scim_server::{ScimServer, providers::InMemoryProvider};
 //! use serde_json::json;
 //!
@@ -35,25 +21,8 @@
 //! let server = ScimServer::new(provider)?;
 //! let handler = ScimOperationHandler::new(server);
 //!
-//! // Regular update (returns version information)
-//! let update_request = ScimOperationRequest::update(
-//!     "User", "123", json!({"userName": "new.name", "active": true})
-//! );
-//! let response = handler.handle_operation(update_request).await;
-//! let new_etag = response.metadata.additional.get("etag").unwrap();
-//!
-//! // Conditional update with version check
-//! let version = ScimVersion::parse_http_header(new_etag.as_str().unwrap())?;
-//! let conditional_request = ScimOperationRequest::update(
-//!     "User", "123", json!({"userName": "newer.name", "active": false})
-//! ).with_expected_version(version);
-//!
-//! let conditional_response = handler.handle_operation(conditional_request).await;
-//! if conditional_response.success {
-//!     println!("Update succeeded!");
-//! } else {
-//!     println!("Version conflict: {}", conditional_response.error.unwrap());
-//! }
+//! let request = ScimOperationRequest::update("User", "123", json!({"active": true}));
+//! let response = handler.handle_operation(request).await;
 //! # Ok(())
 //! # }
 //! ```

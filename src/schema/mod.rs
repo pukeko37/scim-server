@@ -1,35 +1,22 @@
 //! Schema definitions and validation for SCIM resources.
 //!
-//! This module provides the schema registry and validation engine for SCIM resources,
-//! implementing the core User schema as defined in RFC 7643 with comprehensive
-//! validation capabilities.
+//! This module provides the schema registry and validation engine implementing
+//! RFC 7643 SCIM core schemas with comprehensive validation capabilities.
 //!
-//! ## Organization
+//! # Key Types
 //!
-//! The schema module is organized into several sub-modules:
+//! - [`Schema`] - SCIM schema definition with attributes and metadata
+//! - [`SchemaRegistry`] - Registry for managing and accessing schemas
+//! - [`AttributeDefinition`] - Individual attribute specifications and constraints
 //!
-//! - [`types`] - Core schema data structures (Schema, AttributeDefinition, etc.)
-//! - [`registry`] - Schema registry for loading and managing schemas
-//! - [`validation`] - Comprehensive validation logic for SCIM resources
-//! - `tests` - Test cases for schema functionality
-//!
-//! ## Usage
+//! # Examples
 //!
 //! ```rust
-//! use scim_server::schema::{SchemaRegistry, OperationContext};
-//! use serde_json::json;
+//! use scim_server::schema::SchemaRegistry;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a schema registry
 //! let registry = SchemaRegistry::new()?;
-//!
-//! // Validate a SCIM resource
-//! let user = json!({
-//!     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-//!     "userName": "jdoe@example.com"
-//! });
-//!
-//! registry.validate_json_resource_with_context("User", &user, OperationContext::Create)?;
+//! let user_schema = registry.get_user_schema();
 //! # Ok(())
 //! # }
 //! ```
