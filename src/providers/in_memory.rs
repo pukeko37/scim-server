@@ -194,8 +194,11 @@ impl Default for InMemoryProvider {
 pub enum InMemoryError {
     #[error("Resource not found: {resource_type} with id '{id}' in tenant '{tenant_id}'")]
     ResourceNotFound {
+        /// The type of resource that was not found
         resource_type: String,
+        /// The ID of the resource that was not found
         id: String,
+        /// The tenant ID where the resource was not found
         tenant_id: String,
     },
 
@@ -203,37 +206,65 @@ pub enum InMemoryError {
         "Duplicate attribute '{attribute}' with value '{value}' for {resource_type} in tenant '{tenant_id}'"
     )]
     DuplicateAttribute {
+        /// The type of resource with duplicate attribute
         resource_type: String,
+        /// The name of the duplicate attribute
         attribute: String,
+        /// The duplicate value
         value: String,
+        /// The tenant ID where the duplicate was found
         tenant_id: String,
     },
 
     #[error("Invalid resource data: {message}")]
-    InvalidData { message: String },
+    InvalidData {
+        /// Description of the invalid data
+        message: String
+    },
 
     #[error("Query error: {message}")]
-    QueryError { message: String },
+    QueryError {
+        /// Description of the query error
+        message: String
+    },
 
     #[error("Internal error: {message}")]
-    Internal { message: String },
+    Internal {
+        /// Description of the internal error
+        message: String
+    },
 
     #[error("Invalid input: {message}")]
-    InvalidInput { message: String },
+    InvalidInput {
+        /// Description of the invalid input
+        message: String
+    },
 
     #[error("Resource not found: {resource_type} with id '{id}'")]
-    NotFound { resource_type: String, id: String },
+    NotFound {
+        /// The type of resource that was not found
+        resource_type: String,
+        /// The ID of the resource that was not found
+        id: String
+    },
 
     #[error("Precondition failed: {message}")]
-    PreconditionFailed { message: String },
+    PreconditionFailed {
+        /// Description of the precondition failure
+        message: String
+    },
 }
 
 /// Statistics about the in-memory provider state.
 #[derive(Debug, Clone)]
 pub struct InMemoryStats {
+    /// Number of active tenants in the provider
     pub tenant_count: usize,
+    /// Total number of resources across all tenants
     pub total_resources: usize,
+    /// Number of distinct resource types
     pub resource_type_count: usize,
+    /// List of resource type names
     pub resource_types: Vec<String>,
 }
 
