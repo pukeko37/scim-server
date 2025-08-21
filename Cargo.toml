@@ -16,7 +16,13 @@ exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 # docs.rs configuration for comprehensive documentation
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = [
+    "--cfg",
+    "docsrs",
+    "--generate-link-to-definition",
+    "--enable-index-page",
+    "-Zunstable-options",
+]
 
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
