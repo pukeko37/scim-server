@@ -46,3 +46,17 @@ pub use resource::ResourceProvider;
 pub use schema::{Schema, SchemaRegistry};
 pub use schema_discovery::SchemaDiscovery;
 pub use scim_server::ScimServer;
+
+// Re-export additional types needed by examples and advanced usage
+pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
+pub use provider_capabilities::{
+    BulkCapabilities, CapabilityIntrospectable, ExtendedCapabilities, PaginationCapabilities,
+    ProviderCapabilities,
+};
+pub use operation_handler::{
+    OperationMetadata, ScimOperationHandler, ScimOperationRequest, ScimOperationResponse,
+};
+
+// MCP integration re-exports (feature-gated)
+#[cfg(feature = "mcp")]
+pub use mcp_integration::{McpServerInfo, ScimMcpServer, ScimToolResult};

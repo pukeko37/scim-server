@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2025-01-12
+
+### Documentation Excellence 📚
+- **Major API Documentation Restructuring**: Transformed overwhelming 700+ line lib.rs documentation into focused 25-line API reference
+- **Enhanced Module Documentation**: Reduced all module docs to focused 10-15 lines following Rust standards
+- **Improved Discoverability**: Traits, methods, and types now prominent and easy to find
+- **Professional Structure**: Clear separation between API reference (rustdoc) and comprehensive guides (mdbook)
+- **Advanced Documentation Features**: 
+  - Added feature-gated documentation with `#[cfg_attr(docsrs, doc(cfg(feature = "mcp")))]`
+  - Enhanced docs.rs configuration with link-to-definition and index page generation
+  - Fixed import paths and re-exports for better API accessibility
+- **Documentation Quality**: Added comprehensive error type documentation and fixed missing docs warnings
+- **Test Coverage**: Most documentation examples now compile successfully
+
+### Module Documentation Improvements
+- **ResourceProvider**: Reduced from 50+ to 15 lines, added Error type documentation
+- **Schema**: Reduced from 35 to 15 lines, focused on key types with clean examples  
+- **Providers**: Reduced from 40 to 15 lines, comprehensive error field documentation
+- **OperationHandler**: Reduced from 59 to 15 lines, framework-agnostic focus
+- **InMemoryProvider**: Added full documentation for all error variants and statistics fields
+
+### Enhanced Developer Experience
+- **Clean Navigation**: Module structure makes API approachable without information overload
+- **Standards Compliance**: Follows Rust documentation conventions throughout
+- **Better Re-exports**: Streamlined public API with commonly used types easily accessible
+- **Example Compatibility**: Maintained backward compatibility for all examples and advanced usage
+
+### Internal Improvements
+- **Removed Legacy Content**: Cleaned up outdated mdbook files stored elsewhere
+- **Consistent Structure**: All modules follow same focused template (purpose, key types, example)
+- **Ready for Scale**: Documentation structure supports comprehensive guides development
+
 ## [0.3.7] - 2025-08-16
 
 ### Documentation Overhaul 📚
