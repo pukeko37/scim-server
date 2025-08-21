@@ -12,10 +12,12 @@
 //! # Quick Start
 //!
 //! ```rust,no_run
-//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! use scim_server::{ScimServer, providers::StandardResourceProvider};
+//! use scim_server::storage::InMemoryStorage;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let provider = InMemoryProvider::new();
+//! let storage = InMemoryStorage::new();
+//! let provider = StandardResourceProvider::new(storage);
 //! let server = ScimServer::new(provider)?;
 //! # Ok(())
 //! # }
@@ -25,6 +27,10 @@
 
 pub mod auth;
 pub mod error;
+/// Model Context Protocol integration for AI agents.
+///
+/// This module is only available when the `mcp` feature is enabled.
+/// Add `features = ["mcp"]` to your Cargo.toml dependency to use this module.
 #[cfg(feature = "mcp")]
 pub mod mcp_integration;
 pub mod multi_tenant;
@@ -57,5 +63,9 @@ pub use operation_handler::{
 };
 
 // MCP integration re-exports (feature-gated)
+/// Model Context Protocol integration types.
+///
+/// These types are only available when the `mcp` feature is enabled.
+/// Add `features = ["mcp"]` to your Cargo.toml dependency to use these types.
 #[cfg(feature = "mcp")]
 pub use mcp_integration::{McpServerInfo, ScimMcpServer, ScimToolResult};

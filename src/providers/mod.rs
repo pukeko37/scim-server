@@ -6,7 +6,9 @@
 //!
 //! # Available Providers
 //!
-//! * [`InMemoryProvider`] - Thread-safe in-memory provider for testing and development
+//! * [`InMemoryProvider`] - ⚠️ **DEPRECATED** Thread-safe in-memory provider for testing and development
+//!   - Use `StandardResourceProvider<InMemoryStorage>` instead for better separation of concerns
+//! * [`StandardResourceProvider`] - **RECOMMENDED** Production-ready provider with pluggable storage backends
 //!
 //! All providers in this module implement the unified ResourceProvider trait,
 //! supporting both single-tenant and multi-tenant operations through the

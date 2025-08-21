@@ -3,19 +3,34 @@
 //! This module provides an in-memory implementation of ResourceProvider
 //! with automatic tenant isolation and concurrent access support.
 //!
+//! # Deprecation Notice
+//!
+//! **⚠️ DEPRECATED**: `InMemoryProvider` is deprecated since v0.3.8.
+//! Use `StandardResourceProvider<InMemoryStorage>` instead for better separation of concerns.
+//!
 //! # Key Types
 //!
-//! - [`InMemoryProvider`] - Main provider with thread-safe storage
+//! - [`InMemoryProvider`] - ⚠️ **DEPRECATED** Main provider with thread-safe storage
 //! - [`InMemoryStats`] - Resource statistics and performance metrics
 //! - [`InMemoryError`] - Provider-specific error types
 //!
 //! # Examples
 //!
+//! **Recommended approach:**
+//! ```rust
+//! use scim_server::providers::StandardResourceProvider;
+//! use scim_server::storage::InMemoryStorage;
+//!
+//! let storage = InMemoryStorage::new();
+//! let provider = StandardResourceProvider::new(storage);
+//! ```
+//!
+//! **Deprecated approach:**
 //! ```rust
 //! use scim_server::providers::InMemoryProvider;
 //!
+//! #[allow(deprecated)]
 //! let provider = InMemoryProvider::new();
-//! // Use with ScimServer for SCIM operations
 //! ```
 
 use crate::resource::{
@@ -33,6 +48,10 @@ use tokio::sync::RwLock;
 ///
 /// This provider organizes data as: tenant_id -> resource_type -> resource_id -> resource
 /// For single-tenant operations, it uses "default" as the tenant_id.
+#[deprecated(
+    since = "0.3.8",
+    note = "Use `StandardResourceProvider<InMemoryStorage>` instead. InMemoryProvider will be removed in a future version."
+)]
 #[derive(Debug, Clone)]
 pub struct InMemoryProvider {
     // Structure: tenant_id -> resource_type -> resource_id -> resource
@@ -43,6 +62,22 @@ pub struct InMemoryProvider {
 
 impl InMemoryProvider {
     /// Create a new in-memory provider.
+    ///
+    /// # Deprecation
+    ///
+    /// This provider is deprecated. Use `StandardResourceProvider<InMemoryStorage>` instead:
+    ///
+    /// ```rust,no_run
+    /// use scim_server::providers::StandardResourceProvider;
+    /// use scim_server::storage::InMemoryStorage;
+    ///
+    /// let storage = InMemoryStorage::new();
+    /// let provider = StandardResourceProvider::new(storage);
+    /// ```
+    #[deprecated(
+        since = "0.3.8",
+        note = "Use `StandardResourceProvider<InMemoryStorage>` instead"
+    )]
     pub fn new() -> Self {
         Self {
             data: Arc::new(RwLock::new(HashMap::new())),
