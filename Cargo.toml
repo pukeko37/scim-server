@@ -1,6 +1,6 @@
 [package]
 name = "scim-server"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2024"
 authors = ["Andrew Bowers <abowers37@gmail.com>"]
 license = "MIT"
@@ -16,13 +16,7 @@ exclude = ["target/*", "PROGRESS/*", ".git/*", "*.md"]
 # docs.rs configuration for comprehensive documentation
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = [
-    "--cfg",
-    "docsrs",
-    "--generate-link-to-definition",
-    "--enable-index-page",
-    "-Zunstable-options",
-]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
