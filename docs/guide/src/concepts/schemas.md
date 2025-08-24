@@ -635,12 +635,6 @@ let resource_types = server.list_resource_types(&context).await?;
 //   }]
 // }
 ```
-</end_text>
-
-<old_text line=381>
-## Dynamic Data Validation
-
-The schema system enables sophisticated validation that goes beyond simple type checking:
 
 ## Dynamic Data Validation
 
