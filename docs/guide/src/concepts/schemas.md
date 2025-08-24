@@ -216,101 +216,9 @@ Organizations can define completely custom schemas using proper URN namespacing:
 }
 ```
 
-## Schema Mechanisms in SCIM Server
+## Schema Processing in SCIM Operations
 
-The SCIM Server library implements these schema concepts through several key mechanisms:
-
-### Schema Registry
-
-The `SchemaRegistry` component manages all schema definitions and provides validation services:
-
-```scim-server/docs/guide/src/concepts/schemas.md#L200-220
-use scim_server::schema::{SchemaRegistry, SchemaDefinition};
-
-// Registry comes pre-loaded with RFC 7643 schemas
-let registry = SchemaRegistry::default();
-
-// Register custom schema
-let custom_schema = SchemaDefinition {
-    id: "urn:example:params:scim:schemas:extension:acme:2.0:User".to_string(),
-    name: "AcmeUserExtension".to_string(),
-    description: "Acme Corp user extensions".to_string(),
-    attributes: vec![
-        // ... attribute definitions
-    ],
-};
-
-registry.register_schema(custom_schema).await?;
-
-// Validate data against schema
-let validation_result = registry.validate_resource("User", &user_data).await?;
-```
-
-**Key Features:**
-- Pre-loaded with RFC 7643 core schemas
-- Dynamic schema registration at runtime
-- Comprehensive validation of resources against schemas
-- Support for schema discovery and introspection
-
-### Value Objects for Type Safety
-
-The library uses value objects to provide type-safe handling of SCIM attributes:
-
-```scim-server/docs/guide/src/concepts/schemas.md#L235-255
-use scim_server::value_objects::{Email, UserName, DisplayName};
-
-// Type-safe attribute creation
-let email = Email::new("user@example.com")?;
-let username = UserName::new("john.doe")?; 
-let display_name = DisplayName::new("John Doe")?;
-
-// Automatic validation
-let invalid_email = Email::new("not-an-email"); // Returns validation error
-
-// Schema-aware serialization
-let json_value = email.to_json()?;
-
-// Integration with complex attributes
-let name = Name {
-    formatted: Some(display_name),
-    family_name: Some("Doe".to_string()),
-    given_name: Some("John".to_string()),
-    // ...
-};
-```
-
-**Benefits:**
-- Compile-time type safety for SCIM attributes
-- Automatic validation of attribute values
-- Prevention of invalid data construction
-- Clear API boundaries and error handling
-
-### Dynamic Schema Construction
-
-For scenarios requiring runtime flexibility, the library supports dynamic value object creation:
-
-```scim-server/docs/guide/src/concepts/schemas.md#L270-290
-use scim_server::value_objects::{ValueObjectFactory, SchemaConstructible};
-
-// Create value objects from schema definitions
-let factory = ValueObjectFactory::new();
-
-let attribute_def = registry.get_attribute_definition(
-    "urn:ietf:params:scim:schemas:core:2.0:User", 
-    "emails"
-).await?;
-
-let email_value = factory.create_from_schema(
-    &attribute_def,
-    &json!({"value": "user@example.com", "primary": true})
-)?;
-
-// Supports complex and multi-valued attributes
-let name_value = factory.create_from_schema(
-    &name_attribute_def,
-    &json!({"formatted": "John Doe", "familyName": "Doe"})
-)?;
-```
+SCIM schemas drive all protocol operations, providing structure and validation rules that ensure consistent data handling across different identity providers and service providers.
 
 ## HTTP REST Operations and Schema Processing
 
@@ -380,8 +288,6 @@ let replacement_data = json!({
 // - Ensures all required attributes present
 // - Respects "immutable" and "readOnly" constraints
 // - Processes all registered extension schemas
-
-let updated_user = provider.replace_resource("User", &user_id, replacement_data, &context).await?;
 ```
 
 #### PATCH Operations - Partial Updates with Schema Context
@@ -408,30 +314,16 @@ let patch_ops = vec![
 // - Target attribute mutability checking
 // - Extension schema awareness for namespaced paths
 // - Multi-valued attribute handling per schema rules
-
-let result = provider.patch_resource("User", &user_id, patch_ops, &context).await?;
 ```
 
 #### DELETE Operations - Schema-Informed Cleanup
 
 ```scim-server/docs/guide/src/concepts/schemas.md#L410-430
-// DELETE /Users/{id} - Schema guides basic deletion processing
-let deletion_result = provider.delete_resource("User", &user_id, &context).await?;
-
+// DELETE /Users/{id} - Schema guides deletion processing
 // Schema-informed deletion:
 // - Validates deletion permissions based on mutability constraints
 // - Processes extension schema cleanup requirements
-// - Handles tenant isolation requirements
-
-// Soft delete vs hard delete based on configuration
-match deletion_result {
-    DeletionResult::SoftDelete => {
-        // User marked as active: false, preserved for audit
-    },
-    DeletionResult::HardDelete => {
-        // Complete resource removal
-    }
-}
+// - Determines soft delete vs hard delete approach
 ```
 
 ## SCIM Meta Components and Schema Integration
@@ -569,27 +461,16 @@ let result = match request.method() {
 
 SCIM query parameters interact directly with schema definitions:
 
-```scim-server/docs/guide/src/concepts/schemas.md#L585-605
-// GET /Users?attributes=userName,emails&filter=active eq true
-let query = ScimQuery {
-    attributes: Some(vec!["userName".to_string(), "emails".to_string()]),
-    excluded_attributes: None,
-    filter: Some("active eq true".to_string()),
-    sort_by: None,
-    sort_order: None,
-    start_index: Some(1),
-    count: Some(10),
-};
-
-// Schema processing for queries:
-// - Validates attribute names against schema definitions
-// - Handles extension schema attributes in projections
-// - Enforces "returned" attribute constraints
-// - Processes complex attribute path expressions
-// - Validates filter expressions against attribute types
-
-let users = server.list_resources("User", &query, &context).await?;
 ```
+GET /Users?attributes=userName,emails&filter=active eq true
+```
+
+Schema processing for queries:
+- Validates attribute names against schema definitions
+- Handles extension schema attributes in projections
+- Enforces "returned" attribute constraints
+- Processes complex attribute path expressions
+- Validates filter expressions against attribute types
 
 ## Auto Schema Discovery
 
@@ -597,44 +478,21 @@ SCIM Server provides automatic schema discovery capabilities that integrate with
 
 ### Schema Endpoint Implementation
 
-```scim-server/docs/guide/src/concepts/schemas.md#L620-640
-let server = ScimServer::new(provider)?;
+SCIM servers provide schema introspection endpoints:
 
-// GET /Schemas returns all registered schemas
-let schemas = server.list_schemas(&context).await?;
-
-// GET /Schemas/{schema_id} returns specific schema
-let user_schema = server.get_schema(
-    "urn:ietf:params:scim:schemas:core:2.0:User",
-    &context
-).await?;
-
-// Automatic schema discovery for AI agents and clients
-let schema_definitions = server.discover_schemas(&context).await?;
-```
+- `GET /Schemas` returns all registered schemas
+- `GET /Schemas/{schema_id}` returns specific schema details
+- Enables automatic schema discovery for clients and tools
 
 ### Resource Type Discovery
 
-The library also supports resource type introspection as defined in RFC 7644:
+SCIM servers support resource type introspection as defined in RFC 7644:
 
-```scim-server/docs/guide/src/concepts/schemas.md#L650-670
-// GET /ResourceTypes returns supported resource types
-let resource_types = server.list_resource_types(&context).await?;
-
-// Returns information like:
-// {
-//   "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
-//   "id": "User",
-//   "name": "User", 
-//   "endpoint": "/Users",
-//   "description": "User Account",
-//   "schema": "urn:ietf:params:scim:schemas:core:2.0:User",
-//   "schemaExtensions": [{
-//     "schema": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
-//     "required": false
-//   }]
-// }
-```
+`GET /ResourceTypes` returns supported resource types, including:
+- Resource endpoint paths
+- Associated schema URNs  
+- Available schema extensions
+- Extension requirement status
 
 ## Dynamic Data Validation
 
@@ -642,106 +500,31 @@ The schema system enables sophisticated validation that goes beyond simple type 
 
 ### Multi-Level Validation
 
-SCIM Server performs validation at multiple levels:
+SCIM validation occurs at multiple levels:
 
 1. **HTTP Method Validation**: Operation-specific constraints
 2. **Syntax Validation**: JSON structure and basic type checking
 3. **Schema Validation**: Compliance with schema definitions
 4. **Business Rule Validation**: Custom validation logic
 
-```scim-server/docs/guide/src/concepts/schemas.md#L765-785
-use scim_server::validation::{ValidationContext, ValidationResult, HttpOperation};
-
-let validation_context = ValidationContext {
-    schema_registry: &registry,
-    resource_provider: &provider,
-    request_context: &context,
-    operation: HttpOperation::Post,  // Method-specific validation
-};
-
-// Comprehensive validation
-let result = validation_context.validate_create_request(
-    "User",
-    &user_data
-).await?;
-
-match result {
-    ValidationResult::Valid(normalized_data) => {
-        // Data passed all validation checks
-        let user = provider.create_resource("User", normalized_data, &context).await?;
-    },
-    ValidationResult::Invalid(errors) => {
-        // Handle validation errors - includes HTTP status codes
-        for error in errors {
-            println!("Validation error: {} (HTTP {})", error.message, error.status_code);
-        }
-    }
-}
-```
+The validation process ensures that data conforms to schema requirements before processing, returning appropriate HTTP status codes for different error types.
 
 ### Operation-Specific Validation
 
-Each HTTP operation has specific validation requirements:
+Each HTTP operation has specific validation requirements based on schema attribute properties:
 
-```scim-server/docs/guide/src/concepts/schemas.md#L800-820
-// POST (Create) - All required attributes must be present
-{
-  "name": "userName",
-  "type": "string", 
-  "required": true,                 // MUST be provided in POST
-  "mutability": "readWrite"
-}
-
-// PUT (Replace) - Complete resource validation
-{
-  "name": "userName",
-  "mutability": "immutable"         // Cannot be changed in PUT after creation
-}
-
-// PATCH (Update) - Path and operation validation  
-{
-  "name": "id",
-  "mutability": "readOnly"          // Cannot be target of PATCH operations
-}
-
-// GET (Read) - Response filtering
-{
-  "name": "password",
-  "returned": "never"               // Never included in GET responses
-}
-```
+- **POST (Create)**: All required attributes must be present
+- **PUT (Replace)**: Complete resource validation, immutable attributes cannot change
+- **PATCH (Update)**: Path validation, readOnly attributes cannot be targeted
+- **GET (Read)**: Response filtering based on "returned" attribute property
 
 ### HTTP Status Code Mapping
 
 Schema validation errors map to specific HTTP status codes:
 
-```scim-server/docs/guide/src/concepts/schemas.md#L835-855
-use scim_server::error::{ScimError, ScimErrorType};
-
-// Schema validation error examples
-let validation_errors = vec![
-    ScimError {
-        error_type: ScimErrorType::InvalidValue,
-        detail: "userName is required".to_string(),
-        status: 400,  // Bad Request
-    },
-    ScimError {
-        error_type: ScimErrorType::Uniqueness, 
-        detail: "userName already exists".to_string(),
-        status: 409,  // Conflict
-    },
-    ScimError {
-        error_type: ScimErrorType::Mutability,
-        detail: "id attribute is readOnly".to_string(), 
-        status: 400,  // Bad Request
-    },
-    ScimError {
-        error_type: ScimErrorType::InvalidPath,
-        detail: "Invalid PATCH path: invalidAttribute".to_string(),
-        status: 400,  // Bad Request
-    }
-];
-```
+- **400 Bad Request**: Invalid values, missing required attributes, mutability violations
+- **409 Conflict**: Uniqueness constraint violations
+- **412 Precondition Failed**: ETag version mismatches
 
 ## Working with Standard Data Definitions
 
@@ -813,31 +596,28 @@ SCIM servers use HTTP headers to negotiate schema processing:
 
 ### Content-Type and Schema Validation
 
-```scim-server/docs/guide/src/concepts/schemas.md#L890-910
-// POST /Users HTTP/1.1
-// Content-Type: application/scim+json
-// 
-// {
-//   "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-//   "userName": "newuser@example.com"
-// }
+SCIM requests must include proper Content-Type headers and schema declarations:
 
-// Server validates:
-// - Content-Type header matches SCIM specification
-// - schemas array matches Content-Type expectations
-// - Resource structure conforms to declared schemas
+```
+POST /Users HTTP/1.1
+Content-Type: application/scim+json
 
-let content_type = request.headers().get("content-type");
-if content_type != Some("application/scim+json") {
-    return Err(ScimError::invalid_syntax("Invalid Content-Type header"));
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "userName": "newuser@example.com"
 }
 ```
 
+Servers validate:
+- Content-Type header matches SCIM specification (`application/scim+json`)
+- schemas array matches Content-Type expectations
+- Resource structure conforms to declared schemas
+
 ### ETag and Schema Versioning
 
-The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a `meta.version` field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (`If-Match`, `If-None-Match`) with these ETags to ensure they're operating on the expected version of a resource. This mechanism integrates seamlessly with schema validation, as the ETag is updated only after successful schema validation and resource modification.
+The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a `meta.version` field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (`If-Match`, `If-None-Match`) with these ETags to ensure they're operating on the expected version of a resource.
 
-For a comprehensive explanation of ETag implementation, concurrency scenarios, and best practices, see the [ETag Concurrency Control](./etag-concurrency.md) chapter.
+For implementation details and practical usage patterns, see the [ETag Concurrency Control](./etag-concurrency.md) chapter and [Schema Mechanisms in SCIM Server](./schema-mechanisms.md).
 
 ## Schema Extensibility Patterns
 
@@ -927,66 +707,36 @@ The SCIM Server's schema system is designed to work seamlessly with AI agents th
 
 ### Schema-Aware AI Tools
 
-```scim-server/docs/guide/src/concepts/schemas.md#L975-995
-// AI agents receive structured schema information
-let schema_tools = server.generate_mcp_tools(&context).await?;
+SCIM schemas enable AI integration by providing structured descriptions of available operations and data formats. AI systems can discover schema capabilities and generate compliant requests automatically.
 
-// Each tool includes:
-// - HTTP operation specifications (GET, POST, PUT, PATCH, DELETE)
-// - Input schema validation rules
-// - Output format specifications  
-// - Business rule constraints
-// - Example usage patterns with proper HTTP methods
+Schema information that benefits AI systems includes:
+- Required and optional attributes for each resource type
+- Validation rules and data format constraints
+- Available HTTP operations and their requirements
+- Extension schemas and custom attribute definitions
 
-// AI can discover available schemas and their capabilities
-let user_schema_info = schema_tools.get_schema_info("User")?;
-// Returns: required fields, optional fields, validation rules, HTTP examples
-
-// Example AI tool description:
-{
-  "name": "create_scim_user",
-  "description": "Create a new SCIM user via POST /Users",
-  "inputSchema": {
-    "type": "object", 
-    "properties": {
-      "schemas": {"type": "array", "items": {"type": "string"}},
-      "userName": {"type": "string", "description": "Required unique identifier"},
-      "emails": {"type": "array", "description": "Email addresses"}
-    },
-    "required": ["schemas", "userName"]
-  }
-}
-```
-
-This enables AI systems to:
-- Understand valid data formats automatically
-- Generate compliant SCIM resources with proper HTTP methods
-- Handle validation errors intelligently
-- Discover available extensions and capabilities
-- Execute proper HTTP operations (GET, POST, PUT, PATCH, DELETE)
-- Process schema-aware query parameters and filters
+For implementation details, see [Schema Mechanisms in SCIM Server](./schema-mechanisms.md) and the [AI Integration Guide](../advanced/ai-integration.md).
 
 ## Conclusion
 
-SCIM schemas provide a powerful foundation for identity data management that balances standardization with extensibility across HTTP REST operations. The SCIM Server library implements these concepts through:
+## Conclusion
 
-- **Complete RFC 7643/7644 compliance** with pre-loaded core schemas and meta components
-- **HTTP method-aware processing** that validates operations against schema constraints
-- **Type-safe value objects** that prevent invalid data construction  
-- **Flexible extension mechanisms** supporting custom business requirements
-- **Comprehensive validation** at HTTP, syntax, schema, and business rule levels
-- **Meta-schema support** for service provider configuration and resource type discovery
-- **Dynamic discovery capabilities** for AI integration and client tooling with HTTP operation awareness
-- **Production-ready performance** with efficient validation, caching, and ETag concurrency control
+SCIM schemas provide a powerful foundation for identity data management that balances standardization with extensibility across HTTP REST operations. Understanding these protocol concepts enables you to:
 
-Key integration points include:
+- **Design compliant SCIM resources** that work with enterprise identity providers
+- **Implement proper validation** across all HTTP operations
+- **Create extensible systems** using schema extension mechanisms
+- **Build interoperable solutions** that follow RFC specifications
+- **Support diverse client requirements** through schema discovery
 
-- **REST Operation Schema Processing**: Each HTTP method (GET, POST, PUT, PATCH, DELETE) has specific schema validation and processing requirements
-- **Meta Components**: Service provider configuration, resource types, and schema introspection endpoints
-- **Content Negotiation**: HTTP header processing for schema-aware content handling
-- **Concurrency Control**: ETag-based versioning integrated with schema validation
-- **Query Processing**: Schema-driven attribute filtering and search capabilities
+Key takeaways include:
 
-By understanding these schema concepts and their implementation across HTTP operations, you can build robust identity provisioning systems that integrate seamlessly with enterprise identity providers while maintaining the flexibility to meet specific business requirements.
+- **Schema Structure**: Schemas define both data structure and operational behavior
+- **HTTP Integration**: Each REST operation has specific schema processing requirements
+- **Extensibility**: Extension schemas enable customization while maintaining compatibility
+- **Validation**: Multi-layered validation ensures data integrity and compliance
+- **Discovery**: Schema endpoints enable dynamic client capabilities
 
-The next chapter will explore how to implement these schema concepts in practice through hands-on examples and common integration patterns.
+For practical implementation of these concepts using the SCIM Server library, see [Schema Mechanisms in SCIM Server](./schema-mechanisms.md).
+
+The next chapter will explore hands-on implementation patterns and real-world usage scenarios.

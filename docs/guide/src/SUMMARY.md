@@ -14,6 +14,7 @@
 # SCIM Concepts
 
 - [Understanding SCIM Schemas](./concepts/schemas.md)
+- [Schema Mechanisms in SCIM Server](./concepts/schema-mechanisms.md)
 
 # Advanced Topics
 
