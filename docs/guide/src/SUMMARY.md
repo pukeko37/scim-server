@@ -11,6 +11,10 @@
 
 - [Architecture Overview](./architecture.md)
 
+# SCIM Concepts
+
+- [Understanding SCIM Schemas](./concepts/schemas.md)
+
 # Advanced Topics
 
 # Examples
