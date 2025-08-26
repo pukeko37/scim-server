@@ -4,9 +4,8 @@
 //! and maintains proper isolation between tenants.
 
 use scim_server::{
-    RequestContext, TenantContext, TenantPermissions, ResourceProvider,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
+    RequestContext, ResourceProvider, TenantContext, TenantPermissions,
+    providers::StandardResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 

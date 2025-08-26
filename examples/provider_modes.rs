@@ -5,10 +5,8 @@
 //! This shows how a single provider implementation supports multiple operational modes.
 
 use scim_server::{
-    RequestContext, TenantContext,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::provider::ResourceProvider,
+    RequestContext, TenantContext, providers::StandardResourceProvider,
+    resource::provider::ResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 

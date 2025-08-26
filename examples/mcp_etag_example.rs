@@ -8,7 +8,8 @@
 #[cfg(feature = "mcp")]
 use scim_server::{
     ScimServer, mcp_integration::ScimMcpServer, multi_tenant::ScimOperation,
-    providers::StandardResourceProvider, storage::InMemoryStorage, resource_handlers::create_user_resource_handler,
+    providers::StandardResourceProvider, resource_handlers::create_user_resource_handler,
+    storage::InMemoryStorage,
 };
 #[cfg(feature = "mcp")]
 use serde_json::json;

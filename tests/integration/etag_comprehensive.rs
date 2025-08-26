@@ -5,11 +5,11 @@
 //! and practical usability of the versioning system.
 
 use scim_server::providers::StandardResourceProvider;
-use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{
     core::RequestContext,
     version::{ConditionalResult, ScimVersion},
 };
+use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::task::JoinSet;

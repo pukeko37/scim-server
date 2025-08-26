@@ -5,8 +5,9 @@
 //! resolution through resource operations to ensure all components work together.
 
 use scim_server::{
-    RequestContext, ResourceProvider, StaticTenantResolver, TenantContext, TenantPermissions,
-    TenantResolver, IsolationLevel, providers::StandardResourceProvider, storage::InMemoryStorage,
+    IsolationLevel, RequestContext, ResourceProvider, StaticTenantResolver, TenantContext,
+    TenantPermissions, TenantResolver, providers::StandardResourceProvider,
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 

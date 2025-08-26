@@ -29,8 +29,8 @@ pub mod in_memory;
 pub mod standard;
 
 // Re-export the recommended types
-pub use standard::StandardResourceProvider;
 pub use crate::storage::{InMemoryStorage, StorageProvider};
+pub use standard::StandardResourceProvider;
 
 // Legacy deprecated exports - will be removed in future version
 #[deprecated(

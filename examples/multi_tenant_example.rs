@@ -9,11 +9,11 @@ use scim_server::{
     RequestContext, TenantContext,
     multi_tenant::resolver::{StaticTenantResolver, TenantResolver},
     providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     resource::{
         core::{IsolationLevel, TenantPermissions},
         provider::ResourceProvider,
     },
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -353,7 +353,9 @@ async fn demo_backward_compatibility() -> Result<(), Box<dyn std::error::Error>>
 }
 
 /// Demonstrate performance with multiple tenants and resources
-async fn demo_performance(provider: &StandardResourceProvider<InMemoryStorage>) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_performance(
+    provider: &StandardResourceProvider<InMemoryStorage>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ Performance demonstration with multiple tenants...");
 
     let tenant_count = 3;

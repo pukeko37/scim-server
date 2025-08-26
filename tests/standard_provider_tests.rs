@@ -4,9 +4,9 @@
 //! StandardResourceProvider<InMemoryStorage> to ensure behavioral equivalence.
 
 use scim_server::providers::{InMemoryError, StandardResourceProvider};
-use scim_server::storage::InMemoryStorage;
 use scim_server::resource::version::ConditionalResult;
 use scim_server::resource::{ListQuery, RequestContext, ResourceProvider, TenantContext};
+use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 use std::sync::Arc;
 

@@ -47,7 +47,7 @@ use scim_server::{
     mcp_integration::ScimMcpServer,
     multi_tenant::ScimOperation,
     providers::StandardResourceProvider,
-    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    resource_handlers::{create_group_resource_handler, create_user_resource_handler},
     scim_server::ScimServer,
     storage::InMemoryStorage,
 };
@@ -129,7 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     eprintln!("=====================================");
 
     for (i, tool) in tools.iter().enumerate() {
-        let name = tool.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown");
+        let name = tool
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("Unknown");
         let description = tool
             .get("description")
             .and_then(|d| d.as_str())

@@ -42,19 +42,16 @@
 //! # }
 //! ```
 
+use crate::providers::in_memory::{InMemoryError, InMemoryStats};
 use crate::resource::{
     ListQuery, RequestContext, Resource, ResourceProvider,
     conditional_provider::VersionedResource,
     version::{ConditionalResult, ScimVersion},
 };
-use crate::storage::{StorageProvider, StorageKey};
-use crate::providers::in_memory::{InMemoryError, InMemoryStats};
+use crate::storage::{StorageKey, StorageProvider};
 use log::{debug, info, trace, warn};
 use serde_json::{Value, json};
 use std::collections::HashSet;
-
-
-
 
 /// Standard resource provider with pluggable storage backend.
 ///
@@ -70,9 +67,7 @@ pub struct StandardResourceProvider<S: StorageProvider> {
 impl<S: StorageProvider> StandardResourceProvider<S> {
     /// Create a new standard provider with the given storage backend.
     pub fn new(storage: S) -> Self {
-        Self {
-            storage,
-        }
+        Self { storage }
     }
 
     /// Get the effective tenant ID for the operation.
@@ -96,7 +91,8 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         exclude_id: Option<&str>,
     ) -> Result<(), InMemoryError> {
         let prefix = StorageKey::prefix(tenant_id, "User");
-        let matches = self.storage
+        let matches = self
+            .storage
             .find_by_attribute(prefix, "userName", username)
             .await
             .map_err(|e| InMemoryError::Internal {
@@ -195,8 +191,6 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         }
     }
 
-
-
     /// List all resources of a specific type in a tenant.
     pub async fn list_resources_in_tenant(
         &self,
@@ -211,7 +205,10 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
                     match Resource::from_json(resource_type.to_string(), data) {
                         Ok(resource) => resources.push(resource),
                         Err(e) => {
-                            warn!("Failed to deserialize resource in list_resources_in_tenant: {}", e);
+                            warn!(
+                                "Failed to deserialize resource in list_resources_in_tenant: {}",
+                                e
+                            );
                         }
                     }
                 }
@@ -324,20 +321,27 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
         // Store resource using storage provider
         let key = StorageKey::new(&tenant_id, resource_type, &resource_id);
-        let stored_data = self.storage
-            .put(key, resource_with_meta.to_json().map_err(|e| InMemoryError::Internal {
-                message: format!("Failed to serialize resource: {}", e),
-            })?)
+        let stored_data = self
+            .storage
+            .put(
+                key,
+                resource_with_meta
+                    .to_json()
+                    .map_err(|e| InMemoryError::Internal {
+                        message: format!("Failed to serialize resource: {}", e),
+                    })?,
+            )
             .await
             .map_err(|e| InMemoryError::Internal {
                 message: format!("Storage error during create: {}", e),
             })?;
 
         // Return the resource as stored
-        Resource::from_json(resource_type.to_string(), stored_data)
-            .map_err(|e| InMemoryError::InvalidData {
+        Resource::from_json(resource_type.to_string(), stored_data).map_err(|e| {
+            InMemoryError::InvalidData {
                 message: format!("Failed to deserialize stored resource: {}", e),
-            })
+            }
+        })
     }
 
     async fn get_resource(
@@ -359,7 +363,8 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
             .map_err(|e| InMemoryError::Internal { message: e })?;
 
         let key = StorageKey::new(&tenant_id, resource_type, id);
-        let resource_data = self.storage
+        let resource_data = self
+            .storage
             .get(key)
             .await
             .map_err(|e| InMemoryError::Internal {
@@ -368,9 +373,11 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
         let resource = match resource_data {
             Some(data) => {
-                let resource = Resource::from_json(resource_type.to_string(), data)
-                    .map_err(|e| InMemoryError::InvalidData {
-                        message: format!("Failed to deserialize resource: {}", e),
+                let resource =
+                    Resource::from_json(resource_type.to_string(), data).map_err(|e| {
+                        InMemoryError::InvalidData {
+                            message: format!("Failed to deserialize resource: {}", e),
+                        }
                     })?;
                 trace!("Resource found and returned");
                 Some(resource)
@@ -429,12 +436,13 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
         // Verify resource exists using storage provider
         let key = StorageKey::new(&tenant_id, resource_type, id);
-        let exists = self.storage
-            .exists(key.clone())
-            .await
-            .map_err(|e| InMemoryError::Internal {
-                message: format!("Storage error during existence check: {}", e),
-            })?;
+        let exists =
+            self.storage
+                .exists(key.clone())
+                .await
+                .map_err(|e| InMemoryError::Internal {
+                    message: format!("Storage error during existence check: {}", e),
+                })?;
 
         if !exists {
             return Err(InMemoryError::ResourceNotFound {
@@ -448,20 +456,27 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
         let resource_with_meta = self.add_scim_metadata(resource);
 
         // Store updated resource using storage provider
-        let stored_data = self.storage
-            .put(key, resource_with_meta.to_json().map_err(|e| InMemoryError::Internal {
-                message: format!("Failed to serialize resource: {}", e),
-            })?)
+        let stored_data = self
+            .storage
+            .put(
+                key,
+                resource_with_meta
+                    .to_json()
+                    .map_err(|e| InMemoryError::Internal {
+                        message: format!("Failed to serialize resource: {}", e),
+                    })?,
+            )
             .await
             .map_err(|e| InMemoryError::Internal {
                 message: format!("Storage error during update: {}", e),
             })?;
 
         // Return the updated resource as stored
-        Resource::from_json(resource_type.to_string(), stored_data)
-            .map_err(|e| InMemoryError::InvalidData {
+        Resource::from_json(resource_type.to_string(), stored_data).map_err(|e| {
+            InMemoryError::InvalidData {
                 message: format!("Failed to deserialize updated resource: {}", e),
-            })
+            }
+        })
     }
 
     async fn delete_resource(
@@ -484,7 +499,8 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
         // Delete resource using storage provider
         let key = StorageKey::new(&tenant_id, resource_type, id);
-        let removed = self.storage
+        let removed = self
+            .storage
             .delete(key)
             .await
             .map_err(|e| InMemoryError::Internal {
@@ -530,7 +546,8 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
         // List resources using storage provider
         let prefix = StorageKey::prefix(&tenant_id, resource_type);
-        let storage_results = self.storage
+        let storage_results = self
+            .storage
             .list(prefix, 0, usize::MAX) // Get all resources for now, apply pagination later
             .await
             .map_err(|e| InMemoryError::Internal {
@@ -594,7 +611,8 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
             _ => value.to_string().trim_matches('"').to_string(),
         };
 
-        let matches = self.storage
+        let matches = self
+            .storage
             .find_by_attribute(prefix, attribute, &value_str)
             .await
             .map_err(|e| InMemoryError::Internal {
@@ -668,13 +686,17 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
                 }
 
                 // Update version
-                let new_version = ScimVersion::from_content(serde_json::to_string(&current_data).unwrap().as_bytes());
+                let new_version = ScimVersion::from_content(
+                    serde_json::to_string(&current_data).unwrap().as_bytes(),
+                );
                 if let Some(obj) = current_data.as_object_mut() {
                     obj.insert("version".to_string(), json!(new_version.to_string()));
                 }
 
                 // Store updated resource
-                self.storage.put(key, current_data.clone()).await
+                self.storage
+                    .put(key, current_data.clone())
+                    .await
                     .map_err(|_| InMemoryError::Internal {
                         message: "Failed to store patched resource".to_string(),
                     })?;
@@ -687,17 +709,13 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
 
                 Ok(updated_resource)
             }
-            Ok(None) => {
-                Err(InMemoryError::NotFound {
-                    resource_type: resource_type.to_string(),
-                    id: id.to_string(),
-                })
-            }
-            Err(_) => {
-                Err(InMemoryError::Internal {
-                    message: "Failed to retrieve resource for patch".to_string(),
-                })
-            }
+            Ok(None) => Err(InMemoryError::NotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            }),
+            Err(_) => Err(InMemoryError::Internal {
+                message: "Failed to retrieve resource for patch".to_string(),
+            }),
         }
     }
 
@@ -911,8 +929,6 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         Ok(())
     }
 
-
-
     /// Check if an attribute is multivalued
     fn is_multivalued_attribute(attribute_name: &str) -> bool {
         matches!(
@@ -939,16 +955,24 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         match self.storage.get(key.clone()).await {
             Ok(Some(current_data)) => {
                 // Parse current resource to extract version
-                let current_resource = Resource::from_json(resource_type.to_string(), current_data.clone())
-                    .map_err(|e| InMemoryError::InvalidInput {
-                        message: format!("Failed to deserialize stored resource: {}", e),
-                    })?;
+                let current_resource =
+                    Resource::from_json(resource_type.to_string(), current_data.clone()).map_err(
+                        |e| InMemoryError::InvalidInput {
+                            message: format!("Failed to deserialize stored resource: {}", e),
+                        },
+                    )?;
 
                 // Check if version matches
-                let current_version = VersionedResource::new(current_resource.clone()).version().clone();
+                let current_version = VersionedResource::new(current_resource.clone())
+                    .version()
+                    .clone();
                 if &current_version != expected_version {
                     use crate::resource::version::VersionConflict;
-                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(expected_version.clone(), current_version, "Resource was modified by another client")));
+                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(
+                        expected_version.clone(),
+                        current_version,
+                        "Resource was modified by another client",
+                    )));
                 }
 
                 // Version matches, proceed with update
@@ -959,36 +983,39 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
 
                 // Preserve the ID
                 if let Some(original_id) = current_resource.get_id() {
-                    updated_resource.set_id(original_id)
-                        .map_err(|e| InMemoryError::InvalidInput {
+                    updated_resource.set_id(original_id).map_err(|e| {
+                        InMemoryError::InvalidInput {
                             message: format!("Failed to set ID: {}", e),
-                        })?;
+                        }
+                    })?;
                 }
 
                 // Store updated resource - convert back to JSON for storage
-                let updated_data = updated_resource.to_json()
-                    .map_err(|e| InMemoryError::InvalidInput {
-                        message: format!("Failed to serialize updated resource: {}", e),
-                    })?;
+                let updated_data =
+                    updated_resource
+                        .to_json()
+                        .map_err(|e| InMemoryError::InvalidInput {
+                            message: format!("Failed to serialize updated resource: {}", e),
+                        })?;
 
-                self.storage.put(key, updated_data).await
+                self.storage
+                    .put(key, updated_data)
+                    .await
                     .map_err(|_| InMemoryError::Internal {
                         message: "Failed to store updated resource".to_string(),
                     })?;
 
-                Ok(ConditionalResult::Success(VersionedResource::new(updated_resource)))
+                Ok(ConditionalResult::Success(VersionedResource::new(
+                    updated_resource,
+                )))
             }
-            Ok(None) => {
-                Err(InMemoryError::NotFound {
-                    resource_type: resource_type.to_string(),
-                    id: id.to_string(),
-                })
-            }
-            Err(_) => {
-                Err(InMemoryError::Internal {
-                    message: "Failed to retrieve resource for conditional update".to_string(),
-                })
-            }
+            Ok(None) => Err(InMemoryError::NotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            }),
+            Err(_) => Err(InMemoryError::Internal {
+                message: "Failed to retrieve resource for conditional update".to_string(),
+            }),
         }
     }
 
@@ -1012,31 +1039,35 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
                     })?;
 
                 // Check if version matches
-                let current_version = VersionedResource::new(current_resource.clone()).version().clone();
+                let current_version = VersionedResource::new(current_resource.clone())
+                    .version()
+                    .clone();
                 if &current_version != expected_version {
                     use crate::resource::version::VersionConflict;
-                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(expected_version.clone(), current_version, "Resource was modified by another client")));
+                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(
+                        expected_version.clone(),
+                        current_version,
+                        "Resource was modified by another client",
+                    )));
                 }
 
                 // Version matches, proceed with delete
-                self.storage.delete(key).await
+                self.storage
+                    .delete(key)
+                    .await
                     .map_err(|_| InMemoryError::Internal {
                         message: "Failed to delete resource".to_string(),
                     })?;
 
                 Ok(ConditionalResult::Success(()))
             }
-            Ok(None) => {
-                Err(InMemoryError::NotFound {
-                    resource_type: resource_type.to_string(),
-                    id: id.to_string(),
-                })
-            }
-            Err(_) => {
-                Err(InMemoryError::Internal {
-                    message: "Failed to retrieve resource for conditional delete".to_string(),
-                })
-            }
+            Ok(None) => Err(InMemoryError::NotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            }),
+            Err(_) => Err(InMemoryError::Internal {
+                message: "Failed to retrieve resource for conditional delete".to_string(),
+            }),
         }
     }
 
@@ -1055,16 +1086,24 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         match self.storage.get(key.clone()).await {
             Ok(Some(current_data)) => {
                 // Parse current resource to extract version
-                let current_resource = Resource::from_json(resource_type.to_string(), current_data.clone())
-                    .map_err(|e| InMemoryError::InvalidInput {
-                        message: format!("Failed to deserialize stored resource: {}", e),
-                    })?;
+                let current_resource =
+                    Resource::from_json(resource_type.to_string(), current_data.clone()).map_err(
+                        |e| InMemoryError::InvalidInput {
+                            message: format!("Failed to deserialize stored resource: {}", e),
+                        },
+                    )?;
 
                 // Check if version matches
-                let current_version = VersionedResource::new(current_resource.clone()).version().clone();
+                let current_version = VersionedResource::new(current_resource.clone())
+                    .version()
+                    .clone();
                 if &current_version != expected_version {
                     use crate::resource::version::VersionConflict;
-                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(expected_version.clone(), current_version, "Resource was modified by another client")));
+                    return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(
+                        expected_version.clone(),
+                        current_version,
+                        "Resource was modified by another client",
+                    )));
                 }
 
                 // Version matches, proceed with patch
@@ -1086,29 +1125,31 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
                     })?;
 
                 // Store patched resource - convert back to JSON for storage
-                let patched_json = patched_resource.to_json()
-                    .map_err(|e| InMemoryError::InvalidInput {
-                        message: format!("Failed to serialize patched resource: {}", e),
-                    })?;
+                let patched_json =
+                    patched_resource
+                        .to_json()
+                        .map_err(|e| InMemoryError::InvalidInput {
+                            message: format!("Failed to serialize patched resource: {}", e),
+                        })?;
 
-                self.storage.put(key, patched_json).await
+                self.storage
+                    .put(key, patched_json)
+                    .await
                     .map_err(|_| InMemoryError::Internal {
                         message: "Failed to store patched resource".to_string(),
                     })?;
 
-                Ok(ConditionalResult::Success(VersionedResource::new(patched_resource)))
+                Ok(ConditionalResult::Success(VersionedResource::new(
+                    patched_resource,
+                )))
             }
-            Ok(None) => {
-                Err(InMemoryError::NotFound {
-                    resource_type: resource_type.to_string(),
-                    id: id.to_string(),
-                })
-            }
-            Err(_) => {
-                Err(InMemoryError::Internal {
-                    message: "Failed to retrieve resource for conditional patch".to_string(),
-                })
-            }
+            Ok(None) => Err(InMemoryError::NotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            }),
+            Err(_) => Err(InMemoryError::Internal {
+                message: "Failed to retrieve resource for conditional patch".to_string(),
+            }),
         }
     }
 

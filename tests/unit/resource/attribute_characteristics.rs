@@ -6,9 +6,9 @@
 
 use scim_server::error::ValidationError;
 use scim_server::providers::StandardResourceProvider;
-use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{RequestContext, ResourceProvider};
 use scim_server::schema::{SchemaRegistry, validation::OperationContext};
+use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 
 // Import test utilities
@@ -29,7 +29,11 @@ fn test_case_sensitivity_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_case_violation, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_case_violation,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::CaseSensitivityViolation { attribute, details }) => {
             assert_eq!(attribute, "id");
@@ -61,7 +65,11 @@ fn test_canonical_value_case_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_case_sensitive_email, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_case_sensitive_email,
+        OperationContext::Update,
+    );
 
     match result {
         Err(ValidationError::InvalidCanonicalValue {
@@ -93,7 +101,11 @@ fn test_case_insensitive_comparison() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_display_name_case, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_display_name_case,
+        OperationContext::Update,
+    );
     assert!(
         result.is_ok(),
         "Case insensitive attributes should allow mixed case"
@@ -116,7 +128,11 @@ fn test_readonly_mutability_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &update_readonly_attr, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &update_readonly_attr,
+        OperationContext::Update,
+    );
     // displayName is readWrite in our schema, so this should pass
     assert!(result.is_ok(), "displayName should be allowed as readWrite");
 }
@@ -141,7 +157,11 @@ fn test_server_generated_readonly_attributes() {
     });
 
     // In a real scenario, these would trigger read-only violations during updates
-    let result = registry.validate_json_resource_with_context("User", &user_with_server_attrs, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_with_server_attrs,
+        OperationContext::Update,
+    );
     // For now, we expect this to pass since it's a valid structure
     // In update context, it would trigger ReadOnlyMutabilityViolation
     assert!(
@@ -166,7 +186,11 @@ fn test_immutable_mutability_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &update_immutable_username, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &update_immutable_username,
+        OperationContext::Update,
+    );
     // userName is readWrite in our schema, so this should pass
     assert!(result.is_ok(), "userName should be allowed as readWrite");
 }
@@ -188,7 +212,11 @@ fn test_writeonly_attribute_returned() {
     });
 
     // Since password is not in our schema, it will be caught as UnknownAttribute
-    let result = registry.validate_json_resource_with_context("User", &user_with_password, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_with_password,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, .. }) => {
             assert_eq!(attribute, "password");
@@ -221,7 +249,11 @@ fn test_multiple_writeonly_attributes_returned() {
     });
 
     // This will catch the first unknown attribute
-    let result = registry.validate_json_resource_with_context("User", &user_with_writeonly_attrs, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_with_writeonly_attrs,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, .. }) => {
             // Either password or currentPassword could be caught first
@@ -309,7 +341,11 @@ fn test_email_uniqueness_validation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &valid_email, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &valid_email,
+        OperationContext::Update,
+    );
     assert!(
         result.is_ok(),
         "Valid email structure should pass validation"
@@ -334,7 +370,8 @@ fn test_global_uniqueness_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_valid, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &user_valid, OperationContext::Update);
     // This should pass since no attributes have global uniqueness in our schema
     assert!(
         result.is_ok(),
@@ -367,7 +404,11 @@ fn test_invalid_canonical_value_choice() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_invalid_email_type, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_invalid_email_type,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::InvalidCanonicalValue {
             attribute,
@@ -400,7 +441,11 @@ fn test_invalid_canonical_value_choice() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_invalid_phone_type, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_invalid_phone_type,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::InvalidCanonicalValue {
             attribute,
@@ -432,7 +477,11 @@ fn test_unknown_attribute_for_schema() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_unknown_attribute, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_unknown_attribute,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, schema }) => {
             assert_eq!(attribute, "unknownAttribute");
@@ -452,7 +501,11 @@ fn test_unknown_attribute_for_schema() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_multiple_unknown, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_multiple_unknown,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, schema }) => {
             assert_eq!(attribute, "anotherUnknown");
@@ -478,7 +531,11 @@ fn test_required_characteristic_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_missing_required, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_missing_required,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::MissingRequiredAttribute { attribute }) => {
             assert_eq!(attribute, "userName");
@@ -503,7 +560,11 @@ fn test_required_characteristic_violation() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_missing_email_value, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_missing_email_value,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::MissingRequiredSubAttribute {
             attribute,
@@ -546,7 +607,8 @@ fn test_valid_attribute_characteristics() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
     assert!(
         result.is_ok(),
         "Valid user should pass all characteristic validations"
@@ -570,7 +632,8 @@ fn test_mutability_characteristics() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_valid, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &user_valid, OperationContext::Update);
     assert!(result.is_ok(), "Valid readWrite attributes should pass");
 }
 
@@ -641,7 +704,11 @@ fn test_returned_characteristics() {
     });
 
     // For now, this test verifies structure since we don't have writeOnly attributes in our schema
-    let result = registry.validate_json_resource_with_context("User", &user_writeonly_returned, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_writeonly_returned,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, .. }) => {
             assert_eq!(attribute, "password");
@@ -669,7 +736,11 @@ fn test_multiple_characteristic_violations() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_unknown_attr, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_unknown_attr,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::UnknownAttributeForSchema { attribute, .. }) => {
             assert_eq!(attribute, "unknownAttr");
@@ -693,7 +764,11 @@ fn test_multiple_characteristic_violations() {
         }
     });
 
-    let result = registry.validate_json_resource_with_context("User", &user_invalid_canonical, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &user_invalid_canonical,
+        OperationContext::Update,
+    );
     match result {
         Err(ValidationError::InvalidCanonicalValue {
             attribute, value, ..

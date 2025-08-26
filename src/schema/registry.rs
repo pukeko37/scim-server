@@ -3,7 +3,10 @@
 //! This module provides the SchemaRegistry which handles schema loading from files,
 //! schema management, and provides access to registered schemas for validation.
 
-use super::{embedded, types::{AttributeDefinition, AttributeType, Schema}};
+use super::{
+    embedded,
+    types::{AttributeDefinition, AttributeType, Schema},
+};
 
 use chrono::{DateTime, FixedOffset};
 use serde_json::Value;

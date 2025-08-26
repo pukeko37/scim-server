@@ -24,7 +24,11 @@ fn test_missing_id_attribute() {
     assert!(!invalid_user.as_object().unwrap().contains_key("id"));
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -49,7 +53,11 @@ fn test_empty_id_value() {
     assert_eq!(invalid_user["id"], "");
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -81,7 +89,11 @@ fn test_null_id_value() {
     assert!(null_id_user["id"].is_null());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &null_id_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &null_id_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -106,7 +118,11 @@ fn test_invalid_id_format() {
     assert!(invalid_user["id"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -131,7 +147,11 @@ fn test_invalid_id_format_array() {
     assert!(invalid_user["id"].is_array());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -156,7 +176,11 @@ fn test_invalid_id_format_object() {
     assert!(invalid_user["id"].is_object());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -210,7 +234,11 @@ fn test_invalid_external_id_format() {
     assert!(invalid_user["externalId"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -235,7 +263,11 @@ fn test_invalid_external_id_format_array() {
     assert!(invalid_user["externalId"].is_array());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -260,7 +292,11 @@ fn test_invalid_meta_structure() {
     assert!(invalid_user["meta"].is_string());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -285,7 +321,11 @@ fn test_invalid_meta_structure_array() {
     assert!(invalid_user["meta"].is_array());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -315,7 +355,11 @@ fn test_missing_meta_resource_type() {
     );
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -340,7 +384,11 @@ fn test_invalid_meta_resource_type() {
     assert_eq!(invalid_user["meta"]["resourceType"], "InvalidType");
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -365,7 +413,11 @@ fn test_invalid_meta_resource_type_non_string() {
     assert!(invalid_user["meta"]["resourceType"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -423,7 +475,11 @@ fn test_invalid_created_datetime() {
     assert!(invalid_user["meta"]["created"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -448,7 +504,11 @@ fn test_invalid_created_datetime_non_string() {
     assert!(invalid_user["meta"]["created"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -481,7 +541,11 @@ fn test_invalid_last_modified_datetime() {
     assert!(invalid_user["meta"]["lastModified"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -514,7 +578,11 @@ fn test_invalid_location_uri() {
     assert!(invalid_user["meta"]["location"].is_number());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -539,7 +607,11 @@ fn test_invalid_version_format() {
     assert!(invalid_user["meta"]["version"].is_array());
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails with the expected error
     assert!(result.is_err());
@@ -561,7 +633,8 @@ fn test_valid_common_attributes() {
     let valid_user = rfc_examples::user_minimal();
 
     // This should pass validation
-    let result = registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
     assert!(
         result.is_ok(),
         "Valid user should pass validation: {:?}",
@@ -581,7 +654,8 @@ fn test_valid_common_attributes_with_optional() {
         .build();
 
     // This should pass validation
-    let result = registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
     assert!(
         result.is_ok(),
         "Valid user with external ID should pass validation: {:?}",
@@ -602,7 +676,11 @@ fn test_multiple_common_attribute_errors() {
     assert!(invalid_user["meta"].is_string());
 
     // Actually validate the resource - should catch the first error
-    let result = registry.validate_json_resource_with_context("User", &invalid_user, OperationContext::Update);
+    let result = registry.validate_json_resource_with_context(
+        "User",
+        &invalid_user,
+        OperationContext::Update,
+    );
 
     // Assert that validation fails (will catch first error encountered)
     assert!(result.is_err());
@@ -636,7 +714,8 @@ fn test_valid_external_id() {
     assert_eq!(valid_user["externalId"], "valid-external-id");
 
     // Actually validate the resource
-    let result = registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
+    let result =
+        registry.validate_json_resource_with_context("User", &valid_user, OperationContext::Update);
 
     // Assert that validation passes
     assert!(

@@ -27,28 +27,28 @@ pub enum ScimError {
         /// The type of resource that was not found
         resource_type: String,
         /// The ID of the resource that was not found
-        id: String
+        id: String,
     },
 
     /// Schema not found errors
     #[error("Schema not found: {schema_id}")]
     SchemaNotFound {
         /// The ID of the schema that was not found
-        schema_id: String
+        schema_id: String,
     },
 
     /// Internal server errors
     #[error("Internal server error: {message}")]
     Internal {
         /// Description of the internal error
-        message: String
+        message: String,
     },
 
     /// Invalid request format or parameters
     #[error("Invalid request: {message}")]
     InvalidRequest {
         /// Description of what makes the request invalid
-        message: String
+        message: String,
     },
 
     /// Unsupported resource type
@@ -87,7 +87,7 @@ pub enum ValidationError {
     #[error("Required attribute '{attribute}' is missing")]
     MissingRequiredAttribute {
         /// The name of the missing required attribute
-        attribute: String
+        attribute: String,
     },
 
     /// Attribute value doesn't match expected type
@@ -105,21 +105,21 @@ pub enum ValidationError {
     #[error("Attribute '{attribute}' must be multi-valued (array)")]
     ExpectedMultiValue {
         /// The name of the attribute that should be multi-valued
-        attribute: String
+        attribute: String,
     },
 
     /// Single-valued attribute provided as array
     #[error("Attribute '{attribute}' must be single-valued (not array)")]
     ExpectedSingleValue {
         /// The name of the attribute that should be single-valued
-        attribute: String
+        attribute: String,
     },
 
     /// Attribute value violates uniqueness constraint
     #[error("Attribute '{attribute}' violates uniqueness constraint")]
     UniquenesViolation {
         /// The name of the attribute that violates uniqueness
-        attribute: String
+        attribute: String,
     },
 
     /// Invalid value for attribute with canonical values
@@ -155,7 +155,7 @@ pub enum ValidationError {
     #[error("Validation failed: {message}")]
     Custom {
         /// Custom validation error message
-        message: String
+        message: String,
     },
 
     /// Missing schemas attribute
@@ -170,21 +170,21 @@ pub enum ValidationError {
     #[error("Invalid schema URI format: {uri}")]
     InvalidSchemaUri {
         /// The invalid schema URI
-        uri: String
+        uri: String,
     },
 
     /// Unknown schema URI
     #[error("Unknown schema URI: {uri}")]
     UnknownSchemaUri {
         /// The unknown schema URI
-        uri: String
+        uri: String,
     },
 
     /// Duplicate schema URI
     #[error("Duplicate schema URI: {uri}")]
     DuplicateSchemaUri {
         /// The duplicated schema URI
-        uri: String
+        uri: String,
     },
 
     /// Missing base schema
@@ -211,7 +211,7 @@ pub enum ValidationError {
     #[error("Invalid 'id' format: {id}")]
     InvalidIdFormat {
         /// The invalid ID value that was provided
-        id: String
+        id: String,
     },
 
     /// Client provided id in creation
@@ -234,7 +234,7 @@ pub enum ValidationError {
     #[error("Invalid 'meta.resourceType': {resource_type}")]
     InvalidResourceType {
         /// The invalid resource type value
-        resource_type: String
+        resource_type: String,
     },
 
     /// Client provided meta
@@ -274,7 +274,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid string format
         attribute: String,
         /// Details about what makes the format invalid
-        details: String
+        details: String,
     },
 
     /// Invalid boolean value
@@ -283,7 +283,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid boolean value
         attribute: String,
         /// The invalid boolean value that was provided
-        value: String
+        value: String,
     },
 
     /// Invalid decimal format
@@ -292,7 +292,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid decimal format
         attribute: String,
         /// The invalid decimal value that was provided
-        value: String
+        value: String,
     },
 
     /// Invalid integer value
@@ -301,7 +301,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid integer value
         attribute: String,
         /// The invalid integer value that was provided
-        value: String
+        value: String,
     },
 
     /// Invalid datetime format
@@ -310,7 +310,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid datetime format
         attribute: String,
         /// The invalid datetime value that was provided
-        value: String
+        value: String,
     },
 
     /// Invalid binary data
@@ -319,7 +319,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid binary data
         attribute: String,
         /// Details about what makes the binary data invalid
-        details: String
+        details: String,
     },
 
     /// Invalid reference URI
@@ -328,7 +328,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid reference URI
         attribute: String,
         /// The invalid URI value that was provided
-        uri: String
+        uri: String,
     },
 
     /// Invalid reference type
@@ -337,7 +337,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid reference type
         attribute: String,
         /// The invalid reference type that was provided
-        ref_type: String
+        ref_type: String,
     },
 
     /// Broken reference
@@ -354,21 +354,21 @@ pub enum ValidationError {
     #[error("Attribute '{attribute}' must be multi-valued (array)")]
     SingleValueForMultiValued {
         /// The name of the attribute that requires multiple values
-        attribute: String
+        attribute: String,
     },
 
     /// Array provided for single-valued attribute
     #[error("Attribute '{attribute}' must be single-valued (not array)")]
     ArrayForSingleValued {
         /// The name of the attribute that requires a single value
-        attribute: String
+        attribute: String,
     },
 
     /// Multiple primary values in multi-valued attribute
     #[error("Attribute '{attribute}' cannot have multiple primary values")]
     MultiplePrimaryValues {
         /// The name of the attribute with multiple primary values
-        attribute: String
+        attribute: String,
     },
 
     /// Invalid multi-valued structure
@@ -377,7 +377,7 @@ pub enum ValidationError {
         /// The name of the attribute with invalid multi-valued structure
         attribute: String,
         /// Details about what makes the structure invalid
-        details: String
+        details: String,
     },
 
     /// Missing required sub-attribute in multi-valued

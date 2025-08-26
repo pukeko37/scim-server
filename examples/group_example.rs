@@ -9,13 +9,9 @@
 //! Run with: cargo run --example group_example
 
 use scim_server::{
-    RequestContext,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource::provider::ResourceProvider,
-    resource_handlers::create_group_resource_handler,
-    schema::SchemaRegistry,
-    scim_server::ScimServer,
+    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
+    resource_handlers::create_group_resource_handler, schema::SchemaRegistry,
+    scim_server::ScimServer, storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -124,8 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!(
             "✅ Retrieved group: {} with {} members",
-            display_name,
-            member_count
+            display_name, member_count
         );
     }
 
@@ -188,24 +183,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "✅ Updated group: {} now has {} members",
-        updated_display_name,
-        updated_member_count
+        updated_display_name, updated_member_count
     );
 
     // 9. Demonstrate Group member listing
     println!("\n👤 Group members details...");
 
-    if let Some(members) = updated_group.get_attribute("members").and_then(|v| v.as_array()) {
+    if let Some(members) = updated_group
+        .get_attribute("members")
+        .and_then(|v| v.as_array())
+    {
         println!("📋 Members of {}:", updated_display_name);
         for member in members {
             if let Some(member_obj) = member.as_object() {
-                let user_id = member_obj.get("value")
+                let user_id = member_obj
+                    .get("value")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
-                let user_type = member_obj.get("type")
+                let user_type = member_obj
+                    .get("type")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
-                let user_ref = member_obj.get("$ref")
+                let user_ref = member_obj
+                    .get("$ref")
                     .and_then(|v| v.as_str())
                     .unwrap_or("no reference");
 
@@ -219,12 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let found_group = server
         .provider()
-        .find_resource_by_attribute(
-            "Group",
-            "displayName",
-            &json!("Marketing Team"),
-            &context
-        )
+        .find_resource_by_attribute("Group", "displayName", &json!("Marketing Team"), &context)
         .await?;
 
     match found_group {
@@ -234,7 +229,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown");
             let id = group.get_id().unwrap_or("unknown");
-            println!("✅ Found group by display name: {} (ID: {})", display_name, id);
+            println!(
+                "✅ Found group by display name: {} (ID: {})",
+                display_name, id
+            );
         }
         None => println!("❌ Group not found by display name"),
     }
@@ -247,7 +245,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "members": "not-an-array" // Invalid: should be an array
     });
 
-    match server.create_resource("Group", invalid_group, &context).await {
+    match server
+        .create_resource("Group", invalid_group, &context)
+        .await
+    {
         Ok(_) => println!("⚠️  Validation should have failed"),
         Err(e) => println!("✅ Validation correctly failed: {}", e),
     }
@@ -265,7 +266,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 13. Demonstrate Group deletion
     println!("\n🗑️  Deleting Groups...");
 
-    server.delete_resource("Group", &marketing_id, &context).await?;
+    server
+        .delete_resource("Group", &marketing_id, &context)
+        .await?;
     println!("✅ Deleted Marketing Team");
 
     // Verify deletion

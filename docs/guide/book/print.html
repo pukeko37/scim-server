@@ -245,10 +245,9 @@
 <li><strong>Reference</strong>: Technical specifications and details</li>
 </ol>
 <h3 id="learning-path"><a class="header" href="#learning-path">Learning Path</a></h3>
-<p><strong>New to SCIM?</strong> Start with <a href="./concepts/scim-protocol.html">SCIM Protocol Overview</a> to understand the standard.</p>
+<p><strong>New to SCIM?</strong> Start with the <a href="./architecture.html">Architecture Overview</a> to understand the standard.</p>
 <p><strong>Ready to code?</strong> Jump to <a href="./getting-started/first-server.html">Your First SCIM Server</a> for hands-on experience.</p>
-<p><strong>Building production systems?</strong> Read through <a href="./concepts/architecture.html">Core Concepts</a> and <a href="./advanced/production-deployment.html">Advanced Topics</a>.</p>
-<p><strong>Solving specific problems?</strong> Use the <a href="./how-to/troubleshooting.html">How-To Guides</a> section.</p>
+<p><strong>Building production systems?</strong> Read through <a href="./getting-started/installation.html">Installation</a> and the examples in the GitHub repository.</p>
 <h2 id="what-youll-learn"><a class="header" href="#what-youll-learn">What You'll Learn</a></h2>
 <p>By the end of this guide, you'll understand how to:</p>
 <ul>
@@ -284,7 +283,7 @@ cargo --version
 <h2 id="adding-the-dependency"><a class="header" href="#adding-the-dependency">Adding the Dependency</a></h2>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "=0.3.7"
+scim-server = "=0.3.11"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
@@ -340,7 +339,7 @@ cd my-scim-server
 </code></pre>
 <h3 id="2-add-dependencies"><a class="header" href="#2-add-dependencies">2. Add Dependencies</a></h3>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.3.7"
+scim-server = "0.3.11"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
@@ -571,6 +570,261 @@ cargo run --example group_example
 <li><strong>JSON Data</strong> - All resource data uses <code>serde_json::Value</code></li>
 </ul>
 <p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for most SCIM implementations.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="setting-up-your-mcp-server"><a class="header" href="#setting-up-your-mcp-server">Setting Up Your MCP Server</a></h1>
+<p>This guide shows you how to set up a working Model Context Protocol (MCP) server that exposes your SCIM operations as discoverable tools for AI agents.</p>
+<h2 id="what-is-mcp-integration"><a class="header" href="#what-is-mcp-integration">What is MCP Integration?</a></h2>
+<p>The MCP integration allows AI agents to interact with your SCIM server through a standardized protocol. AI agents can discover available tools (like "create user" or "search users") and execute them with proper validation and error handling.</p>
+<p><strong>Key Benefits:</strong></p>
+<ul>
+<li><strong>AI-Friendly Interface</strong> - Structured tool discovery and execution</li>
+<li><strong>Multi-Tenant Support</strong> - Isolated operations for different clients</li>
+<li><strong>Schema Introspection</strong> - AI agents can understand your data model</li>
+<li><strong>Error Handling</strong> - Graceful error responses with detailed information</li>
+</ul>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<h3 id="1-enable-the-mcp-feature"><a class="header" href="#1-enable-the-mcp-feature">1. Enable the MCP Feature</a></h3>
+<p>Add the MCP feature to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+scim-server = { version = "0.3.11", features = ["mcp"] }
+tokio = { version = "1.0", features = ["full"] }
+serde_json = "1.0"
+env_logger = "0.10"  # For logging (recommended)
+</code></pre>
+<h3 id="2-basic-mcp-server-30-lines"><a class="header" href="#2-basic-mcp-server-30-lines">2. Basic MCP Server (30 lines)</a></h3>
+<p>Create a minimal MCP server that exposes SCIM operations:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{
+    mcp_integration::ScimMcpServer,
+    multi_tenant::ScimOperation,
+    providers::StandardResourceProvider,
+    resource_handlers::create_user_resource_handler,
+    scim_server::ScimServer,
+    storage::InMemoryStorage,
+};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt; {
+    // Initialize logging for debugging
+    env_logger::init();
+
+    // Create SCIM server with in-memory storage
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut scim_server = ScimServer::new(provider)?;
+
+    // Register User resource type with full operations
+    let user_schema = scim_server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    
+    scim_server.register_resource_type(
+        "User",
+        user_handler,
+        vec![
+            ScimOperation::Create, ScimOperation::Read,
+            ScimOperation::Update, ScimOperation::Delete,
+            ScimOperation::List, ScimOperation::Search,
+        ],
+    )?;
+
+    // Create and start MCP server
+    let mcp_server = ScimMcpServer::new(scim_server);
+    println!("🚀 MCP Server starting - listening on stdio");
+    
+    // This runs until EOF (Ctrl+D) or process termination
+    mcp_server.run_stdio().await?;
+    
+    Ok(())
+}</code></pre></pre>
+<h3 id="3-run-your-mcp-server"><a class="header" href="#3-run-your-mcp-server">3. Run Your MCP Server</a></h3>
+<pre><code class="language-bash">cargo run --features mcp
+</code></pre>
+<p>The server starts and listens on standard input/output for MCP protocol messages.</p>
+<h2 id="testing-your-server"><a class="header" href="#testing-your-server">Testing Your Server</a></h2>
+<p>You can test the server by sending JSON-RPC messages directly:</p>
+<h3 id="1-initialize-connection"><a class="header" href="#1-initialize-connection">1. Initialize Connection</a></h3>
+<pre><code class="language-bash">echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' | your_server
+</code></pre>
+<h3 id="2-discover-available-tools"><a class="header" href="#2-discover-available-tools">2. Discover Available Tools</a></h3>
+<pre><code class="language-bash">echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | your_server
+</code></pre>
+<h3 id="3-create-a-user"><a class="header" href="#3-create-a-user">3. Create a User</a></h3>
+<pre><code class="language-bash">echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"scim_create_user","arguments":{"user_data":{"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"userName":"alice@example.com","active":true}}}}' | your_server
+</code></pre>
+<h2 id="production-ready-setup"><a class="header" href="#production-ready-setup">Production-Ready Setup</a></h2>
+<p>For production use, you'll want a more comprehensive setup:</p>
+<pre><pre class="playground"><code class="language-rust">use scim_server::{
+    mcp_integration::{McpServerInfo, ScimMcpServer},
+    multi_tenant::ScimOperation,
+    providers::StandardResourceProvider,
+    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    scim_server::ScimServer,
+    storage::InMemoryStorage,  // Replace with your database storage
+};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt; {
+    // Production logging configuration
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .init();
+
+    // Create SCIM server (use your production storage here)
+    let storage = InMemoryStorage::new(); // Replace with PostgresStorage, etc.
+    let provider = StandardResourceProvider::new(storage);
+    let mut scim_server = ScimServer::new(provider)?;
+
+    // Register User resource type
+    let user_schema = scim_server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    
+    scim_server.register_resource_type(
+        "User",
+        user_handler,
+        vec![
+            ScimOperation::Create, ScimOperation::Read, ScimOperation::Update,
+            ScimOperation::Delete, ScimOperation::List, ScimOperation::Search,
+        ],
+    )?;
+
+    // Register Group resource type (if needed)
+    if let Some(group_schema) = scim_server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+    {
+        let group_handler = create_group_resource_handler(group_schema.clone());
+        scim_server.register_resource_type(
+            "Group",
+            group_handler,
+            vec![
+                ScimOperation::Create, ScimOperation::Read, ScimOperation::Update,
+                ScimOperation::Delete, ScimOperation::List, ScimOperation::Search,
+            ],
+        )?;
+    }
+
+    // Create MCP server with custom information
+    let server_info = McpServerInfo {
+        name: "Production SCIM Server".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        description: "Enterprise SCIM server with MCP integration".to_string(),
+        supported_resource_types: vec!["User".to_string(), "Group".to_string()],
+    };
+    
+    let mcp_server = ScimMcpServer::with_info(scim_server, server_info);
+    
+    // Log available tools
+    let tools = mcp_server.get_tools();
+    log::info!("🔧 Available MCP tools: {}", tools.len());
+    for tool in &amp;tools {
+        if let Some(name) = tool.get("name").and_then(|n| n.as_str()) {
+            log::info!("   • {}", name);
+        }
+    }
+    
+    log::info!("🚀 MCP Server ready - listening on stdio");
+    
+    // Start the server
+    mcp_server.run_stdio().await?;
+    
+    log::info!("✅ MCP Server shutdown complete");
+    Ok(())
+}</code></pre></pre>
+<h2 id="available-mcp-tools"><a class="header" href="#available-mcp-tools">Available MCP Tools</a></h2>
+<p>Your MCP server exposes these tools to AI agents:</p>
+<h3 id="user-management"><a class="header" href="#user-management">User Management</a></h3>
+<ul>
+<li><strong><code>scim_create_user</code></strong> - Create a new user</li>
+<li><strong><code>scim_get_user</code></strong> - Retrieve user by ID</li>
+<li><strong><code>scim_update_user</code></strong> - Update existing user</li>
+<li><strong><code>scim_delete_user</code></strong> - Delete user by ID</li>
+<li><strong><code>scim_list_users</code></strong> - List all users with pagination</li>
+<li><strong><code>scim_search_users</code></strong> - Search users by attribute</li>
+<li><strong><code>scim_user_exists</code></strong> - Check if user exists</li>
+</ul>
+<h3 id="system-information"><a class="header" href="#system-information">System Information</a></h3>
+<ul>
+<li><strong><code>scim_get_schemas</code></strong> - Get all SCIM schemas</li>
+<li><strong><code>scim_server_info</code></strong> - Get server capabilities and info</li>
+</ul>
+<h2 id="multi-tenant-support-1"><a class="header" href="#multi-tenant-support-1">Multi-Tenant Support</a></h2>
+<p>The MCP server supports multi-tenant operations out of the box:</p>
+<pre><code class="language-json">{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "scim_create_user",
+    "arguments": {
+      "user_data": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName": "bob@tenant-a.com",
+        "active": true
+      },
+      "tenant_id": "tenant-a"
+    }
+  }
+}
+</code></pre>
+<p>Each tenant's data is completely isolated from others.</p>
+<h2 id="integration-with-ai-agents"><a class="header" href="#integration-with-ai-agents">Integration with AI Agents</a></h2>
+<p>Your MCP server can be used with any MCP-compatible AI agent or framework. The AI agent will:</p>
+<ol>
+<li><strong>Initialize</strong> - Establish connection and capabilities</li>
+<li><strong>Discover Tools</strong> - Get list of available SCIM operations</li>
+<li><strong>Get Schemas</strong> - Understand your data model structure</li>
+<li><strong>Execute Operations</strong> - Create, read, update, delete resources</li>
+<li><strong>Handle Errors</strong> - Process validation and operation errors gracefully</li>
+</ol>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<p>The MCP server provides structured error responses for AI agents:</p>
+<pre><code class="language-json">{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "error": {
+    "code": -32000,
+    "message": "Tool execution failed: Validation error: userName is required"
+  }
+}
+</code></pre>
+<h2 id="logging-and-monitoring"><a class="header" href="#logging-and-monitoring">Logging and Monitoring</a></h2>
+<p>Enable comprehensive logging for production deployments:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// In your main function
+env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+    .format_timestamp_secs()
+    .init();
+
+log::info!("MCP Server starting");
+log::debug!("Available tools: {:?}", mcp_server.get_tools().len());
+<span class="boring">}</span></code></pre></pre>
+<h2 id="running-examples-1"><a class="header" href="#running-examples-1">Running Examples</a></h2>
+<p>The crate includes complete working examples:</p>
+<pre><code class="language-bash"># Basic MCP server
+cargo run --example mcp_stdio_server --features mcp
+
+# Comprehensive example with demos
+cargo run --example mcp_server_example --features mcp
+</code></pre>
+<h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
+<ul>
+<li><strong><a href="getting-started/../storage/overview.html">Storage Backends</a></strong> - Replace InMemoryStorage with PostgreSQL or other databases</li>
+<li><strong><a href="getting-started/../multi-tenant/setup.html">Multi-Tenant Configuration</a></strong> - Advanced tenant management</li>
+<li><strong><a href="getting-started/../advanced/custom-resources.html">Custom Resource Types</a></strong> - Beyond User and Group</li>
+<li><strong><a href="getting-started/../deployment/mcp-production.html">Production Deployment</a></strong> - Scaling and monitoring MCP servers</li>
+</ul>
+<h2 id="complete-working-example"><a class="header" href="#complete-working-example">Complete Working Example</a></h2>
+<p>See <a href="getting-started/../../../../examples/mcp_stdio_server.rs"><code>examples/mcp_stdio_server.rs</code></a> for a complete, production-ready MCP server implementation with:</p>
+<ul>
+<li>Comprehensive error handling</li>
+<li>Multi-tenant support</li>
+<li>Full logging configuration</li>
+<li>Tool discovery and execution</li>
+<li>Schema introspection</li>
+<li>Graceful shutdown handling</li>
+</ul>
+<p>The MCP integration makes your SCIM server AI-ready with minimal configuration!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
 <p>The SCIM Server follows a clean trait-based architecture with clear separation of concerns designed for maximum composability and extensibility.</p>
 <h2 id="component-architecture"><a class="header" href="#component-architecture">Component Architecture</a></h2>
@@ -793,6 +1047,711 @@ match result {
 <li>Multi-tenant isolation for SaaS platforms</li>
 <li>Connection pooling support through storage traits</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="understanding-scim-schemas"><a class="header" href="#understanding-scim-schemas">Understanding SCIM Schemas</a></h1>
+<p>SCIM (System for Cross-domain Identity Management) uses a sophisticated schema system to define how identity data is structured, validated, and extended across HTTP REST operations. This chapter explores the schema-centric aspects of SCIM and how they're implemented in the SCIM Server library.</p>
+<h2 id="scim-protocol-background"><a class="header" href="#scim-protocol-background">SCIM Protocol Background</a></h2>
+<p>SCIM is defined by two key Internet Engineering Task Force (IETF) Request for Comments (RFC) specifications:</p>
+<ul>
+<li><strong><a href="https://tools.ietf.org/html/rfc7643">RFC 7643: System for Cross-domain Identity Management (SCIM): Core Schema</a></strong> - Defines the core schema and extension model for representing users and groups, published September 2015</li>
+<li><strong><a href="https://tools.ietf.org/html/rfc7644">RFC 7644: System for Cross-domain Identity Management (SCIM): Protocol</a></strong> - Specifies the REST API protocol for provisioning and managing identity data, published September 2015</li>
+</ul>
+<p>These RFCs establish SCIM 2.0 as the industry standard for identity provisioning, providing a specification for automated user lifecycle management between identity providers (like Okta, Azure AD) and service providers (applications). The schema system defined in RFC 7643 forms the foundation for all SCIM operations, ensuring consistent data representation while allowing for extensibility to meet specific organizational requirements.</p>
+<h2 id="what-are-scim-schemas"><a class="header" href="#what-are-scim-schemas">What Are SCIM Schemas?</a></h2>
+<p>SCIM schemas define the structure and constraints for identity resources like Users and Groups across HTTP REST operations. They serve multiple purposes:</p>
+<ul>
+<li><strong>Data Structure Definition</strong>: Define what attributes a resource can have</li>
+<li><strong>Validation Rules</strong>: Specify required fields, data types, and constraints</li>
+<li><strong>HTTP Operation Context</strong>: Guide validation and processing for GET, POST, PUT, PATCH, DELETE</li>
+<li><strong>Extensibility Framework</strong>: Allow custom attributes while maintaining interoperability</li>
+<li><strong>API Contract</strong>: Provide a machine-readable description of resource formats</li>
+<li><strong>Meta Components</strong>: Define service provider capabilities and resource types</li>
+</ul>
+<h2 id="schema-structure-progression"><a class="header" href="#schema-structure-progression">Schema Structure Progression</a></h2>
+<p>SCIM uses a layered approach to schema definition, progressing from meta-schemas to concrete resource schemas.</p>
+<h3 id="1-schema-for-schemas-meta-schema"><a class="header" href="#1-schema-for-schemas-meta-schema">1. Schema for Schemas (Meta-Schema)</a></h3>
+<p>At the foundation is the meta-schema that defines how schemas themselves are structured. This is defined in RFC 7643 Section 7 and includes attributes like:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L25-40">{
+  "id": "urn:ietf:params:scim:schemas:core:2.0:Schema",
+  "name": "Schema",
+  "description": "Specifies the schema that describes a SCIM schema",
+  "attributes": [
+    {
+      "name": "id",
+      "type": "string",
+      "multiValued": false,
+      "description": "The unique URI of the schema",
+      "required": true,
+      "mutability": "readOnly"
+    }
+    // ... more meta-attributes
+  ]
+}
+</code></pre>
+<p>This meta-schema ensures consistency across all SCIM schema definitions and enables programmatic schema discovery and validation.</p>
+<h3 id="2-core-resource-schemas"><a class="header" href="#2-core-resource-schemas">2. Core Resource Schemas</a></h3>
+<p>SCIM defines two core resource schemas that all compliant implementations must support:</p>
+<h4 id="user-schema-urnietfparamsscimschemascore20user"><a class="header" href="#user-schema-urnietfparamsscimschemascore20user">User Schema (<code>urn:ietf:params:scim:schemas:core:2.0:User</code>)</a></h4>
+<p>The User schema defines standard attributes for representing people in identity systems:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L45-65">{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "id": "urn:ietf:params:scim:schemas:core:2.0:User",
+  "name": "User",
+  "description": "User Account",
+  "attributes": [
+    {
+      "name": "userName",
+      "type": "string",
+      "multiValued": false,
+      "description": "Unique identifier for the User",
+      "required": true,
+      "mutability": "readWrite",
+      "returned": "default",
+      "uniqueness": "server"
+    },
+    {
+      "name": "name",
+      "type": "complex",
+      "multiValued": false,
+      "description": "The components of the user's real name",
+      "required": false,
+      "subAttributes": [
+        {
+          "name": "formatted",
+          "type": "string",
+          "multiValued": false,
+          "description": "The full name",
+          "required": false
+        },
+        {
+          "name": "familyName", 
+          "type": "string",
+          "multiValued": false,
+          "description": "The family name",
+          "required": false
+        }
+        // ... more name components
+      ]
+    }
+    // ... more user attributes
+  ]
+}
+</code></pre>
+<p><strong>Key User Attributes:</strong></p>
+<ul>
+<li><code>userName</code>: Unique identifier (required)</li>
+<li><code>name</code>: Complex type with formatted, family, and given names</li>
+<li><code>emails</code>: Multi-valued array of email addresses</li>
+<li><code>active</code>: Boolean indicating account status</li>
+<li><code>groups</code>: Multi-valued references to group memberships</li>
+</ul>
+<h4 id="group-schema-urnietfparamsscimschemascore20group"><a class="header" href="#group-schema-urnietfparamsscimschemascore20group">Group Schema (<code>urn:ietf:params:scim:schemas:core:2.0:Group</code>)</a></h4>
+<p>The Group schema defines attributes for representing collections of users:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L90-110">{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+  "id": "urn:ietf:params:scim:schemas:core:2.0:Group", 
+  "name": "Group",
+  "description": "Group",
+  "attributes": [
+    {
+      "name": "displayName",
+      "type": "string",
+      "multiValued": false,
+      "description": "A human-readable name for the Group",
+      "required": true,
+      "mutability": "readWrite"
+    },
+    {
+      "name": "members",
+      "type": "complex",
+      "multiValued": true,
+      "description": "A list of members of the Group",
+      "required": false,
+      "subAttributes": [
+        {
+          "name": "value",
+          "type": "string", 
+          "multiValued": false,
+          "description": "Identifier of the member",
+          "mutability": "immutable"
+        },
+        {
+          "name": "$ref",
+          "type": "reference",
+          "referenceTypes": ["User", "Group"],
+          "multiValued": false,
+          "description": "The URI of the member resource"
+        }
+      ]
+    }
+  ]
+}
+</code></pre>
+<p><strong>Key Group Attributes:</strong></p>
+<ul>
+<li><code>displayName</code>: Human-readable group name (required)</li>
+<li><code>members</code>: Multi-valued complex attribute containing user/group references</li>
+</ul>
+<h3 id="3-schema-specialization-and-extensions"><a class="header" href="#3-schema-specialization-and-extensions">3. Schema Specialization and Extensions</a></h3>
+<p>SCIM's extensibility model allows organizations to add custom attributes while maintaining core compatibility.</p>
+<h4 id="enterprise-user-extension"><a class="header" href="#enterprise-user-extension">Enterprise User Extension</a></h4>
+<p>RFC 7643 defines a standard extension for enterprise environments:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L140-160">{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "userName": "john.doe",
+  "emails": [{"value": "john@example.com", "primary": true}],
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "12345",
+    "department": "Engineering", 
+    "manager": {
+      "value": "26118915-6090-4610-87e4-49d8ca9f808d",
+      "$ref": "../Users/26118915-6090-4610-87e4-49d8ca9f808d",
+      "displayName": "Jane Smith"
+    },
+    "organization": "Acme Corp"
+  }
+}
+</code></pre>
+<h4 id="custom-schema-extensions"><a class="header" href="#custom-schema-extensions">Custom Schema Extensions</a></h4>
+<p>Organizations can define completely custom schemas using proper URN namespacing:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L170-190">{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:example:params:scim:schemas:extension:acme:2.0:User"
+  ],
+  "userName": "alice.engineer",
+  "urn:example:params:scim:schemas:extension:acme:2.0:User": {
+    "securityClearance": "SECRET",
+    "projectAssignments": [
+      {
+        "projectId": "PROJ-001",
+        "role": "Lead Developer",
+        "startDate": "2024-01-15"
+      }
+    ],
+    "skills": ["rust", "scim", "identity-management"]
+  }
+}
+</code></pre>
+<h2 id="schema-processing-in-scim-operations"><a class="header" href="#schema-processing-in-scim-operations">Schema Processing in SCIM Operations</a></h2>
+<p>SCIM schemas drive all protocol operations, providing structure and validation rules that ensure consistent data handling across different identity providers and service providers.</p>
+<h2 id="http-rest-operations-and-schema-processing"><a class="header" href="#http-rest-operations-and-schema-processing">HTTP REST Operations and Schema Processing</a></h2>
+<p>SCIM schemas are deeply integrated with HTTP REST operations. Each SCIM command has specific schema processing requirements:</p>
+<h3 id="schema-aware-http-operations"><a class="header" href="#schema-aware-http-operations">Schema-Aware HTTP Operations</a></h3>
+<h4 id="get-operations---schema-driven-response-formation"><a class="header" href="#get-operations---schema-driven-response-formation">GET Operations - Schema-Driven Response Formation</a></h4>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L300-320">// GET /Users/{id} - Schema determines response structure
+let user = provider.get_resource("User", &amp;user_id, &amp;context).await?;
+
+// Schema controls:
+// - Which attributes are returned by default
+// - Attribute mutability affects response inclusion
+// - Extension schemas determine namespace organization
+// - "returned" attribute property: "always", "never", "default", "request"
+
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "id": "2819c223-7f76-453a-919d-413861904646",
+  "userName": "bjensen@example.com",  // returned: "default"
+  "meta": {                           // Always included per spec
+    "resourceType": "User",
+    "created": "2010-01-23T04:56:22Z",
+    "lastModified": "2011-05-13T04:42:34Z",
+    "version": "W/\"3694e05e9dff591\"",
+    "location": "https://example.com/v2/Users/2819c223..."
+  }
+}
+</code></pre>
+<h4 id="post-operations---schema-validation-on-creation"><a class="header" href="#post-operations---schema-validation-on-creation">POST Operations - Schema Validation on Creation</a></h4>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L325-345">// POST /Users - Complete resource creation with schema validation
+let create_request = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "newuser@example.com",  // Required per schema
+    "emails": [{"value": "newuser@example.com", "primary": true}]
+});
+
+// Schema validation includes:
+// - Required attribute presence check
+// - Data type validation
+// - Uniqueness constraint enforcement
+// - Mutability rules ("readOnly" attributes rejected)
+// - Extension schema validation
+
+let user = provider.create_resource("User", create_request, &amp;context).await?;
+</code></pre>
+<h4 id="put-operations---complete-resource-replacement"><a class="header" href="#put-operations---complete-resource-replacement">PUT Operations - Complete Resource Replacement</a></h4>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L350-370">// PUT /Users/{id} - Schema ensures complete resource validity
+let replacement_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "bjensen@example.com",  // Must include all required fields
+    "emails": [{"value": "bjensen@newdomain.com", "primary": true}],
+    "active": true
+});
+
+// Schema processing for PUT:
+// - Validates complete resource structure
+// - Ensures all required attributes present
+// - Respects "immutable" and "readOnly" constraints
+// - Processes all registered extension schemas
+</code></pre>
+<h4 id="patch-operations---partial-updates-with-schema-context"><a class="header" href="#patch-operations---partial-updates-with-schema-context">PATCH Operations - Partial Updates with Schema Context</a></h4>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L375-395">use scim_server::patch::{PatchOperation, PatchOp};
+
+// PATCH /Users/{id} - Schema-aware partial modifications
+let patch_ops = vec![
+    PatchOperation {
+        op: PatchOp::Replace,
+        path: Some("emails[primary eq true].value".to_string()),
+        value: Some(json!("newemail@example.com")),
+    },
+    PatchOperation {
+        op: PatchOp::Add,
+        path: Some("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department".to_string()),
+        value: Some(json!("Engineering")),
+    }
+];
+
+// Schema validation for PATCH:
+// - Path expression validation against schema structure
+// - Target attribute mutability checking
+// - Extension schema awareness for namespaced paths
+// - Multi-valued attribute handling per schema rules
+</code></pre>
+<h4 id="delete-operations---schema-informed-cleanup"><a class="header" href="#delete-operations---schema-informed-cleanup">DELETE Operations - Schema-Informed Cleanup</a></h4>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L410-430">// DELETE /Users/{id} - Schema guides deletion processing
+// Schema-informed deletion:
+// - Validates deletion permissions based on mutability constraints
+// - Processes extension schema cleanup requirements
+// - Determines soft delete vs hard delete approach
+</code></pre>
+<h2 id="scim-meta-components-and-schema-integration"><a class="header" href="#scim-meta-components-and-schema-integration">SCIM Meta Components and Schema Integration</a></h2>
+<p>SCIM defines several meta-schemas that describe the service provider's capabilities and resource structures:</p>
+<h3 id="service-provider-configuration-schema"><a class="header" href="#service-provider-configuration-schema">Service Provider Configuration Schema</a></h3>
+<p>The ServiceProviderConfig resource describes server capabilities:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L445-465">{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
+  "documentationUri": "https://example.com/help/scim.html",
+  "patch": {
+    "supported": true
+  },
+  "bulk": {
+    "supported": true,
+    "maxOperations": 1000,
+    "maxPayloadSize": 1048576
+  },
+  "filter": {
+    "supported": true,
+    "maxResults": 200
+  },
+  "changePassword": {
+    "supported": false
+  },
+  "sort": {
+    "supported": true
+  },
+  "etag": {
+    "supported": true
+  },
+  "authenticationSchemes": [
+    {
+      "type": "oauthbearertoken",
+      "name": "OAuth Bearer Token",
+      "description": "Authentication scheme using the OAuth Bearer Token",
+      "specUri": "http://www.rfc-editor.org/info/rfc6750",
+      "documentationUri": "https://example.com/help/oauth.html"
+    }
+  ]
+}
+</code></pre>
+<h3 id="resource-type-meta-schema"><a class="header" href="#resource-type-meta-schema">Resource Type Meta-Schema</a></h3>
+<p>Resource types describe available SCIM resources and their schemas:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L485-505">// GET /ResourceTypes/User returns:
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
+  "id": "User",
+  "name": "User",
+  "endpoint": "/Users",
+  "description": "User Account",
+  "schema": "urn:ietf:params:scim:schemas:core:2.0:User",
+  "schemaExtensions": [
+    {
+      "schema": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+      "required": false
+    },
+    {
+      "schema": "urn:example:params:scim:schemas:extension:acme:2.0:User", 
+      "required": true
+    }
+  ],
+  "meta": {
+    "location": "https://example.com/v2/ResourceTypes/User",
+    "resourceType": "ResourceType"
+  }
+}
+</code></pre>
+<h3 id="schema-meta-attributes"><a class="header" href="#schema-meta-attributes">Schema Meta-Attributes</a></h3>
+<p>Every SCIM resource includes meta-attributes that support HTTP operations:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L520-540">{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "id": "2819c223-7f76-453a-919d-413861904646",
+  "userName": "bjensen@example.com",
+  "meta": {
+    "resourceType": "User",                              // Schema-derived type
+    "created": "2010-01-23T04:56:22Z",                  // Creation timestamp
+    "lastModified": "2011-05-13T04:42:34Z",             // Modification tracking
+    "location": "https://example.com/v2/Users/2819c223-7f76-453a-919d-413861904646",
+    "version": "W/\"3694e05e9dff591\""                  // ETag for concurrency control
+  }
+}
+
+// Meta attributes enable:
+// - HTTP caching with ETags
+// - Conditional operations (If-Match, If-None-Match) 
+// - Audit trail capabilities
+// - Resource location for HATEOAS compliance
+</code></pre>
+<h2 id="schema-processing-in-scim-server-implementation"><a class="header" href="#schema-processing-in-scim-server-implementation">Schema Processing in SCIM Server Implementation</a></h2>
+<p>The SCIM Server library integrates schema processing throughout the HTTP request lifecycle:</p>
+<h3 id="request-processing-pipeline"><a class="header" href="#request-processing-pipeline">Request Processing Pipeline</a></h3>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L555-575">use scim_server::{ScimServer, RequestContext};
+
+let server = ScimServer::new(provider)?;
+
+// 1. HTTP Request → Schema Identification
+let schemas = extract_schemas_from_request(&amp;request_body)?;
+
+// 2. Schema Validation → Resource Processing  
+let validation_context = ValidationContext {
+    schemas: &amp;schemas,
+    operation: HttpOperation::Post,
+    resource_type: "User",
+};
+
+// 3. Operation Execution with Schema Constraints
+let result = match request.method() {
+    "GET" =&gt; server.get_with_schema_filtering(&amp;resource_type, &amp;id, &amp;query_params, &amp;context).await?,
+    "POST" =&gt; server.create_with_schema_validation(&amp;resource_type, &amp;request_body, &amp;context).await?,
+    "PUT" =&gt; server.replace_with_schema_validation(&amp;resource_type, &amp;id, &amp;request_body, &amp;context).await?,
+    "PATCH" =&gt; server.patch_with_schema_awareness(&amp;resource_type, &amp;id, &amp;patch_ops, &amp;context).await?,
+    "DELETE" =&gt; server.delete_with_schema_cleanup(&amp;resource_type, &amp;id, &amp;context).await?,
+};
+</code></pre>
+<h3 id="schema-driven-query-processing"><a class="header" href="#schema-driven-query-processing">Schema-Driven Query Processing</a></h3>
+<p>SCIM query parameters interact directly with schema definitions:</p>
+<pre><code>GET /Users?attributes=userName,emails&amp;filter=active eq true
+</code></pre>
+<p>Schema processing for queries:</p>
+<ul>
+<li>Validates attribute names against schema definitions</li>
+<li>Handles extension schema attributes in projections</li>
+<li>Enforces "returned" attribute constraints</li>
+<li>Processes complex attribute path expressions</li>
+<li>Validates filter expressions against attribute types</li>
+</ul>
+<h2 id="auto-schema-discovery"><a class="header" href="#auto-schema-discovery">Auto Schema Discovery</a></h2>
+<p>SCIM Server provides automatic schema discovery capabilities that integrate with the SCIM protocol's introspection endpoints:</p>
+<h3 id="schema-endpoint-implementation"><a class="header" href="#schema-endpoint-implementation">Schema Endpoint Implementation</a></h3>
+<p>SCIM servers provide schema introspection endpoints:</p>
+<ul>
+<li><code>GET /Schemas</code> returns all registered schemas</li>
+<li><code>GET /Schemas/{schema_id}</code> returns specific schema details</li>
+<li>Enables automatic schema discovery for clients and tools</li>
+</ul>
+<h3 id="resource-type-discovery"><a class="header" href="#resource-type-discovery">Resource Type Discovery</a></h3>
+<p>SCIM servers support resource type introspection as defined in RFC 7644:</p>
+<p><code>GET /ResourceTypes</code> returns supported resource types, including:</p>
+<ul>
+<li>Resource endpoint paths</li>
+<li>Associated schema URNs</li>
+<li>Available schema extensions</li>
+<li>Extension requirement status</li>
+</ul>
+<h2 id="dynamic-data-validation"><a class="header" href="#dynamic-data-validation">Dynamic Data Validation</a></h2>
+<p>The schema system enables sophisticated validation that goes beyond simple type checking:</p>
+<h3 id="multi-level-validation"><a class="header" href="#multi-level-validation">Multi-Level Validation</a></h3>
+<p>SCIM validation occurs at multiple levels:</p>
+<ol>
+<li><strong>HTTP Method Validation</strong>: Operation-specific constraints</li>
+<li><strong>Syntax Validation</strong>: JSON structure and basic type checking</li>
+<li><strong>Schema Validation</strong>: Compliance with schema definitions</li>
+<li><strong>Business Rule Validation</strong>: Custom validation logic</li>
+</ol>
+<p>The validation process ensures that data conforms to schema requirements before processing, returning appropriate HTTP status codes for different error types.</p>
+<h3 id="operation-specific-validation"><a class="header" href="#operation-specific-validation">Operation-Specific Validation</a></h3>
+<p>Each HTTP operation has specific validation requirements based on schema attribute properties:</p>
+<ul>
+<li><strong>POST (Create)</strong>: All required attributes must be present</li>
+<li><strong>PUT (Replace)</strong>: Complete resource validation, immutable attributes cannot change</li>
+<li><strong>PATCH (Update)</strong>: Path validation, readOnly attributes cannot be targeted</li>
+<li><strong>GET (Read)</strong>: Response filtering based on "returned" attribute property</li>
+</ul>
+<h3 id="http-status-code-mapping"><a class="header" href="#http-status-code-mapping">HTTP Status Code Mapping</a></h3>
+<p>Schema validation errors map to specific HTTP status codes:</p>
+<ul>
+<li><strong>400 Bad Request</strong>: Invalid values, missing required attributes, mutability violations</li>
+<li><strong>409 Conflict</strong>: Uniqueness constraint violations</li>
+<li><strong>412 Precondition Failed</strong>: ETag version mismatches</li>
+</ul>
+<h2 id="working-with-standard-data-definitions"><a class="header" href="#working-with-standard-data-definitions">Working with Standard Data Definitions</a></h2>
+<p>SCIM defines standard data formats and constraints that the library enforces:</p>
+<h3 id="attribute-types-and-constraints"><a class="header" href="#attribute-types-and-constraints">Attribute Types and Constraints</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Type</th><th>Description</th><th>Validation Rules</th></tr></thead><tbody>
+<tr><td><code>string</code></td><td>Text data</td><td>Length limits, case sensitivity, uniqueness</td></tr>
+<tr><td><code>boolean</code></td><td>True/false values</td><td>Must be valid JSON boolean</td></tr>
+<tr><td><code>decimal</code></td><td>Numeric data</td><td>Precision and scale constraints</td></tr>
+<tr><td><code>integer</code></td><td>Whole numbers</td><td>Range validation</td></tr>
+<tr><td><code>dateTime</code></td><td>ISO 8601 timestamps</td><td>Format and timezone validation</td></tr>
+<tr><td><code>binary</code></td><td>Base64-encoded data</td><td>Encoding validation</td></tr>
+<tr><td><code>reference</code></td><td>Resource references</td><td>Referential integrity checks</td></tr>
+<tr><td><code>complex</code></td><td>Nested objects</td><td>Sub-attribute validation</td></tr>
+</tbody></table>
+</div>
+<h3 id="multi-valued-attributes"><a class="header" href="#multi-valued-attributes">Multi-Valued Attributes</a></h3>
+<p>SCIM supports multi-valued attributes with sophisticated handling:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L450-470">{
+  "emails": [
+    {
+      "value": "primary@example.com",
+      "type": "work", 
+      "primary": true
+    },
+    {
+      "value": "secondary@example.com",
+      "type": "personal",
+      "primary": false
+    }
+  ]
+}
+</code></pre>
+<p><strong>Multi-Value Rules:</strong></p>
+<ul>
+<li>At most one <code>primary</code> value allowed</li>
+<li>Type values from canonical list (if specified)</li>
+<li>Duplicate detection and handling</li>
+<li>Order preservation for client expectations</li>
+</ul>
+<h3 id="reference-attributes"><a class="header" href="#reference-attributes">Reference Attributes</a></h3>
+<p>References to other SCIM resources are handled with full integrity checking:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L485-505">{
+  "groups": [
+    {
+      "value": "e9e30dba-f08f-4109-8486-d5c6a331660a",
+      "$ref": "https://example.com/scim/v2/Groups/e9e30dba-f08f-4109-8486-d5c6a331660a",
+      "display": "Administrators"
+    }
+  ]
+}
+
+// The library validates:
+// - Reference type matches schema constraints
+// - Tenant isolation for multi-tenant systems
+</code></pre>
+<h2 id="http-content-negotiation-and-schema-processing"><a class="header" href="#http-content-negotiation-and-schema-processing">HTTP Content Negotiation and Schema Processing</a></h2>
+<p>SCIM servers use HTTP headers to negotiate schema processing:</p>
+<h3 id="content-type-and-schema-validation"><a class="header" href="#content-type-and-schema-validation">Content-Type and Schema Validation</a></h3>
+<p>SCIM requests must include proper Content-Type headers and schema declarations:</p>
+<pre><code>POST /Users HTTP/1.1
+Content-Type: application/scim+json
+
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "userName": "newuser@example.com"
+}
+</code></pre>
+<p>Servers validate:</p>
+<ul>
+<li>Content-Type header matches SCIM specification (<code>application/scim+json</code>)</li>
+<li>schemas array matches Content-Type expectations</li>
+<li>Resource structure conforms to declared schemas</li>
+</ul>
+<h3 id="etag-and-schema-versioning"><a class="header" href="#etag-and-schema-versioning">ETag and Schema Versioning</a></h3>
+<p>The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a <code>meta.version</code> field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (<code>If-Match</code>, <code>If-None-Match</code>) with these ETags to ensure they're operating on the expected version of a resource.</p>
+<p>For implementation details and practical usage patterns, see the <a href="concepts/./etag-concurrency.html">ETag Concurrency Control</a> chapter and <a href="concepts/./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
+<h2 id="schema-extensibility-patterns"><a class="header" href="#schema-extensibility-patterns">Schema Extensibility Patterns</a></h2>
+<p>The SCIM Server supports several patterns for extending schemas while maintaining interoperability:</p>
+<h3 id="additive-extensions"><a class="header" href="#additive-extensions">Additive Extensions</a></h3>
+<p>Add new attributes without modifying core schemas:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L520-540">// Core user data remains unchanged
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:example:params:scim:schemas:extension:acme:2.0:User"
+  ],
+  "userName": "alice.engineer",
+  "emails": [{"value": "alice@acme.com", "primary": true}],
+  
+  // Extension data in separate namespace
+  "urn:example:params:scim:schemas:extension:acme:2.0:User": {
+    "department": "R&amp;D",
+    "clearanceLevel": "SECRET",
+    "projects": ["moonshot", "widget-2.0"]
+  }
+}
+</code></pre>
+<h3 id="schema-composition"><a class="header" href="#schema-composition">Schema Composition</a></h3>
+<p>Combine multiple extensions for complex scenarios:</p>
+<pre><code class="language-scim-server/docs/guide/src/concepts/schemas.md#L550-570">{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User", 
+    "urn:example:params:scim:schemas:extension:security:2.0:User",
+    "urn:example:params:scim:schemas:extension:hr:2.0:User"
+  ],
+  "userName": "bob.manager",
+  
+  // Each extension provides its own attributes
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "E12345"
+  },
+  "urn:example:params:scim:schemas:extension:security:2.0:User": {
+    "lastSecurityReview": "2024-01-15T10:30:00Z"
+  },
+  "urn:example:params:scim:schemas:extension:hr:2.0:User": {
+    "performanceRating": "exceeds-expectations"
+  }
+}
+</code></pre>
+<h2 id="best-practices-for-schema-design"><a class="header" href="#best-practices-for-schema-design">Best Practices for Schema Design</a></h2>
+<p>When designing custom schemas for use with SCIM Server:</p>
+<h3 id="1-follow-naming-conventions"><a class="header" href="#1-follow-naming-conventions">1. Follow Naming Conventions</a></h3>
+<ul>
+<li>Use proper URN namespacing: <code>urn:example:params:scim:schemas:extension:company:version:Type</code></li>
+<li>Choose descriptive attribute names that clearly indicate purpose</li>
+<li>Use camelCase for attribute names to match SCIM conventions</li>
+</ul>
+<h3 id="2-design-for-interoperability"><a class="header" href="#2-design-for-interoperability">2. Design for Interoperability</a></h3>
+<ul>
+<li>Minimize custom types - prefer standard SCIM types when possible</li>
+<li>Document extensions clearly for integration partners</li>
+<li>Provide sensible defaults and make attributes optional when appropriate</li>
+</ul>
+<h3 id="3-consider-performance-implications"><a class="header" href="#3-consider-performance-implications">3. Consider Performance Implications</a></h3>
+<ul>
+<li>Avoid deeply nested complex attributes that are expensive to validate</li>
+<li>Use appropriate uniqueness constraints to leverage database indexes</li>
+<li>Consider query patterns when designing multi-valued attributes</li>
+</ul>
+<h3 id="4-plan-for-evolution"><a class="header" href="#4-plan-for-evolution">4. Plan for Evolution</a></h3>
+<ul>
+<li>Design extensible schemas that can accommodate future requirements</li>
+<li>Use semantic versioning for schema URNs</li>
+<li>Maintain backwards compatibility when modifying existing schemas</li>
+</ul>
+<h2 id="integration-with-ai-systems"><a class="header" href="#integration-with-ai-systems">Integration with AI Systems</a></h2>
+<p>The SCIM Server's schema system is designed to work seamlessly with AI agents through the Model Context Protocol (MCP):</p>
+<h3 id="schema-aware-ai-tools"><a class="header" href="#schema-aware-ai-tools">Schema-Aware AI Tools</a></h3>
+<p>SCIM schemas enable AI integration by providing structured descriptions of available operations and data formats. AI systems can discover schema capabilities and generate compliant requests automatically.</p>
+<p>Schema information that benefits AI systems includes:</p>
+<ul>
+<li>Required and optional attributes for each resource type</li>
+<li>Validation rules and data format constraints</li>
+<li>Available HTTP operations and their requirements</li>
+<li>Extension schemas and custom attribute definitions</li>
+</ul>
+<p>For implementation details, see <a href="concepts/./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a> and the <a href="concepts/../advanced/ai-integration.html">AI Integration Guide</a>.</p>
+<h2 id="conclusion"><a class="header" href="#conclusion">Conclusion</a></h2>
+<h2 id="conclusion-1"><a class="header" href="#conclusion-1">Conclusion</a></h2>
+<p>SCIM schemas provide a powerful foundation for identity data management that balances standardization with extensibility across HTTP REST operations. Understanding these protocol concepts enables you to:</p>
+<ul>
+<li><strong>Design compliant SCIM resources</strong> that work with enterprise identity providers</li>
+<li><strong>Implement proper validation</strong> across all HTTP operations</li>
+<li><strong>Create extensible systems</strong> using schema extension mechanisms</li>
+<li><strong>Build interoperable solutions</strong> that follow RFC specifications</li>
+<li><strong>Support diverse client requirements</strong> through schema discovery</li>
+</ul>
+<p>Key takeaways include:</p>
+<ul>
+<li><strong>Schema Structure</strong>: Schemas define both data structure and operational behavior</li>
+<li><strong>HTTP Integration</strong>: Each REST operation has specific schema processing requirements</li>
+<li><strong>Extensibility</strong>: Extension schemas enable customization while maintaining compatibility</li>
+<li><strong>Validation</strong>: Multi-layered validation ensures data integrity and compliance</li>
+<li><strong>Discovery</strong>: Schema endpoints enable dynamic client capabilities</li>
+</ul>
+<p>For practical implementation of these concepts using the SCIM Server library, see <a href="concepts/./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
+<p>The next chapter will explore hands-on implementation patterns and real-world usage scenarios.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="schema-mechanisms-in-scim-server"><a class="header" href="#schema-mechanisms-in-scim-server">Schema Mechanisms in SCIM Server</a></h1>
+<p>This chapter explores how the SCIM Server library implements the schema concepts defined in the SCIM protocol. While <a href="concepts/./schemas.html">Understanding SCIM Schemas</a> covers the protocol specifications, this chapter focuses on the conceptual mechanisms that make schema processing practical and type-safe in Rust applications.</p>
+<p>The SCIM Server library transforms the abstract schema definitions from RFC 7643 into concrete, composable components that provide compile-time safety, runtime validation, and seamless integration with Rust's type system.</p>
+<h2 id="schema-registry"><a class="header" href="#schema-registry">Schema Registry</a></h2>
+<p>The Schema Registry serves as the central schema management system within SCIM Server. It acts as a knowledge base that holds all schema definitions and provides validation services throughout the request lifecycle.</p>
+<p><strong>Core Concept</strong>: Rather than parsing schemas repeatedly or maintaining scattered validation logic, the Schema Registry centralizes all schema knowledge in a single, queryable component. It comes pre-loaded with RFC 7643 core schemas (User, Group, Enterprise User extension) and supports dynamic registration of custom schemas at runtime.</p>
+<p>The registry operates as a validation oracle—when any component needs to understand attribute constraints, validate data structures, or determine response formatting, it queries the registry. This creates a single source of truth for schema behavior across the entire system.</p>
+<p><strong>Integration Points</strong>: The registry integrates with every major operation—resource creation validates against registered schemas, query processing checks attribute names, and response formatting respects schema-defined visibility rules.</p>
+<p><em>For detailed usage examples and API reference, see the <a href="concepts/../advanced/schema-registry.html">Schema Registry Guide</a>.</em></p>
+<h2 id="value-objects-1"><a class="header" href="#value-objects-1">Value Objects</a></h2>
+<p>Value Objects provide compile-time type safety for SCIM attributes by wrapping primitive values in domain-specific types. This mechanism prevents common errors like assigning invalid email addresses or constructing malformed names.</p>
+<p><strong>Core Concept</strong>: Instead of working with raw JSON values that can contain any data, Value Objects create typed wrappers that enforce validation at construction time. An <code>Email</code> value object can only be created with a valid email string, and a <code>UserName</code> can only contain characters that meet SCIM requirements.</p>
+<p>This approach leverages Rust's ownership system to make invalid states unrepresentable. Once you have a <code>DisplayName</code> value object, you know it contains valid display name data—no runtime checks needed. The type system becomes your validation mechanism.</p>
+<p><strong>Schema Integration</strong>: Value objects understand their corresponding schema definitions. They know their attribute type, validation rules, and serialization requirements. When converting to JSON for API responses, they automatically apply schema-defined formatting and constraints.</p>
+<p><strong>Extensibility</strong>: The value object system supports both pre-built types for common SCIM attributes and custom value objects for organization-specific extensions. The factory pattern allows dynamic creation while maintaining type safety.</p>
+<p><em>For implementation details and custom value object creation, see the <a href="concepts/../how-to/custom-value-objects.html">Value Objects Guide</a>.</em></p>
+<h2 id="dynamic-schema-construction"><a class="header" href="#dynamic-schema-construction">Dynamic Schema Construction</a></h2>
+<p>Dynamic Schema Construction addresses the challenge of working with schemas that are not known at compile time—such as tenant-specific extensions or runtime-configured resource types.</p>
+<p><strong>Core Concept</strong>: While value objects provide compile-time safety for known schemas, dynamic construction enables runtime flexibility for unknown or variable schemas. The system can examine a schema definition at runtime and create appropriate value objects and validation logic on demand.</p>
+<p>This mechanism uses a factory pattern where schema definitions drive object creation. Given a schema's attribute definition and a JSON value, the system can construct the appropriate typed representation without prior knowledge of the specific schema structure.</p>
+<p><strong>Schema-Driven Behavior</strong>: The construction process respects all schema constraints—required attributes, data types, multi-valued rules, and custom validation logic. The resulting objects behave identically to compile-time created value objects, maintaining consistency across static and dynamic scenarios.</p>
+<p><strong>Use Cases</strong>: This enables multi-tenant systems where each tenant may have custom schemas, AI integration where schemas are discovered at runtime, and administrative tools that work with arbitrary SCIM resource types.</p>
+<p><em>For advanced usage patterns and performance considerations, see the <a href="concepts/../advanced/dynamic-schemas.html">Dynamic Construction Guide</a>.</em></p>
+<h2 id="validation-pipeline"><a class="header" href="#validation-pipeline">Validation Pipeline</a></h2>
+<p>The Validation Pipeline orchestrates multi-layered validation that progresses from basic syntax checking to complex business rule enforcement. This mechanism ensures that only valid, schema-compliant data enters your system.</p>
+<p><strong>Core Concept</strong>: Rather than ad-hoc validation scattered throughout the codebase, the pipeline provides a structured, configurable validation process. Each layer builds on the previous one—syntax validation ensures basic JSON correctness, schema validation checks SCIM compliance, and business validation enforces organizational rules.</p>
+<p>The pipeline integrates with HTTP operations, applying operation-specific validation rules. A POST request validates required attributes, while a PATCH request validates path expressions and mutability constraints.</p>
+<p><strong>Validation Context</strong>: The pipeline operates within a context that includes the target schema, HTTP operation type, tenant information, and existing resource state. This context enables sophisticated validation logic that considers the complete request environment.</p>
+<p><strong>Error Handling</strong>: Validation failures produce structured errors with appropriate HTTP status codes and detailed messages. The pipeline can collect multiple errors in a single pass, providing comprehensive feedback rather than stopping at the first issue.</p>
+<p><em>For error handling strategies and custom validation rules, see the <a href="concepts/../how-to/validation.html">Validation Guide</a>.</em></p>
+<h2 id="auto-schema-discovery-1"><a class="header" href="#auto-schema-discovery-1">Auto Schema Discovery</a></h2>
+<p>Auto Schema Discovery provides SCIM-compliant endpoints that expose available schemas and resource types to clients and tools. This mechanism enables runtime introspection of server capabilities.</p>
+<p><strong>Core Concept</strong>: The discovery system automatically generates schema and resource type information from the registered schemas in the Schema Registry. Clients can query <code>/Schemas</code> and <code>/ResourceTypes</code> endpoints to understand what resources are available and how they're structured.</p>
+<p>This creates a self-documenting API where tools and AI agents can discover capabilities dynamically rather than requiring pre-configured knowledge of the server's schema support.</p>
+<p><strong>Standards Compliance</strong>: The discovery endpoints conform to RFC 7644 specifications, ensuring compatibility with standard SCIM clients and identity providers. The generated responses include all required metadata for proper client integration.</p>
+<p><em>For endpoint configuration and custom resource type registration, see the <a href="concepts/../reference/rest-endpoints.html">REST API Guide</a>.</em></p>
+<h2 id="ai-integration"><a class="header" href="#ai-integration">AI Integration</a></h2>
+<p>AI Integration makes SCIM operations accessible to artificial intelligence agents through structured, schema-aware tool descriptions. This mechanism transforms SCIM Server capabilities into AI-consumable formats.</p>
+<p><strong>Core Concept</strong>: The integration generates Model Context Protocol (MCP) tool descriptions that include schema constraints, validation rules, and example usage patterns. AI agents receive structured information about what operations are available and how to use them correctly.</p>
+<p>Schema awareness ensures that AI tools understand not just the API surface but the data validation requirements, making them more likely to generate valid requests and handle errors appropriately.</p>
+<p><strong>Dynamic Capabilities</strong>: The AI integration reflects the current server configuration, including custom schemas and tenant-specific extensions. As schemas are added or modified, the AI tools automatically update to reflect new capabilities.</p>
+<p><em>For AI agent configuration and custom tool creation, see the <a href="concepts/../advanced/ai-integration.html">AI Integration Guide</a>.</em></p>
+<h2 id="component-relationships"><a class="header" href="#component-relationships">Component Relationships</a></h2>
+<p>These mechanisms work together to create a cohesive schema processing system:</p>
+<ul>
+<li><strong>Schema Registry</strong> provides the authoritative schema definitions</li>
+<li><strong>Value Objects</strong> implement type-safe attribute handling based on registry schemas</li>
+<li><strong>Dynamic Construction</strong> creates value objects from registry definitions at runtime</li>
+<li><strong>Validation Pipeline</strong> uses registry schemas to enforce compliance</li>
+<li><strong>Auto Discovery</strong> exposes registry contents through SCIM endpoints</li>
+<li><strong>AI Integration</strong> translates registry capabilities into agent-readable formats</li>
+</ul>
+<p>This architecture ensures that schema knowledge flows consistently throughout the system, from initial registration through final API responses.</p>
+<h2 id="extensibility-and-customization"><a class="header" href="#extensibility-and-customization">Extensibility and Customization</a></h2>
+<p>Each mechanism supports extension while maintaining SCIM compliance:</p>
+<ul>
+<li><strong>Custom Schemas</strong> integrate seamlessly with the registry system</li>
+<li><strong>Domain-Specific Value Objects</strong> extend the type safety model</li>
+<li><strong>Business Validation Rules</strong> plug into the validation pipeline</li>
+<li><strong>Tenant-Specific Behavior</strong> works across all mechanisms</li>
+<li><strong>Custom AI Tools</strong> can be generated from schema definitions</li>
+</ul>
+<p>The key principle is additive customization—you extend capabilities without modifying core behavior, ensuring that standard SCIM operations continue to work while supporting organization-specific requirements.</p>
+<h2 id="production-considerations"><a class="header" href="#production-considerations">Production Considerations</a></h2>
+<p>These mechanisms are designed for production deployment:</p>
+<ul>
+<li><strong>Performance</strong>: Schema processing is optimized for minimal runtime overhead</li>
+<li><strong>Memory Efficiency</strong>: Schema definitions are shared across requests and tenants</li>
+<li><strong>Thread Safety</strong>: All mechanisms support concurrent access without locking</li>
+<li><strong>Error Recovery</strong>: Validation failures don't impact server stability</li>
+<li><strong>Observability</strong>: Schema processing integrates with structured logging</li>
+</ul>
+<p><em>For deployment and monitoring guidance, see the <a href="concepts/../deployment/production.html">Production Deployment Guide</a>.</em></p>
+<h2 id="next-steps-3"><a class="header" href="#next-steps-3">Next Steps</a></h2>
+<p>Understanding these schema mechanisms prepares you for implementing SCIM Server in your applications:</p>
+<ol>
+<li><strong>Getting Started</strong>: Begin with the <a href="concepts/../getting-started/first-server.html">First SCIM Server</a> tutorial</li>
+<li><strong>Implementation</strong>: Explore <a href="concepts/../how-to/README.html">How-To Guides</a> for specific scenarios</li>
+<li><strong>Advanced Usage</strong>: Review <a href="concepts/../advanced/README.html">Advanced Topics</a> for complex deployments</li>
+<li><strong>API Reference</strong>: Consult <a href="https://docs.rs/scim-server">API Documentation</a> for detailed interfaces</li>
+</ol>
+<p>These conceptual mechanisms become practical tools through hands-on implementation and real-world usage patterns.</p>
 
                     </main>
 

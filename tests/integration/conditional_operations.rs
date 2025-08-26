@@ -4,8 +4,8 @@
 //! prevent data corruption when multiple clients modify the same resource.
 
 use scim_server::providers::StandardResourceProvider;
-use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{core::RequestContext, version::ConditionalResult};
+use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 use std::sync::Arc;
 use tokio;

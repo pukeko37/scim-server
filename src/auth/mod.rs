@@ -226,7 +226,7 @@ pub enum AuthenticationResult {
     /// Authentication failed
     Failed {
         /// The credential that was consumed during failed authentication
-        consumed: ConsumedCredential
+        consumed: ConsumedCredential,
     },
 }
 

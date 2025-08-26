@@ -8,9 +8,9 @@
 
 use scim_server::{
     auth::{AuthenticatedRequestContext, AuthenticationValidator, LinearCredential},
-    providers::{StandardResourceProvider, InMemoryError},
-    storage::InMemoryStorage,
+    providers::{InMemoryError, StandardResourceProvider},
     resource::{IsolationLevel, Resource, ResourceProvider, TenantContext, TenantPermissions},
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 use std::marker::PhantomData;

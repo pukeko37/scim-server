@@ -5,8 +5,8 @@ mod tests {
     use scim_server::ScimServer;
     use scim_server::mcp_integration::ScimMcpServer;
     use scim_server::providers::StandardResourceProvider;
-    use scim_server::storage::InMemoryStorage;
     use scim_server::resource_handlers::create_user_resource_handler;
+    use scim_server::storage::InMemoryStorage;
     use serde_json::json;
 
     #[tokio::test]

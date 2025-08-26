@@ -5,8 +5,8 @@
 //! preferred logging backend (env_logger, tracing, slog, etc.).
 
 use scim_server::{
-    providers::StandardResourceProvider, storage::InMemoryStorage, RequestContext, ScimOperation, ScimServer, TenantContext,
-    create_user_resource_handler,
+    RequestContext, ScimOperation, ScimServer, TenantContext, create_user_resource_handler,
+    providers::StandardResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 

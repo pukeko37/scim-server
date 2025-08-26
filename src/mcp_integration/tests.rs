@@ -7,13 +7,11 @@
 mod mcp_tests {
     use super::super::core::{McpServerInfo, ScimMcpServer};
     use crate::{
-        providers::StandardResourceProvider,
-        scim_server::ScimServer,
+        multi_tenant::ScimOperation, providers::StandardResourceProvider,
+        resource_handlers::create_user_resource_handler, scim_server::ScimServer,
         storage::InMemoryStorage,
-        resource_handlers::create_user_resource_handler,
-        multi_tenant::ScimOperation,
     };
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     /// Test helper to create a test MCP server
     async fn create_test_mcp_server() -> ScimMcpServer<StandardResourceProvider<InMemoryStorage>> {
@@ -53,7 +51,8 @@ mod mcp_tests {
         assert_eq!(tools.len(), 9, "Should have 9 tools available");
 
         // Verify expected tool names are present
-        let tool_names: Vec<&str> = tools.iter()
+        let tool_names: Vec<&str> = tools
+            .iter()
             .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
             .collect();
 
@@ -70,8 +69,11 @@ mod mcp_tests {
         ];
 
         for expected_tool in expected_tools {
-            assert!(tool_names.contains(&expected_tool),
-                   "Should contain tool: {}", expected_tool);
+            assert!(
+                tool_names.contains(&expected_tool),
+                "Should contain tool: {}",
+                expected_tool
+            );
         }
     }
 
@@ -96,17 +98,21 @@ mod mcp_tests {
         // Debug the result if it fails
         if !result.success {
             println!("Tool execution failed!");
-            println!("Content: {}", serde_json::to_string_pretty(&result.content).unwrap());
+            println!(
+                "Content: {}",
+                serde_json::to_string_pretty(&result.content).unwrap()
+            );
             println!("Metadata: {:?}", result.metadata);
         }
 
-        assert!(result.success, "Tool execution should succeed. Content: {}", result.content);
+        assert!(
+            result.success,
+            "Tool execution should succeed. Content: {}",
+            result.content
+        );
         assert!(result.content.get("id").is_some(), "Should return user ID");
         if let Some(user_name) = result.content.get("userName") {
-            assert_eq!(
-                user_name.as_str().unwrap(),
-                "test.user@example.com"
-            );
+            assert_eq!(user_name.as_str().unwrap(), "test.user@example.com");
         }
     }
 
@@ -117,7 +123,10 @@ mod mcp_tests {
         let result = mcp_server.execute_tool("unknown_tool", json!({})).await;
 
         assert!(!result.success, "Unknown tool should fail");
-        assert!(result.content.get("error").is_some(), "Should return error message");
+        assert!(
+            result.content.get("error").is_some(),
+            "Should return error message"
+        );
         assert_eq!(
             result.content.get("tool_name").unwrap().as_str().unwrap(),
             "unknown_tool"
@@ -129,8 +138,8 @@ mod mcp_tests {
     fn test_mcp_request_parsing() {
         let initialize_request = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}"#;
 
-        let parsed: Value = serde_json::from_str(initialize_request)
-            .expect("Should parse initialize request");
+        let parsed: Value =
+            serde_json::from_str(initialize_request).expect("Should parse initialize request");
 
         assert_eq!(parsed["jsonrpc"], "2.0");
         assert_eq!(parsed["method"], "initialize");
@@ -155,8 +164,7 @@ mod mcp_tests {
             }
         });
 
-        let serialized = serde_json::to_string(&response)
-            .expect("Should serialize response");
+        let serialized = serde_json::to_string(&response).expect("Should serialize response");
 
         assert!(serialized.contains("jsonrpc"));
         assert!(serialized.contains("protocolVersion"));
@@ -200,7 +208,7 @@ mod mcp_tests {
                     "name": "scim_server_info",
                     "arguments": {}
                 }
-            })
+            }),
         ];
 
         // Simulate processing each message
@@ -213,20 +221,20 @@ mod mcp_tests {
                     // Should return initialize response
                     let response = create_initialize_response(id);
                     assert!(response["result"]["serverInfo"]["name"].is_string());
-                },
+                }
                 "tools/list" => {
                     // Should return tools list
                     let tools = mcp_server.get_tools();
                     assert_eq!(tools.len(), 9);
-                },
+                }
                 "tools/call" => {
                     // Should execute tool
                     let tool_name = message["params"]["name"].as_str().unwrap();
                     let arguments = message["params"]["arguments"].clone();
                     let result = mcp_server.execute_tool(tool_name, arguments).await;
                     assert!(result.success);
-                },
-                _ => panic!("Unexpected method: {}", method)
+                }
+                _ => panic!("Unexpected method: {}", method),
             }
         }
     }
@@ -245,10 +253,15 @@ mod mcp_tests {
         // Test method not found
         let unknown_method_response = create_method_not_found_response(json!(1));
         assert_eq!(unknown_method_response["error"]["code"], -32601);
-        assert_eq!(unknown_method_response["error"]["message"], "Method not found");
+        assert_eq!(
+            unknown_method_response["error"]["message"],
+            "Method not found"
+        );
 
         // Test tool execution failure
-        let result = mcp_server.execute_tool("scim_create_user", json!({"invalid": "data"})).await;
+        let result = mcp_server
+            .execute_tool("scim_create_user", json!({"invalid": "data"}))
+            .await;
         assert!(!result.success);
     }
 
@@ -323,8 +336,16 @@ mod mcp_tests {
 
         assert_eq!(server_info.name, "SCIM Server");
         assert_eq!(server_info.version, "2.0");
-        assert!(server_info.supported_resource_types.contains(&"User".to_string()));
-        assert!(server_info.supported_resource_types.contains(&"Group".to_string()));
+        assert!(
+            server_info
+                .supported_resource_types
+                .contains(&"User".to_string())
+        );
+        assert!(
+            server_info
+                .supported_resource_types
+                .contains(&"Group".to_string())
+        );
     }
 
     /// Test custom server info
@@ -366,9 +387,9 @@ mod mcp_tests {
         assert_eq!(init_result["serverInfo"]["name"], "SCIM Server");
 
         // 2. List tools
-        let tools_response = mcp_server.handle_mcp_request(
-            r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#
-        ).await;
+        let tools_response = mcp_server
+            .handle_mcp_request(r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#)
+            .await;
 
         assert!(tools_response.is_some());
         let tools_resp = tools_response.unwrap();
@@ -380,7 +401,8 @@ mod mcp_tests {
         assert_eq!(tools_array.len(), 9);
 
         // Verify expected tools are present
-        let tool_names: Vec<String> = tools_array.iter()
+        let tool_names: Vec<String> = tools_array
+            .iter()
             .filter_map(|tool| tool.get("name"))
             .filter_map(|name| name.as_str())
             .map(|s| s.to_string())
@@ -434,9 +456,9 @@ mod mcp_tests {
         assert_eq!(error_obj["code"], -32000);
 
         // 6. Test ping
-        let ping_response = mcp_server.handle_mcp_request(
-            r#"{"jsonrpc":"2.0","id":6,"method":"ping","params":{}}"#
-        ).await;
+        let ping_response = mcp_server
+            .handle_mcp_request(r#"{"jsonrpc":"2.0","id":6,"method":"ping","params":{}}"#)
+            .await;
 
         assert!(ping_response.is_some());
         let ping_resp = ping_response.unwrap();
@@ -459,91 +481,112 @@ mod mcp_tests {
         let mcp_server = create_test_mcp_server().await;
 
         // 1. Create user
-        let create_result = mcp_server.execute_tool(
-            "scim_create_user",
-            json!({
-                "user_data": {
-                    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-                    "userName": "lifecycle.test@example.com",
-                    "active": true,
-                    "name": {
-                        "givenName": "Lifecycle",
-                        "familyName": "Test"
+        let create_result = mcp_server
+            .execute_tool(
+                "scim_create_user",
+                json!({
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "lifecycle.test@example.com",
+                        "active": true,
+                        "name": {
+                            "givenName": "Lifecycle",
+                            "familyName": "Test"
+                        }
                     }
-                }
-            })
-        ).await;
+                }),
+            )
+            .await;
 
         assert!(create_result.success, "User creation should succeed");
         let user_id = create_result.content.get("id").unwrap().as_str().unwrap();
         println!("✅ Created user with ID: {}", user_id);
 
         // 2. Get user
-        let get_result = mcp_server.execute_tool(
-            "scim_get_user",
-            json!({
-                "user_id": user_id
-            })
-        ).await;
+        let get_result = mcp_server
+            .execute_tool(
+                "scim_get_user",
+                json!({
+                    "user_id": user_id
+                }),
+            )
+            .await;
 
         assert!(get_result.success, "User retrieval should succeed");
         assert_eq!(get_result.content["userName"], "lifecycle.test@example.com");
         println!("✅ Retrieved user successfully");
 
         // 3. Update user
-        let update_result = mcp_server.execute_tool(
-            "scim_update_user",
-            json!({
-                "user_id": user_id,
-                "user_data": {
-                    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-                    "userName": "lifecycle.updated@example.com",
-                    "active": false,
-                    "name": {
-                        "givenName": "Updated",
-                        "familyName": "User"
+        let update_result = mcp_server
+            .execute_tool(
+                "scim_update_user",
+                json!({
+                    "user_id": user_id,
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "lifecycle.updated@example.com",
+                        "active": false,
+                        "name": {
+                            "givenName": "Updated",
+                            "familyName": "User"
+                        }
                     }
-                }
-            })
-        ).await;
+                }),
+            )
+            .await;
 
         assert!(update_result.success, "User update should succeed");
-        assert_eq!(update_result.content["userName"], "lifecycle.updated@example.com");
+        assert_eq!(
+            update_result.content["userName"],
+            "lifecycle.updated@example.com"
+        );
         println!("✅ Updated user successfully");
 
         // 4. Verify update by getting user again
-        let verify_result = mcp_server.execute_tool(
-            "scim_get_user",
-            json!({
-                "user_id": user_id
-            })
-        ).await;
+        let verify_result = mcp_server
+            .execute_tool(
+                "scim_get_user",
+                json!({
+                    "user_id": user_id
+                }),
+            )
+            .await;
 
         assert!(verify_result.success, "User verification should succeed");
-        assert_eq!(verify_result.content["userName"], "lifecycle.updated@example.com");
+        assert_eq!(
+            verify_result.content["userName"],
+            "lifecycle.updated@example.com"
+        );
         assert_eq!(verify_result.content["active"], false);
         println!("✅ Verified user update");
 
         // 5. Delete user
-        let delete_result = mcp_server.execute_tool(
-            "scim_delete_user",
-            json!({
-                "user_id": user_id
-            })
-        ).await;
+        let delete_result = mcp_server
+            .execute_tool(
+                "scim_delete_user",
+                json!({
+                    "user_id": user_id
+                }),
+            )
+            .await;
 
         assert!(delete_result.success, "User deletion should succeed");
         println!("✅ Deleted user successfully");
 
         // 6. Verify user is gone
-        let verify_gone_result = mcp_server.execute_tool(
-            "scim_get_user",
-            json!({
-                "user_id": user_id
-            })
-        ).await;
+        let verify_gone_result = mcp_server
+            .execute_tool(
+                "scim_get_user",
+                json!({
+                    "user_id": user_id
+                }),
+            )
+            .await;
 
-        assert!(!verify_gone_result.success, "Getting deleted user should fail");
+        assert!(
+            !verify_gone_result.success,
+            "Getting deleted user should fail"
+        );
         println!("✅ Confirmed user deletion");
 
         println!("✅ Complete user lifecycle test passed!");

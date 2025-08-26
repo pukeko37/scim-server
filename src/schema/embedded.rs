@@ -932,10 +932,16 @@ mod tests {
     fn test_service_provider_config_schema_parses() {
         let schema_json = service_provider_config_schema();
         let parsed: Result<Value, _> = serde_json::from_str(schema_json);
-        assert!(parsed.is_ok(), "ServiceProviderConfig schema should parse as valid JSON");
+        assert!(
+            parsed.is_ok(),
+            "ServiceProviderConfig schema should parse as valid JSON"
+        );
 
         let schema = parsed.unwrap();
-        assert_eq!(schema["id"], "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig");
+        assert_eq!(
+            schema["id"],
+            "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
+        );
         assert_eq!(schema["name"], "ServiceProviderConfig");
     }
 }

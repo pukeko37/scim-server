@@ -46,21 +46,21 @@ pub mod storage;
 
 // Re-export commonly used types for convenience
 pub use error::{ScimError, ScimResult};
-pub use resource::{RequestContext, TenantContext, Resource, ListQuery, ScimOperation};
-pub use resource::{ResourceProvider, IsolationLevel, TenantPermissions};
+pub use resource::{IsolationLevel, ResourceProvider, TenantPermissions};
+pub use resource::{ListQuery, RequestContext, Resource, ScimOperation, TenantContext};
 pub use schema::{Schema, SchemaRegistry};
 pub use schema_discovery::SchemaDiscovery;
 pub use scim_server::ScimServer;
 
 // Re-export additional types needed by examples and advanced usage
-pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
+pub use operation_handler::{
+    OperationMetadata, ScimOperationHandler, ScimOperationRequest, ScimOperationResponse,
+};
 pub use provider_capabilities::{
     AuthenticationCapabilities, BulkCapabilities, CapabilityIntrospectable, ExtendedCapabilities,
     FilterOperator, PaginationCapabilities, ProviderCapabilities,
 };
-pub use operation_handler::{
-    OperationMetadata, ScimOperationHandler, ScimOperationRequest, ScimOperationResponse,
-};
+pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
 pub use schema_discovery::AuthenticationScheme;
 
 // Multi-tenant types

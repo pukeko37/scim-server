@@ -8,7 +8,7 @@ use super::core::{ScimMcpServer, ScimToolResult};
 use super::handlers::{system_info, user_crud, user_queries};
 use super::tools::{system_schemas, user_schemas};
 use crate::ResourceProvider;
-use log::{debug, info, warn, error};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -56,7 +56,11 @@ impl McpResponse {
             jsonrpc: "2.0".to_string(),
             id,
             result: None,
-            error: Some(json!(McpError { code, message, data: None })),
+            error: Some(json!(McpError {
+                code,
+                message,
+                data: None
+            })),
         }
     }
 }
@@ -227,22 +231,21 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             Ok(req) => req,
             Err(e) => {
                 warn!("Failed to parse JSON request: {} - Input: {}", e, line);
-                return Some(McpResponse::error(
-                    None,
-                    -32700,
-                    "Parse error".to_string(),
-                ));
+                return Some(McpResponse::error(None, -32700, "Parse error".to_string()));
             }
         };
 
-        debug!("Processing method: {} with id: {:?}", request.method, request.id);
+        debug!(
+            "Processing method: {} with id: {:?}",
+            request.method, request.id
+        );
 
         match request.method.as_str() {
             "initialize" => Some(self.handle_initialize(request.id)),
             "notifications/initialized" => {
                 debug!("Received initialized notification - handshake complete");
                 None // Notifications don't require responses
-            },
+            }
             "tools/list" => Some(self.handle_tools_list(request.id)),
             "tools/call" => Some(self.handle_tools_call(request.id, request.params).await),
             "ping" => Some(self.handle_ping(request.id)),
@@ -314,12 +317,12 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             }
         };
 
-        let arguments = params
-            .get("arguments")
-            .cloned()
-            .unwrap_or(json!({}));
+        let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
-        debug!("Executing tool: {} with arguments: {}", tool_name, arguments);
+        debug!(
+            "Executing tool: {} with arguments: {}",
+            tool_name, arguments
+        );
 
         let tool_result = self.execute_tool(tool_name, arguments).await;
 
@@ -340,8 +343,11 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             McpResponse::error(
                 id,
                 -32000,
-                format!("Tool execution failed: {}",
-                    tool_result.content.get("error")
+                format!(
+                    "Tool execution failed: {}",
+                    tool_result
+                        .content
+                        .get("error")
                         .and_then(|e| e.as_str())
                         .unwrap_or("Unknown error")
                 ),

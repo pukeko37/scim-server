@@ -7,18 +7,19 @@
 use scim_server::{
     RequestContext, ScimOperation, ScimServer,
     multi_tenant::TenantContext,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     provider_capabilities::{
         AuthenticationCapabilities, BulkCapabilities, ExtendedCapabilities, FilterCapabilities,
         PaginationCapabilities, ProviderCapabilities,
     },
+    providers::StandardResourceProvider,
     resource_handlers::{create_group_resource_handler, create_user_resource_handler},
     schema::SchemaRegistry,
+    storage::InMemoryStorage,
 };
 
 /// Create a fully configured SCIM server with User and Group support and patch capabilities
-pub fn create_test_server_with_patch_support() -> ScimServer<StandardResourceProvider<InMemoryStorage>> {
+pub fn create_test_server_with_patch_support()
+-> ScimServer<StandardResourceProvider<InMemoryStorage>> {
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).expect("Failed to create server");
@@ -33,7 +34,8 @@ pub fn create_test_server_with_patch_support() -> ScimServer<StandardResourcePro
 }
 
 /// Create a SCIM server with patch capabilities disabled
-pub fn create_test_server_without_patch_support() -> ScimServer<StandardResourceProvider<InMemoryStorage>> {
+pub fn create_test_server_without_patch_support()
+-> ScimServer<StandardResourceProvider<InMemoryStorage>> {
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).expect("Failed to create server");
@@ -211,7 +213,9 @@ pub async fn create_test_group(
 }
 
 /// Assert that a server has patch support properly configured
-pub fn assert_patch_support_enabled(server: &ScimServer<StandardResourceProvider<InMemoryStorage>>) {
+pub fn assert_patch_support_enabled(
+    server: &ScimServer<StandardResourceProvider<InMemoryStorage>>,
+) {
     let config = server
         .get_service_provider_config()
         .expect("Should be able to get service provider config");
@@ -220,7 +224,9 @@ pub fn assert_patch_support_enabled(server: &ScimServer<StandardResourceProvider
 }
 
 /// Assert that a server has patch support disabled
-pub fn assert_patch_support_disabled(server: &ScimServer<StandardResourceProvider<InMemoryStorage>>) {
+pub fn assert_patch_support_disabled(
+    server: &ScimServer<StandardResourceProvider<InMemoryStorage>>,
+) {
     let config = server
         .get_service_provider_config()
         .expect("Should be able to get service provider config");
@@ -239,7 +245,9 @@ pub fn is_resource_type_supported(
 }
 
 /// Assert that required resource types are registered
-pub fn assert_required_resource_types_registered(server: &ScimServer<StandardResourceProvider<InMemoryStorage>>) {
+pub fn assert_required_resource_types_registered(
+    server: &ScimServer<StandardResourceProvider<InMemoryStorage>>,
+) {
     assert!(
         is_resource_type_supported(server, "User"),
         "User resource type should be registered"

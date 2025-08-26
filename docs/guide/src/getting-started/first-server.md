@@ -13,7 +13,7 @@ cd my-scim-server
 ### 2. Add Dependencies
 ```toml
 [dependencies]
-scim-server = "0.3.7"
+scim-server = "0.3.11"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```

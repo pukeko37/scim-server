@@ -9,8 +9,8 @@ use scim_server::{
     mcp_integration::{McpServerInfo, ScimMcpServer},
     multi_tenant::ScimOperation,
     providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     resource_handlers::create_user_resource_handler,
+    storage::InMemoryStorage,
 };
 
 #[cfg(feature = "mcp")]

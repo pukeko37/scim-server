@@ -254,25 +254,25 @@ pub enum InMemoryError {
     #[error("Invalid resource data: {message}")]
     InvalidData {
         /// Description of the invalid data
-        message: String
+        message: String,
     },
 
     #[error("Query error: {message}")]
     QueryError {
         /// Description of the query error
-        message: String
+        message: String,
     },
 
     #[error("Internal error: {message}")]
     Internal {
         /// Description of the internal error
-        message: String
+        message: String,
     },
 
     #[error("Invalid input: {message}")]
     InvalidInput {
         /// Description of the invalid input
-        message: String
+        message: String,
     },
 
     #[error("Resource not found: {resource_type} with id '{id}'")]
@@ -280,13 +280,13 @@ pub enum InMemoryError {
         /// The type of resource that was not found
         resource_type: String,
         /// The ID of the resource that was not found
-        id: String
+        id: String,
     },
 
     #[error("Precondition failed: {message}")]
     PreconditionFailed {
         /// Description of the precondition failure
-        message: String
+        message: String,
     },
 }
 

@@ -9,9 +9,9 @@ use scim_server::{
     multi_tenant::ScimOperation,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
     providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     resource::TenantContext,
     resource_handlers::create_user_resource_handler,
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 

@@ -4,10 +4,8 @@
 //! using the StandardResourceProvider with in-memory storage.
 
 use scim_server::{
-    RequestContext,
-    providers::StandardResourceProvider,
+    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
     storage::InMemoryStorage,
-    resource::provider::ResourceProvider,
 };
 use serde_json::json;
 
@@ -55,10 +53,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let user1 = provider.create_resource("User", user1_data, &context).await?;
-    println!("✅ Created user: {} (ID: {})",
-             user1.get_username().unwrap_or("unknown"),
-             user1.get_id().unwrap_or("unknown"));
+    let user1 = provider
+        .create_resource("User", user1_data, &context)
+        .await?;
+    println!(
+        "✅ Created user: {} (ID: {})",
+        user1.get_username().unwrap_or("unknown"),
+        user1.get_id().unwrap_or("unknown")
+    );
 
     // Create second user
     let user2_data = json!({
@@ -78,10 +80,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let user2 = provider.create_resource("User", user2_data, &context).await?;
-    println!("✅ Created user: {} (ID: {})",
-             user2.get_username().unwrap_or("unknown"),
-             user2.get_id().unwrap_or("unknown"));
+    let user2 = provider
+        .create_resource("User", user2_data, &context)
+        .await?;
+    println!(
+        "✅ Created user: {} (ID: {})",
+        user2.get_username().unwrap_or("unknown"),
+        user2.get_id().unwrap_or("unknown")
+    );
 
     println!("\n📋 Listing all users...");
 
@@ -89,28 +95,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let users = provider.list_resources("User", None, &context).await?;
     println!("📊 Found {} users:", users.len());
     for user in &users {
-        println!("   - {} ({})",
-                 user.get_username().unwrap_or("unknown"),
-                 user.get_id().unwrap_or("unknown"));
+        println!(
+            "   - {} ({})",
+            user.get_username().unwrap_or("unknown"),
+            user.get_id().unwrap_or("unknown")
+        );
     }
 
     println!("\n🔍 Finding users by attributes...");
 
     // Find user by username
     let found_user = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("john.doe@example.com"),
-            &context
-        )
+        .find_resource_by_attribute("User", "userName", &json!("john.doe@example.com"), &context)
         .await?;
 
     match found_user {
         Some(user) => {
-            println!("✅ Found user by username: {} (ID: {})",
-                     user.get_username().unwrap_or("unknown"),
-                     user.get_id().unwrap_or("unknown"));
+            println!(
+                "✅ Found user by username: {} (ID: {})",
+                user.get_username().unwrap_or("unknown"),
+                user.get_id().unwrap_or("unknown")
+            );
         }
         None => println!("❌ User not found by username"),
     }
@@ -121,15 +126,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "User",
             "emails.value",
             &json!("jane.smith@example.com"),
-            &context
+            &context,
         )
         .await?;
 
     match found_by_email {
         Some(user) => {
-            println!("✅ Found user by email: {} (ID: {})",
-                     user.get_username().unwrap_or("unknown"),
-                     user.get_id().unwrap_or("unknown"));
+            println!(
+                "✅ Found user by email: {} (ID: {})",
+                user.get_username().unwrap_or("unknown"),
+                user.get_id().unwrap_or("unknown")
+            );
         }
         None => println!("❌ User not found by email"),
     }
@@ -172,10 +179,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let updated_user = provider.update_resource("User", user1_id, updated_data, &context).await?;
-    println!("✅ Updated user: {} (ID: {})",
-             updated_user.get_username().unwrap_or("unknown"),
-             updated_user.get_id().unwrap_or("unknown"));
+    let updated_user = provider
+        .update_resource("User", user1_id, updated_data, &context)
+        .await?;
+    println!(
+        "✅ Updated user: {} (ID: {})",
+        updated_user.get_username().unwrap_or("unknown"),
+        updated_user.get_id().unwrap_or("unknown")
+    );
 
     // Show the updated name
     if let Some(name) = updated_user.get_name() {
@@ -203,7 +214,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for email in emails {
             let email_type = email.email_type.as_ref().map_or("unknown", |v| v);
             let is_primary = email.primary.unwrap_or(false);
-            println!("   - {}: {} (primary: {})", email_type, email.value, is_primary);
+            println!(
+                "   - {}: {} (primary: {})",
+                email_type, email.value, is_primary
+            );
         }
     }
 
@@ -220,7 +234,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if user still exists
     let exists_after = provider.resource_exists("User", user2_id, &context).await?;
-    println!("✅ User {} exists after deletion: {}", user2_id, exists_after);
+    println!(
+        "✅ User {} exists after deletion: {}",
+        user2_id, exists_after
+    );
 
     // List users again to confirm deletion
     let users_after = provider.list_resources("User", None, &context).await?;
@@ -243,7 +260,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stats_after_clear = provider.get_stats().await;
     println!("📈 Statistics after clear:");
     println!("   • Total tenants: {}", stats_after_clear.tenant_count);
-    println!("   • Total resources: {}", stats_after_clear.total_resources);
+    println!(
+        "   • Total resources: {}",
+        stats_after_clear.total_resources
+    );
 
     println!("\n✅ Basic Usage Example Complete!");
     println!("🎉 Successfully demonstrated:");

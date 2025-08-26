@@ -4,10 +4,8 @@
 //! with the SCIM server, showing the flexibility of the log facade approach.
 
 use scim_server::{
-    RequestContext,
-    providers::StandardResourceProvider,
+    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
     storage::InMemoryStorage,
-    resource::provider::ResourceProvider,
 };
 use serde_json::json;
 
@@ -59,7 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // This will produce env_logger output
-    let user = provider.create_resource("User", user_data, &context).await?;
+    let user = provider
+        .create_resource("User", user_data, &context)
+        .await?;
     let user_id = user.get_id().unwrap();
 
     let _retrieved = provider.get_resource("User", user_id, &context).await?;

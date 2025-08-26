@@ -12,8 +12,8 @@ use scim_server::{
         Unauthenticated,
     },
     providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     resource::{IsolationLevel, ResourceProvider, TenantContext, TenantPermissions},
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 

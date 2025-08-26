@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2025-08-26
+
+### Added
+- **MCP Server Setup Guide**: Comprehensive user guide for setting up Model Context Protocol servers
+- **Complete MCP Integration**: Full documentation for AI agent integration with SCIM servers
+- **Production MCP Examples**: 30-line minimal and production-ready MCP server configurations
+- **AI-Friendly Interface**: Structured tool discovery and execution for AI agents
+
+### Fixed
+- **MCP stdio server**: Added missing List operation support for User resources
+- **Group Resource Support**: Fixed MCP server to properly register Group resource types
+- **Documentation Examples**: Updated all deprecated `InMemoryProvider` usage to `StandardResourceProvider<InMemoryStorage>`
+- **MCP Documentation Compliance**: Fixed critical issues in MCP integration documentation
+- **API Consistency**: All documentation examples now use current API patterns
+
+### Documentation
+- **User Guide Enhancement**: Added comprehensive MCP server setup guide to mdBook documentation
+- **Schema Documentation**: Split and improved SCIM schema concepts documentation for better focus
+- **Getting Started Recovery**: Restored lost installation and first-server documentation
+- **Example Modernization**: Updated all examples to use current `StandardResourceProvider` patterns
+- **Code Quality**: All documentation tests now pass with current API
+
+### Changed
+- **Version Updates**: Updated all documentation references to v0.3.11
+- **API Migration**: Completed transition from deprecated `InMemoryProvider` to `StandardResourceProvider<InMemoryStorage>`
+- **Documentation Structure**: Enhanced mdBook structure with MCP integration guide
+
+This release focuses on MCP integration maturity and documentation excellence, making the SCIM server fully AI-ready with comprehensive setup guides.
+
 ## [0.3.10] - 2025-01-12
 
 ### Fixed

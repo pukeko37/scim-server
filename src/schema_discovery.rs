@@ -87,9 +87,10 @@ impl SchemaDiscovery<Uninitialized> {
     /// for schema discovery and service provider configuration.
     /// For resource CRUD operations, use ScimServer instead.
     pub fn new() -> BuildResult<SchemaDiscovery<Ready>> {
-        let schema_registry = SchemaRegistry::with_embedded_schemas().map_err(|_e| BuildError::SchemaLoadError {
-            schema_id: "Core".to_string(),
-        })?;
+        let schema_registry =
+            SchemaRegistry::with_embedded_schemas().map_err(|_e| BuildError::SchemaLoadError {
+                schema_id: "Core".to_string(),
+            })?;
 
         let service_config = ServiceProviderConfig::default();
 
@@ -296,19 +297,31 @@ mod tests {
         // and addresses the critical issue found in schema-discovery-test-2025-08-15.md
 
         // The tutorial example should work without panicking
-        let discovery = SchemaDiscovery::new().expect("SchemaDiscovery::new() should work with embedded schemas");
+        let discovery = SchemaDiscovery::new()
+            .expect("SchemaDiscovery::new() should work with embedded schemas");
 
         // Get available schemas
-        let schemas = discovery.get_schemas().await.expect("get_schemas() should work");
-        assert!(!schemas.is_empty(), "Should have at least one schema available");
+        let schemas = discovery
+            .get_schemas()
+            .await
+            .expect("get_schemas() should work");
+        assert!(
+            !schemas.is_empty(),
+            "Should have at least one schema available"
+        );
         println!("Available schemas: {}", schemas.len());
 
         // Get service provider configuration
-        let config = discovery.get_service_provider_config().await.expect("get_service_provider_config() should work");
+        let config = discovery
+            .get_service_provider_config()
+            .await
+            .expect("get_service_provider_config() should work");
         println!("Bulk operations supported: {}", config.bulk_supported);
 
         // Verify we can access specific schemas
-        let user_schema = discovery.get_schema("urn:ietf:params:scim:schemas:core:2.0:User").await
+        let user_schema = discovery
+            .get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
+            .await
             .expect("Should be able to get User schema");
         assert!(user_schema.is_some(), "User schema should be available");
 

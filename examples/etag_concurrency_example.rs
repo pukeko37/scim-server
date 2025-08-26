@@ -9,13 +9,13 @@ use scim_server::{
     multi_tenant::ScimOperation,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
     providers::StandardResourceProvider,
-    storage::InMemoryStorage,
     resource::{
         RequestContext, ResourceProvider,
         conditional_provider::VersionedResource,
         version::{ConditionalResult, ScimVersion},
     },
     resource_handlers::create_user_resource_handler,
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 
