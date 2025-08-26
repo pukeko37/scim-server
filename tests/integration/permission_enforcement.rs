@@ -4,15 +4,17 @@
 //! and maintains proper isolation between tenants.
 
 use scim_server::{
-    InMemoryProvider, RequestContext, TenantContext,
-    resource::{core::TenantPermissions, provider::ResourceProvider},
+    RequestContext, TenantContext, TenantPermissions, ResourceProvider,
+    providers::StandardResourceProvider,
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 
 /// Test that tenant permissions are properly enforced for CRUD operations
 #[tokio::test]
 async fn test_permission_enforcement_crud_operations() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create a tenant with restrictive permissions
     let mut restrictive_perms = TenantPermissions::default();
@@ -80,7 +82,8 @@ async fn test_permission_enforcement_crud_operations() {
 /// Test that resource limits are properly enforced
 #[tokio::test]
 async fn test_resource_limits_enforcement() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create a tenant with user limit of 2
     let mut limited_perms = TenantPermissions::default();
@@ -151,7 +154,8 @@ async fn test_resource_limits_enforcement() {
 /// Test that tenants are properly isolated from each other
 #[tokio::test]
 async fn test_tenant_isolation() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create two different tenant contexts
     let tenant_a_context = TenantContext::new("tenant-a".to_string(), "client-a".to_string());
@@ -252,7 +256,8 @@ async fn test_tenant_isolation() {
 /// Test that single-tenant operations work correctly without permissions
 #[tokio::test]
 async fn test_single_tenant_permissions() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create a single-tenant context (no tenant information)
     let single_context = RequestContext::with_generated_id();
@@ -309,7 +314,8 @@ async fn test_single_tenant_permissions() {
 /// Test mixed tenant and single-tenant isolation
 #[tokio::test]
 async fn test_mixed_tenant_isolation() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create a single-tenant context
     let single_context = RequestContext::with_generated_id();
@@ -391,7 +397,8 @@ async fn test_mixed_tenant_isolation() {
 /// Test that permission validation works with different operations
 #[tokio::test]
 async fn test_operation_specific_permissions() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create a read-only tenant
     let mut readonly_perms = TenantPermissions::default();

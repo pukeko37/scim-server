@@ -47,7 +47,7 @@ pub mod storage;
 // Re-export commonly used types for convenience
 pub use error::{ScimError, ScimResult};
 pub use resource::{RequestContext, TenantContext, Resource, ListQuery, ScimOperation};
-pub use resource::ResourceProvider;
+pub use resource::{ResourceProvider, IsolationLevel, TenantPermissions};
 pub use schema::{Schema, SchemaRegistry};
 pub use schema_discovery::SchemaDiscovery;
 pub use scim_server::ScimServer;
@@ -55,12 +55,16 @@ pub use scim_server::ScimServer;
 // Re-export additional types needed by examples and advanced usage
 pub use resource_handlers::{create_group_resource_handler, create_user_resource_handler};
 pub use provider_capabilities::{
-    BulkCapabilities, CapabilityIntrospectable, ExtendedCapabilities, PaginationCapabilities,
-    ProviderCapabilities,
+    AuthenticationCapabilities, BulkCapabilities, CapabilityIntrospectable, ExtendedCapabilities,
+    FilterOperator, PaginationCapabilities, ProviderCapabilities,
 };
 pub use operation_handler::{
     OperationMetadata, ScimOperationHandler, ScimOperationRequest, ScimOperationResponse,
 };
+pub use schema_discovery::AuthenticationScheme;
+
+// Multi-tenant types
+pub use multi_tenant::{ScimTenantConfiguration, StaticTenantResolver, TenantResolver};
 
 // MCP integration re-exports (feature-gated)
 /// Model Context Protocol integration types.

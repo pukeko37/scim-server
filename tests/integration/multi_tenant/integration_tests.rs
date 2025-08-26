@@ -6,7 +6,7 @@
 
 use scim_server::{
     RequestContext, ResourceProvider, StaticTenantResolver, TenantContext, TenantPermissions,
-    TenantResolver, providers::InMemoryProvider, resource::core::IsolationLevel,
+    TenantResolver, IsolationLevel, providers::StandardResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -106,7 +106,8 @@ async fn test_single_tenant_adapter() {
 /// Test multi-tenant provider functionality
 #[tokio::test]
 async fn test_multi_tenant_provider_functionality() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     let tenant_context = TenantContext::new("db-test".to_string(), "client".to_string());
     let context = RequestContext::with_tenant_generated_id(tenant_context);
@@ -167,7 +168,8 @@ async fn test_multi_tenant_provider_functionality() {
 /// Test multi-tenant isolation between tenants
 #[tokio::test]
 async fn test_multi_tenant_isolation() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Set up two different tenants
     let tenant_a_context = TenantContext::new("tenant-a".to_string(), "client-a".to_string());
@@ -234,7 +236,8 @@ async fn test_multi_tenant_isolation() {
 /// Test tenant permissions and limits
 #[tokio::test]
 async fn test_tenant_permissions_and_limits() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create tenant with restricted permissions
     let mut permissions = TenantPermissions::default();
@@ -273,7 +276,8 @@ async fn test_end_to_end_workflow() {
         .await;
 
     // Set up multi-tenant provider
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Simulate authentication and tenant resolution
     let resolved_tenant = resolver.resolve_tenant("e2e-api-key").await.unwrap();
@@ -373,7 +377,8 @@ async fn test_backward_compatibility() {
 /// Test performance with multiple tenants and resources
 #[tokio::test]
 async fn test_multi_tenant_performance() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     let tenant_count = 5;
     let users_per_tenant = 10;

@@ -183,7 +183,7 @@ impl CapabilityIntrospectable for AdvancedProvider {
 
     fn get_authentication_capabilities(&self) -> Option<scim_server::AuthenticationCapabilities> {
         Some(scim_server::AuthenticationCapabilities {
-            schemes: vec![scim_server::schema_discovery::AuthenticationScheme {
+            schemes: vec![scim_server::AuthenticationScheme {
                 name: "OAuth 2.0 Bearer Token".to_string(),
                 description: "OAuth 2.0 Bearer Token authentication".to_string(),
                 spec_uri: Some("https://tools.ietf.org/html/rfc6750".to_string()),

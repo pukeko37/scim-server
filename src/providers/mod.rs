@@ -6,16 +6,35 @@
 //!
 //! # Available Providers
 //!
+//! * [`StandardResourceProvider`] - **RECOMMENDED** Production-ready provider with pluggable storage backends
 //! * [`InMemoryProvider`] - ⚠️ **DEPRECATED** Thread-safe in-memory provider for testing and development
 //!   - Use `StandardResourceProvider<InMemoryStorage>` instead for better separation of concerns
-//! * [`StandardResourceProvider`] - **RECOMMENDED** Production-ready provider with pluggable storage backends
 //!
 //! All providers in this module implement the unified ResourceProvider trait,
 //! supporting both single-tenant and multi-tenant operations through the
 //! RequestContext interface.
+//!
+//! # Quick Start
+//!
+//! ```rust
+//! use scim_server::providers::StandardResourceProvider;
+//! use scim_server::storage::InMemoryStorage;
+//!
+//! // Recommended approach
+//! let storage = InMemoryStorage::new();
+//! let provider = StandardResourceProvider::new(storage);
+//! ```
 
 pub mod in_memory;
 pub mod standard;
 
-pub use in_memory::{InMemoryError, InMemoryProvider, InMemoryStats};
+// Re-export the recommended types
 pub use standard::StandardResourceProvider;
+pub use crate::storage::{InMemoryStorage, StorageProvider};
+
+// Legacy deprecated exports - will be removed in future version
+#[deprecated(
+    since = "0.3.10",
+    note = "Use `StandardResourceProvider<InMemoryStorage>` instead. InMemoryProvider will be removed in a future version."
+)]
+pub use in_memory::{InMemoryError, InMemoryProvider, InMemoryStats};

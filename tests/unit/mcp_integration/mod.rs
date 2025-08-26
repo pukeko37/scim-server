@@ -4,13 +4,15 @@
 mod tests {
     use scim_server::ScimServer;
     use scim_server::mcp_integration::ScimMcpServer;
-    use scim_server::providers::InMemoryProvider;
+    use scim_server::providers::StandardResourceProvider;
+    use scim_server::storage::InMemoryStorage;
     use scim_server::resource_handlers::create_user_resource_handler;
     use serde_json::json;
 
     #[tokio::test]
     async fn test_mcp_server_creation() {
-        let provider = InMemoryProvider::new();
+        let storage = InMemoryStorage::new();
+        let provider = StandardResourceProvider::new(storage);
         let mut scim_server = ScimServer::new(provider).unwrap();
 
         let user_schema = scim_server
@@ -33,7 +35,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_tools_list() {
-        let provider = InMemoryProvider::new();
+        let storage = InMemoryStorage::new();
+        let provider = StandardResourceProvider::new(storage);
         let scim_server = ScimServer::new(provider).unwrap();
         let mcp_server = ScimMcpServer::new(scim_server);
 
@@ -51,7 +54,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_tool_execution() {
-        let provider = InMemoryProvider::new();
+        let storage = InMemoryStorage::new();
+        let provider = StandardResourceProvider::new(storage);
         let mut scim_server = ScimServer::new(provider).unwrap();
 
         let user_schema = scim_server

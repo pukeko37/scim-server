@@ -13,7 +13,7 @@ pub fn create_user_tool() -> Value {
     json!({
         "name": "scim_create_user",
         "description": "Create a new user in the SCIM server",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "user_data": {
@@ -61,7 +61,7 @@ pub fn get_user_tool() -> Value {
     json!({
         "name": "scim_get_user",
         "description": "Retrieve a user by ID from the SCIM server",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "user_id": {
@@ -85,7 +85,7 @@ pub fn update_user_tool() -> Value {
     json!({
         "name": "scim_update_user",
         "description": "Update an existing user in the SCIM server with optional ETag versioning for optimistic locking",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "user_id": {
@@ -117,7 +117,7 @@ pub fn delete_user_tool() -> Value {
     json!({
         "name": "scim_delete_user",
         "description": "Delete a user from the SCIM server with optional ETag versioning for safe deletion",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "user_id": {
@@ -145,7 +145,7 @@ pub fn list_users_tool() -> Value {
     json!({
         "name": "scim_list_users",
         "description": "List users with optional pagination and sorting",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "start_index": {
@@ -174,7 +174,7 @@ pub fn search_users_tool() -> Value {
     json!({
         "name": "scim_search_users",
         "description": "Search for users by attribute value",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "attribute": {
@@ -201,7 +201,7 @@ pub fn user_exists_tool() -> Value {
     json!({
         "name": "scim_user_exists",
         "description": "Check if a user exists in the SCIM server",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {
                 "user_id": {

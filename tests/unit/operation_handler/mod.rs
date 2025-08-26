@@ -3,13 +3,15 @@
 use scim_server::ScimServer;
 use scim_server::multi_tenant::ScimOperation;
 use scim_server::operation_handler::{ScimOperationHandler, ScimOperationRequest};
-use scim_server::providers::InMemoryProvider;
+use scim_server::providers::StandardResourceProvider;
+use scim_server::storage::InMemoryStorage;
 use scim_server::resource_handlers::create_user_resource_handler;
 use serde_json::json;
 
 #[tokio::test]
 async fn test_operation_handler_create() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -43,7 +45,8 @@ async fn test_operation_handler_create() {
 
 #[tokio::test]
 async fn test_operation_handler_get_schemas() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider).unwrap();
     let handler = ScimOperationHandler::new(server);
 
@@ -59,7 +62,8 @@ async fn test_operation_handler_get_schemas() {
 
 #[tokio::test]
 async fn test_operation_handler_error_handling() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let server = ScimServer::new(provider).unwrap();
     let handler = ScimOperationHandler::new(server);
 
@@ -76,7 +80,8 @@ async fn test_operation_handler_error_handling() {
 async fn test_conditional_update_with_correct_version() {
     use scim_server::resource::version::ScimVersion;
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -155,7 +160,8 @@ async fn test_conditional_update_with_correct_version() {
 async fn test_conditional_update_version_mismatch() {
     use scim_server::resource::version::ScimVersion;
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -228,7 +234,8 @@ async fn test_conditional_update_version_mismatch() {
 async fn test_conditional_delete_with_correct_version() {
     use scim_server::resource::version::ScimVersion;
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -295,7 +302,8 @@ async fn test_conditional_delete_with_correct_version() {
 async fn test_conditional_delete_version_mismatch() {
     use scim_server::resource::version::ScimVersion;
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -360,7 +368,8 @@ async fn test_conditional_delete_version_mismatch() {
 
 #[tokio::test]
 async fn test_regular_operations_include_version_info() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type
@@ -435,7 +444,8 @@ async fn test_phase_3_complete_integration() {
     // Comprehensive test demonstrating complete Phase 3 ETag functionality
     use scim_server::resource::version::ScimVersion;
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
 
     // Register User resource type with all operations

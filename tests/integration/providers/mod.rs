@@ -42,13 +42,13 @@
 //! - Configuration and lifecycle management
 
 pub mod common;
-pub mod in_memory;
+// pub mod in_memory;     // Removed - use StandardResourceProvider<InMemoryStorage> instead
 // pub mod database;      // Stage 3b - To be implemented
 // pub mod aws_cognito;   // Stage 3c - To be implemented
 
 // Re-export commonly used test utilities
 pub use super::super::common::providers::*;
-pub use crate::unit::multi_tenant::provider_trait::{ProviderTestHarness, TestMultiTenantProvider};
+// pub use crate::unit::multi_tenant::provider_trait::{ProviderTestHarness, TestMultiTenantProvider}; // Disabled - removed with deleted modules
 pub use scim_server::resource::provider::ResourceProvider;
 
 #[cfg(test)]

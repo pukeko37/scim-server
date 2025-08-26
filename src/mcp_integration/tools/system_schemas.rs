@@ -14,7 +14,7 @@ pub fn get_schemas_tool() -> Value {
     json!({
         "name": "scim_get_schemas",
         "description": "Get all available SCIM schemas for AI agent understanding",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {}
         }
@@ -29,7 +29,7 @@ pub fn get_server_info_tool() -> Value {
     json!({
         "name": "scim_server_info",
         "description": "Get SCIM server information and capabilities",
-        "input_schema": {
+        "inputSchema": {
             "type": "object",
             "properties": {}
         }

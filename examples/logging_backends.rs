@@ -25,8 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
 
-    // Create a request context for our operations
-    let context = RequestContext::new("logging-backends-example".to_string());
+    // We'll create request contexts as needed for our operations
 
     println!("✅ SCIM server configured\n");
 

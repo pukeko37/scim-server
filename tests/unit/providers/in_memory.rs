@@ -1,6 +1,7 @@
 //! Unit tests for the in-memory provider.
 
-use scim_server::providers::{InMemoryError, InMemoryProvider};
+use scim_server::providers::{InMemoryError, StandardResourceProvider};
+use scim_server::storage::InMemoryStorage;
 use scim_server::resource::version::ConditionalResult;
 use scim_server::resource::{ListQuery, RequestContext, ResourceProvider, TenantContext};
 use serde_json::json;
@@ -16,7 +17,8 @@ fn create_test_user_data(username: &str) -> serde_json::Value {
 
 #[tokio::test]
 async fn test_single_tenant_operations() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create user
@@ -78,7 +80,8 @@ async fn test_single_tenant_operations() {
 
 #[tokio::test]
 async fn test_multi_tenant_isolation() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     // Create users in different tenants
     let tenant_a_context = TenantContext::new("tenant-a".to_string(), "client-a".to_string());
@@ -161,7 +164,8 @@ async fn test_multi_tenant_isolation() {
 
 #[tokio::test]
 async fn test_username_duplicate_detection() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create first user
@@ -189,7 +193,8 @@ async fn test_username_duplicate_detection() {
 
 #[tokio::test]
 async fn test_cross_tenant_username_allowed() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     let tenant_a_context = TenantContext::new("tenant-a".to_string(), "client-a".to_string());
     let context_a = RequestContext::with_tenant_generated_id(tenant_a_context);
@@ -215,7 +220,8 @@ async fn test_cross_tenant_username_allowed() {
 
 #[tokio::test]
 async fn test_find_resource_by_attribute() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create a user
@@ -245,7 +251,8 @@ async fn test_find_resource_by_attribute() {
 
 #[tokio::test]
 async fn test_resource_exists() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create a user
@@ -285,7 +292,8 @@ async fn test_resource_exists() {
 
 #[tokio::test]
 async fn test_provider_stats() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
 
     let tenant_a_context = TenantContext::new("tenant-a".to_string(), "client-a".to_string());
     let context_a = RequestContext::with_tenant_generated_id(tenant_a_context);
@@ -316,7 +324,8 @@ async fn test_provider_stats() {
 
 #[tokio::test]
 async fn test_clear_functionality() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create some data
@@ -375,7 +384,8 @@ async fn test_conditional_operations_via_resource_provider() {
         assert!(matches!(result, ConditionalResult::Success(_)));
     }
 
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // This tests that conditional operations work via ResourceProvider trait
@@ -386,7 +396,8 @@ async fn test_conditional_operations_via_resource_provider() {
 async fn test_conditional_provider_concurrent_updates() {
     use tokio::task::JoinSet;
 
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let context = RequestContext::with_generated_id();
 
     // Create a user first
@@ -456,7 +467,8 @@ async fn test_conditional_provider_concurrent_updates() {
 
 #[tokio::test]
 async fn test_conditional_provider_delete_version_conflict() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create a user
@@ -507,7 +519,8 @@ async fn test_conditional_provider_delete_version_conflict() {
 
 #[tokio::test]
 async fn test_conditional_provider_successful_delete() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create a user

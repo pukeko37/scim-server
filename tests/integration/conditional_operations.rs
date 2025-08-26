@@ -3,7 +3,8 @@
 //! This test demonstrates the core value proposition: conditional operations
 //! prevent data corruption when multiple clients modify the same resource.
 
-use scim_server::providers::InMemoryProvider;
+use scim_server::providers::StandardResourceProvider;
+use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{core::RequestContext, version::ConditionalResult};
 use serde_json::json;
 use std::sync::Arc;
@@ -13,7 +14,8 @@ use tokio;
 /// This is the PRIMARY test that validates the entire concurrency control system.
 #[tokio::test]
 async fn test_conditional_operations_prevent_data_loss() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // === Setup: Create a user ===
@@ -123,7 +125,8 @@ async fn test_conditional_operations_prevent_data_loss() {
 /// Test that shows how Admin B can properly handle the conflict and make an informed decision.
 #[tokio::test]
 async fn test_conflict_resolution_workflow() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Setup: Create user
@@ -231,7 +234,8 @@ async fn test_conflict_resolution_workflow() {
 /// Test that concurrent delete operations are also protected by versioning.
 #[tokio::test]
 async fn test_conditional_delete_prevents_accidental_deletion() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Setup: Create user
@@ -299,7 +303,8 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
 /// Performance test: Ensure conditional operations don't add significant overhead.
 #[tokio::test]
 async fn test_conditional_operations_performance() {
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let context = RequestContext::with_generated_id();
 
     // Create initial resource

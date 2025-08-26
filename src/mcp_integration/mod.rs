@@ -87,6 +87,9 @@ pub mod protocol;
 #[cfg(feature = "mcp")]
 pub mod tools;
 
+#[cfg(all(feature = "mcp", test))]
+mod tests;
+
 // Re-export core types for convenience
 #[cfg(feature = "mcp")]
 pub use core::{McpServerInfo, ScimMcpServer, ScimToolResult};

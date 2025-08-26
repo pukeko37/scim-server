@@ -4,7 +4,8 @@
 //! concurrency control in SCIM operations. These tests validate the robustness
 //! and practical usability of the versioning system.
 
-use scim_server::providers::InMemoryProvider;
+use scim_server::providers::StandardResourceProvider;
+use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{
     core::RequestContext,
     version::{ConditionalResult, ScimVersion},
@@ -16,7 +17,8 @@ use tokio::task::JoinSet;
 /// Test HTTP header integration with realistic ETag scenarios
 #[tokio::test]
 async fn test_http_etag_roundtrip_scenarios() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create user with complex data
@@ -115,7 +117,8 @@ async fn test_http_etag_roundtrip_scenarios() {
 /// Test concurrent modification simulation with multiple users
 #[tokio::test]
 async fn test_multi_user_concurrent_modification() {
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let context = RequestContext::with_generated_id();
 
     // Create a shared group resource
@@ -296,7 +299,8 @@ async fn test_multi_user_concurrent_modification() {
 /// Test version conflict resolution workflow
 #[tokio::test]
 async fn test_comprehensive_conflict_resolution() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create user with initial state
@@ -461,7 +465,8 @@ async fn test_comprehensive_conflict_resolution() {
 /// Test delete operation concurrency scenarios
 #[tokio::test]
 async fn test_conditional_delete_scenarios() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create temporary user
@@ -562,7 +567,8 @@ async fn test_conditional_delete_scenarios() {
 /// Test edge cases with malformed or unusual data
 #[tokio::test]
 async fn test_etag_edge_cases() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Test with empty arrays and edge case values
@@ -634,7 +640,8 @@ async fn test_etag_edge_cases() {
 /// Test version stability across serialization boundaries
 #[tokio::test]
 async fn test_version_serialization_stability() {
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // Create user with complex nested structure
@@ -711,7 +718,8 @@ async fn test_version_serialization_stability() {
 /// Test performance characteristics under load
 #[tokio::test]
 async fn test_etag_performance_under_load() {
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let context = RequestContext::with_generated_id();
 
     // Create initial resources

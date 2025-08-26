@@ -5,7 +5,8 @@
 //! constraints in SCIM resources (Errors 44-52).
 
 use scim_server::error::ValidationError;
-use scim_server::providers::InMemoryProvider;
+use scim_server::providers::StandardResourceProvider;
+use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{RequestContext, ResourceProvider};
 use scim_server::schema::{SchemaRegistry, validation::OperationContext};
 use serde_json::json;
@@ -240,7 +241,8 @@ fn test_multiple_writeonly_attributes_returned() {
 #[tokio::test]
 async fn test_server_uniqueness_violation() {
     let registry = SchemaRegistry::new().expect("Failed to create schema registry");
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // First, create a user in the provider
@@ -576,7 +578,8 @@ fn test_mutability_characteristics() {
 #[tokio::test]
 async fn test_uniqueness_characteristics() {
     let registry = SchemaRegistry::new().expect("Failed to create schema registry");
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // First, create a user in the provider
@@ -828,7 +831,8 @@ mod coverage_tests {
 #[tokio::test]
 async fn test_uniqueness_update_same_resource() {
     let registry = SchemaRegistry::new().expect("Failed to create schema registry");
-    let provider = InMemoryProvider::new();
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
     let context = RequestContext::with_generated_id();
 
     // First, create a user in the provider
