@@ -13,11 +13,13 @@
 //!
 //! ```rust,no_run
 //! use scim_server::operation_handler::{ScimOperationHandler, ScimOperationRequest};
-//! use scim_server::{ScimServer, providers::InMemoryProvider};
+//! use scim_server::{ScimServer, providers::StandardResourceProvider};
+//! use scim_server::storage::InMemoryStorage;
 //! use serde_json::json;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let provider = InMemoryProvider::new();
+//! let storage = InMemoryStorage::new();
+//! let provider = StandardResourceProvider::new(storage);
 //! let server = ScimServer::new(provider)?;
 //! let handler = ScimOperationHandler::new(server);
 //!

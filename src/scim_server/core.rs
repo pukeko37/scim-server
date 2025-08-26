@@ -27,11 +27,13 @@ use std::sync::Arc;
 /// # Examples
 ///
 /// ```rust
-/// use scim_server::{ScimServer, providers::InMemoryProvider};
+/// use scim_server::{ScimServer, providers::StandardResourceProvider};
+/// use scim_server::storage::InMemoryStorage;
 /// use scim_server::resource::ScimOperation;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let provider = InMemoryProvider::new();
+/// let storage = InMemoryStorage::new();
+/// let provider = StandardResourceProvider::new(storage);
 /// let mut server = ScimServer::new(provider)?;
 ///
 /// // Register resource types dynamically

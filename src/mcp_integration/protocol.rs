@@ -72,7 +72,9 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     /// ```rust
     /// # #[cfg(feature = "mcp")]
     /// use scim_server::mcp_integration::ScimMcpServer;
-    /// # async fn example(mcp_server: ScimMcpServer<scim_server::providers::InMemoryProvider>) {
+    /// use scim_server::providers::StandardResourceProvider;
+    /// use scim_server::storage::InMemoryStorage;
+    /// # async fn example(mcp_server: ScimMcpServer<StandardResourceProvider<InMemoryStorage>>) {
     /// let tools = mcp_server.get_tools();
     /// println!("Available tools: {}", tools.len());
     /// # }
@@ -143,7 +145,9 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     /// ```rust,no_run
     /// # #[cfg(feature = "mcp")]
     /// use scim_server::mcp_integration::ScimMcpServer;
-    /// # async fn example(mcp_server: ScimMcpServer<scim_server::providers::InMemoryProvider>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// use scim_server::providers::StandardResourceProvider;
+    /// use scim_server::storage::InMemoryStorage;
+    /// # async fn example(mcp_server: ScimMcpServer<StandardResourceProvider<InMemoryStorage>>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// // Run MCP server
     /// mcp_server.run_stdio().await?;
     /// # Ok(())
