@@ -6,6 +6,7 @@
 
 - [Installation](./getting-started/installation.md)
 - [Your First SCIM Server](./getting-started/first-server.md)
+- [Setting Up Your MCP Server](./getting-started/mcp-server.md)
 
 # User Guide
 
