@@ -15,6 +15,13 @@ use serde_json::{Value, json};
 ///
 /// Returns all available SCIM schemas that the server supports.
 /// This helps AI agents understand the data structures they can work with.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Schema registry is not properly initialized
+/// - Internal server error during schema retrieval
+/// - Storage provider failure
 pub async fn handle_get_schemas<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     _arguments: Value,
@@ -48,6 +55,12 @@ pub async fn handle_get_schemas<P: ResourceProvider + Send + Sync + 'static>(
 /// Returns comprehensive information about the SCIM server including capabilities,
 /// version information, and supported operations. This helps AI agents understand
 /// what the server can do and how to interact with it effectively.
+///
+/// # Errors
+///
+/// This function rarely fails but may return error if:
+/// - Internal server configuration is corrupted
+/// - Memory allocation failure during info collection
 pub async fn handle_server_info<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     _arguments: Value,

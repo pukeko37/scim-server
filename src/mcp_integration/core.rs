@@ -99,12 +99,14 @@ pub struct ScimToolResult {
 ///
 /// ```rust,no_run
 /// # #[cfg(feature = "mcp")]
-/// use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::InMemoryProvider};
+/// use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::StandardResourceProvider};
+/// use scim_server::storage::InMemoryStorage;
 ///
 /// # #[cfg(feature = "mcp")]
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let provider = InMemoryProvider::new();
+///     let storage = InMemoryStorage::new();
+///     let provider = StandardResourceProvider::new(storage);
 ///     let scim_server = ScimServer::new(provider)?;
 ///     let mcp_server = ScimMcpServer::new(scim_server);
 ///
@@ -133,9 +135,11 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     /// ```rust,no_run
     /// # #[cfg(feature = "mcp")]
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::InMemoryProvider};
+    /// use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::StandardResourceProvider};
+    /// use scim_server::storage::InMemoryStorage;
     ///
-    /// let provider = InMemoryProvider::new();
+    /// let storage = InMemoryStorage::new();
+    /// let provider = StandardResourceProvider::new(storage);
     /// let scim_server = ScimServer::new(provider)?;
     /// let mcp_server = ScimMcpServer::new(scim_server);
     /// # Ok(())

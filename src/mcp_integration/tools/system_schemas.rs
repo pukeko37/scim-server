@@ -1,15 +1,36 @@
 //! System tool schema definitions for MCP integration
 //!
-//! This module contains the JSON schema definitions for system-related MCP tools.
-//! These schemas enable AI agents to discover and understand server metadata
-//! and capability operations.
+//! This module contains JSON schema definitions for system-level operations that provide
+//! metadata about SCIM server capabilities, configuration, and available schemas.
+//! These tools help AI agents understand the server environment before performing operations.
+//!
+//! # Architecture
+//!
+//! System tools provide:
+//! - **Schema Discovery** - Available SCIM resource schemas and their structure
+//! - **Capability Introspection** - Server features, versions, and operational limits
+//! - **Configuration Metadata** - Multi-tenant support, resource types, and extensions
+//!
+//! # Available Tools
+//!
+//! - [`get_schemas_tool`] - Retrieve all SCIM schemas for data structure understanding
+//! - [`get_server_info_tool`] - Get server capabilities, version, and operational metadata
+//!
+//! # Usage Pattern
+//!
+//! AI agents typically use these tools in discovery phase:
+//! 1. Call `scim_server_info` to understand server capabilities
+//! 2. Call `scim_get_schemas` to understand available data structures
+//! 3. Proceed with resource operations based on discovered capabilities
+//!
+//! # No Parameters Required
+//!
+//! System tools generally require no input parameters as they provide
+//! server-wide information that is not tenant or resource specific.
 
 use serde_json::{Value, json};
 
-/// Schema definition for schemas retrieval tool
-///
-/// Defines the tool for fetching all available SCIM schemas that the server supports.
-/// This helps AI agents understand the data structures they can work with.
+/// Schema definition for SCIM schemas retrieval tool
 pub fn get_schemas_tool() -> Value {
     json!({
         "name": "scim_get_schemas",
@@ -22,9 +43,6 @@ pub fn get_schemas_tool() -> Value {
 }
 
 /// Schema definition for server information tool
-///
-/// Defines the tool for fetching server capabilities, version, and metadata.
-/// This helps AI agents understand what the server can do and how to interact with it.
 pub fn get_server_info_tool() -> Value {
     json!({
         "name": "scim_server_info",

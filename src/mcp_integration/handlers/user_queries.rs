@@ -16,6 +16,13 @@ use serde_json::{Value, json};
 ///
 /// Lists users with optional pagination and tenant isolation.
 /// Returns a structured list of users for AI agent processing.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Tenant permissions are insufficient
+/// - Internal server error during list operation
+/// - Storage provider failure
 pub async fn handle_list_users<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
@@ -57,6 +64,14 @@ pub async fn handle_list_users<P: ResourceProvider + Send + Sync + 'static>(
 ///
 /// Searches for users by attribute value with tenant isolation.
 /// Provides filtered results based on the search criteria.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required attribute or value parameters are missing
+/// - Search attribute is not supported or invalid
+/// - Tenant permissions are insufficient
+/// - Internal server error during search operation
 pub async fn handle_search_users<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
@@ -148,6 +163,13 @@ pub async fn handle_search_users<P: ResourceProvider + Send + Sync + 'static>(
 ///
 /// Checks if a user exists by ID with tenant isolation.
 /// Returns a simple boolean result for AI agent decision making.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required user_id parameter is missing
+/// - Tenant permissions are insufficient
+/// - Internal server error during existence check
 pub async fn handle_user_exists<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,

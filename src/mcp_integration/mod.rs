@@ -46,14 +46,16 @@
 //!
 //! ```rust,no_run
 //! # #[cfg(feature = "mcp")]
-//! use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::InMemoryProvider};
+//! use scim_server::{ScimServer, mcp_integration::ScimMcpServer, providers::StandardResourceProvider};
+//! use scim_server::storage::InMemoryStorage;
 //! use serde_json::json;
 //!
 //! # #[cfg(feature = "mcp")]
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create SCIM server
-//!     let provider = InMemoryProvider::new();
+//!     let storage = InMemoryStorage::new();
+//!     let provider = StandardResourceProvider::new(storage);
 //!     let scim_server = ScimServer::new(provider)?;
 //!
 //!     // Create MCP server

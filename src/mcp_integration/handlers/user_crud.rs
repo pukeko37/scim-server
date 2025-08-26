@@ -18,6 +18,15 @@ use serde_json::{Value, json};
 ///
 /// Creates a new user resource with tenant isolation and ETag versioning support.
 /// Returns the created user with version metadata for subsequent operations.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required user_data parameter is missing
+/// - User data fails SCIM schema validation
+/// - userName already exists (duplicate user)
+/// - Tenant permissions are insufficient
+/// - Internal server error during creation
 pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
@@ -89,6 +98,14 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
 ///
 /// Retrieves a user by ID with tenant isolation and includes ETag information
 /// for subsequent conditional operations.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required user_id parameter is missing
+/// - User with specified ID does not exist
+/// - Tenant permissions are insufficient
+/// - Internal server error during retrieval
 pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
@@ -167,6 +184,15 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
 ///
 /// Updates an existing user with optional ETag-based conditional update.
 /// Supports optimistic concurrency control to prevent lost updates.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required user_id or user_data parameters are missing
+/// - User with specified ID does not exist
+/// - ETag version conflict (if expected_version provided)
+/// - User data fails SCIM schema validation
+/// - Tenant permissions are insufficient
 pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
@@ -285,6 +311,15 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
 ///
 /// Deletes a user with optional ETag-based conditional delete.
 /// Supports optimistic concurrency control to prevent accidental deletion of modified resources.
+///
+/// # Errors
+///
+/// Returns error result if:
+/// - Required user_id parameter is missing
+/// - User with specified ID does not exist
+/// - ETag version conflict (if expected_version provided)
+/// - Tenant permissions are insufficient
+/// - Internal server error during deletion
 pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,

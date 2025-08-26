@@ -1,14 +1,46 @@
 //! User tool schema definitions for MCP integration
 //!
-//! This module contains the JSON schema definitions for all user-related MCP tools.
-//! These schemas enable AI agents to discover and understand the available user
-//! operations and their required parameters.
+//! This module contains JSON schema definitions that enable AI agents to discover
+//! and understand available user operations. The schemas define parameter validation
+//! and provide structured metadata for tool execution.
+//!
+//! # Architecture
+//!
+//! Each user tool schema includes:
+//! - **Tool name and description** for AI agent discovery
+//! - **Input parameter validation** using JSON Schema format
+//! - **Required vs optional parameters** clearly defined
+//! - **Multi-tenant support** through optional tenant_id parameter
+//! - **SCIM compliance** ensuring all operations follow SCIM 2.0 standards
+//!
+//! # Tool Categories
+//!
+//! **CRUD Operations**:
+//! - [`create_user_tool`] - User creation with schema validation
+//! - [`get_user_tool`] - User retrieval by ID
+//! - [`update_user_tool`] - User modification with ETag support
+//! - [`delete_user_tool`] - User deletion with conditional operation
+//!
+//! **Query Operations**:
+//! - [`list_users_tool`] - Paginated user listing
+//! - [`search_users_tool`] - Attribute-based user search
+//! - [`user_exists_tool`] - User existence checking
+//!
+//! # Usage
+//!
+//! These schemas are consumed by the MCP protocol layer to provide tool discovery
+//! to AI agents. They are not intended for direct use by application developers.
+//! The schemas are automatically registered and exposed when the MCP server starts.
+//!
+//! # ETag Support
+//!
+//! Many operations support ETag-based optimistic concurrency control through
+//! the optional `expected_version` parameter, helping prevent lost updates in
+//! concurrent scenarios.
 
 use serde_json::{Value, json};
 
 /// Schema definition for user creation tool
-///
-/// Defines the parameters and validation rules for creating new users.
 pub fn create_user_tool() -> Value {
     json!({
         "name": "scim_create_user",
@@ -55,8 +87,6 @@ pub fn create_user_tool() -> Value {
 }
 
 /// Schema definition for user retrieval tool
-///
-/// Defines the parameters for fetching a user by ID.
 pub fn get_user_tool() -> Value {
     json!({
         "name": "scim_get_user",
@@ -79,8 +109,6 @@ pub fn get_user_tool() -> Value {
 }
 
 /// Schema definition for user update tool
-///
-/// Defines the parameters for updating existing users with optional ETag support.
 pub fn update_user_tool() -> Value {
     json!({
         "name": "scim_update_user",
@@ -111,8 +139,6 @@ pub fn update_user_tool() -> Value {
 }
 
 /// Schema definition for user deletion tool
-///
-/// Defines the parameters for deleting users with optional ETag support.
 pub fn delete_user_tool() -> Value {
     json!({
         "name": "scim_delete_user",
@@ -139,8 +165,6 @@ pub fn delete_user_tool() -> Value {
 }
 
 /// Schema definition for user listing tool
-///
-/// Defines the parameters for listing users with pagination and filtering.
 pub fn list_users_tool() -> Value {
     json!({
         "name": "scim_list_users",
@@ -168,8 +192,6 @@ pub fn list_users_tool() -> Value {
 }
 
 /// Schema definition for user search tool
-///
-/// Defines the parameters for searching users by attributes.
 pub fn search_users_tool() -> Value {
     json!({
         "name": "scim_search_users",
@@ -195,8 +217,6 @@ pub fn search_users_tool() -> Value {
 }
 
 /// Schema definition for user existence check tool
-///
-/// Defines the parameters for checking if a user exists.
 pub fn user_exists_tool() -> Value {
     json!({
         "name": "scim_user_exists",
