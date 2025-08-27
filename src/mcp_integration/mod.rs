@@ -12,7 +12,7 @@
 //! - **Automated Identity Management**: AI agents can provision/deprovision users
 //! - **Schema-Driven Operations**: AI agents understand SCIM data structures
 //! - **Multi-Tenant Support**: Tenant-aware operations for enterprise scenarios
-//! - **ETag Concurrency Control**: Built-in optimistic locking prevents lost updates
+//! - **Version-Based Concurrency Control**: Built-in optimistic locking prevents lost updates
 //! - **Error Handling**: Structured error responses for AI decision making
 //! - **Real-time Operations**: Async operations suitable for AI workflows
 //!

@@ -18,7 +18,7 @@
 //! **CRUD Operations**:
 //! - [`create_user_tool`] - User creation with schema validation
 //! - [`get_user_tool`] - User retrieval by ID
-//! - [`update_user_tool`] - User modification with ETag support
+//! - [`update_user_tool`] - User modification with version support
 //! - [`delete_user_tool`] - User deletion with conditional operation
 //!
 //! **Query Operations**:
@@ -32,9 +32,9 @@
 //! to AI agents. They are not intended for direct use by application developers.
 //! The schemas are automatically registered and exposed when the MCP server starts.
 //!
-//! # ETag Support
+//! # Version Support
 //!
-//! Many operations support ETag-based optimistic concurrency control through
+//! Many operations support version-based optimistic concurrency control through
 //! the optional `expected_version` parameter, helping prevent lost updates in
 //! concurrent scenarios.
 
