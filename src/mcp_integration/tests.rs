@@ -591,4 +591,127 @@ mod mcp_tests {
 
         println!("✅ Complete user lifecycle test passed!");
     }
+
+    /// Test raw version handling in MCP operations
+    #[tokio::test]
+    async fn test_mcp_raw_version_handling() {
+        let mcp_server = create_test_mcp_server().await;
+
+        // 1. Create user and get version
+        let create_result = mcp_server
+            .execute_tool(
+                "scim_create_user",
+                json!({
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "version.test@example.com",
+                        "active": true
+                    }
+                }),
+            )
+            .await;
+
+        assert!(create_result.success, "User creation should succeed");
+        let user_id = create_result.content.get("id").unwrap().as_str().unwrap();
+        let initial_version = create_result.metadata
+            .as_ref()
+            .unwrap()["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        // Verify version is embedded in content as _version
+        let embedded_version = create_result.content["_version"].as_str().unwrap();
+        assert_eq!(initial_version, embedded_version);
+
+        println!("✅ Created user with version: {}", initial_version);
+
+        // 2. Test conditional update with raw version (should succeed)
+        let conditional_update_result = mcp_server
+            .execute_tool(
+                "scim_update_user",
+                json!({
+                    "user_id": user_id,
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "version.updated@example.com",
+                        "active": false
+                    },
+                    "expected_version": initial_version  // Raw version format
+                }),
+            )
+            .await;
+
+        assert!(conditional_update_result.success, "Conditional update with raw version should succeed");
+        let new_version = conditional_update_result.metadata
+            .as_ref()
+            .unwrap()["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        assert_ne!(initial_version, new_version, "Version should change after update");
+        println!("✅ Conditional update succeeded with raw version. New version: {}", new_version);
+
+        // 3. Test conditional update with stale version (should fail)
+        let stale_update_result = mcp_server
+            .execute_tool(
+                "scim_update_user",
+                json!({
+                    "user_id": user_id,
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "should.not.work@example.com",
+                        "active": true
+                    },
+                    "expected_version": initial_version  // Stale version
+                }),
+            )
+            .await;
+
+        assert!(!stale_update_result.success, "Conditional update with stale version should fail");
+        assert_eq!(
+            stale_update_result.content["error_code"],
+            "VERSION_MISMATCH"
+        );
+        println!("✅ Conditional update correctly failed with stale version");
+
+        // 4. Test conditional delete with raw version (should succeed)
+        let conditional_delete_result = mcp_server
+            .execute_tool(
+                "scim_delete_user",
+                json!({
+                    "user_id": user_id,
+                    "expected_version": new_version  // Current version
+                }),
+            )
+            .await;
+
+        assert!(conditional_delete_result.success, "Conditional delete with raw version should succeed");
+        println!("✅ Conditional delete succeeded with raw version");
+
+        // 5. Test invalid version format
+        let invalid_version_result = mcp_server
+            .execute_tool(
+                "scim_update_user",
+                json!({
+                    "user_id": "dummy",
+                    "user_data": {
+                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                        "userName": "test"
+                    },
+                    "expected_version": ""  // Empty version should fail
+                }),
+            )
+            .await;
+
+        assert!(!invalid_version_result.success, "Empty version should fail");
+        assert_eq!(
+            invalid_version_result.content["error_code"],
+            "INVALID_VERSION_FORMAT"
+        );
+        println!("✅ Empty version correctly rejected");
+
+        println!("✅ Complete raw version handling test passed!");
+    }
 }

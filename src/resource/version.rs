@@ -247,6 +247,36 @@ impl ScimVersion {
         Ok(Self { opaque })
     }
 
+    /// Parse a version from a raw version string (MCP-native).
+    ///
+    /// This method accepts raw version strings directly without HTTP ETag formatting,
+    /// making it suitable for JSON-RPC protocols like MCP where HTTP semantics
+    /// are not applicable.
+    ///
+    /// # Arguments
+    /// * `version_str` - The raw version string (e.g., "abc123def")
+    ///
+    /// # Returns
+    /// The parsed version or an error if the version string is invalid
+    ///
+    /// # Examples
+    /// ```rust
+    /// use scim_server::resource::version::ScimVersion;
+    ///
+    /// let version = ScimVersion::parse_raw("abc123def").unwrap();
+    /// ```
+    pub fn parse_raw(version_str: &str) -> Result<Self, VersionError> {
+        let trimmed = version_str.trim();
+
+        if trimmed.is_empty() {
+            return Err(VersionError::ParseError("Version string cannot be empty".to_string()));
+        }
+
+        Ok(Self {
+            opaque: trimmed.to_string()
+        })
+    }
+
     /// Convert version to HTTP ETag header value.
     ///
     /// This generates a weak HTTP ETag header value that can be used in conditional
@@ -518,6 +548,26 @@ mod tests {
         assert!(ScimVersion::parse_http_header("abc123").is_err());
         assert!(ScimVersion::parse_http_header("\"\"").is_err());
         assert!(ScimVersion::parse_http_header("").is_err());
+    }
+
+    #[test]
+    fn test_version_parse_raw() {
+        // Valid raw version
+        let version = ScimVersion::parse_raw("abc123def").unwrap();
+        assert_eq!(version.as_str(), "abc123def");
+
+        // Whitespace handling
+        let trimmed_version = ScimVersion::parse_raw("  xyz789  ").unwrap();
+        assert_eq!(trimmed_version.as_str(), "xyz789");
+
+        // Empty string should fail
+        assert!(ScimVersion::parse_raw("").is_err());
+        assert!(ScimVersion::parse_raw("   ").is_err());
+
+        // Compare with HTTP header parsing - raw should be simpler
+        let raw_version = ScimVersion::parse_raw("test123").unwrap();
+        let http_version = ScimVersion::parse_http_header("W/\"test123\"").unwrap();
+        assert!(raw_version.matches(&http_version));
     }
 
     #[test]

@@ -3,7 +3,7 @@
 //! This module contains the implementation of all user Create, Read, Update, Delete
 //! operations exposed through the MCP protocol. These handlers provide the business
 //! logic for user lifecycle management with proper error handling, tenant isolation,
-//! and ETag concurrency control.
+//! and version-based concurrency control.
 
 use crate::{
     ResourceProvider,
@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 
 /// Handle user creation through MCP
 ///
-/// Creates a new user resource with tenant isolation and ETag versioning support.
+/// Creates a new user resource with tenant isolation and versioning support.
 /// Returns the created user with version metadata for subsequent operations.
 ///
 /// # Errors
@@ -68,12 +68,9 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
 
         if let Some(version) = response.metadata.additional.get("version") {
             metadata["version"] = version.clone();
-        }
-        if let Some(etag) = response.metadata.additional.get("etag") {
-            metadata["etag"] = etag.clone();
-            // Also include in content for easy access by AI
+            // Include raw version in content for AI convenience
             if let Some(content_obj) = content.as_object_mut() {
-                content_obj.insert("_etag".to_string(), etag.clone());
+                content_obj.insert("_version".to_string(), version.clone());
             }
         }
 
@@ -96,7 +93,7 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
 
 /// Handle user retrieval through MCP
 ///
-/// Retrieves a user by ID with tenant isolation and includes ETag information
+/// Retrieves a user by ID with tenant isolation and includes version information
 /// for subsequent conditional operations.
 ///
 /// # Errors
@@ -144,15 +141,12 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
             "resource_id": user_id
         });
 
-        // Include version/ETag information for AI to use in conditional operations
+        // Include version information for AI to use in conditional operations
         if let Some(version) = response.metadata.additional.get("version") {
             metadata["version"] = version.clone();
-        }
-        if let Some(etag) = response.metadata.additional.get("etag") {
-            metadata["etag"] = etag.clone();
-            // Include ETag in content for AI convenience
+            // Include raw version in content for AI convenience
             if let Some(content_obj) = content.as_object_mut() {
-                content_obj.insert("_etag".to_string(), etag.clone());
+                content_obj.insert("_version".to_string(), version.clone());
             }
         }
 
@@ -182,7 +176,7 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
 
 /// Handle user update through MCP
 ///
-/// Updates an existing user with optional ETag-based conditional update.
+/// Updates an existing user with optional version-based conditional update.
 /// Supports optimistic concurrency control to prevent lost updates.
 ///
 /// # Errors
@@ -190,7 +184,7 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
 /// Returns error result if:
 /// - Required user_id or user_data parameters are missing
 /// - User with specified ID does not exist
-/// - ETag version conflict (if expected_version provided)
+/// - Version conflict (if expected_version provided)
 /// - User data fails SCIM schema validation
 /// - Tenant permissions are insufficient
 pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
@@ -230,9 +224,9 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
         request = request.with_tenant(tenant);
     }
 
-    // Handle optional ETag-based conditional update
+    // Handle optional version-based conditional update
     if let Some(expected_version_str) = arguments.get("expected_version").and_then(|v| v.as_str()) {
-        match ScimVersion::parse_http_header(expected_version_str) {
+        match ScimVersion::parse_raw(expected_version_str) {
             Ok(version) => {
                 request = request.with_expected_version(version);
             }
@@ -240,7 +234,7 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
                 return ScimToolResult {
                     success: false,
                     content: json!({
-                        "error": format!("Invalid expected_version format: '{}'. Expected ETag format like 'W/\"abc123\"'", expected_version_str),
+                        "error": format!("Invalid expected_version format: '{}'. Use raw version (e.g., 'abc123def')", expected_version_str),
                         "error_code": "INVALID_VERSION_FORMAT"
                     }),
                     metadata: None,
@@ -265,12 +259,9 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
         // Include updated version information
         if let Some(version) = response.metadata.additional.get("version") {
             metadata["version"] = version.clone();
-        }
-        if let Some(etag) = response.metadata.additional.get("etag") {
-            metadata["etag"] = etag.clone();
-            // Include new ETag in content for AI convenience
+            // Also include in content for AI convenience
             if let Some(content_obj) = content.as_object_mut() {
-                content_obj.insert("_etag".to_string(), etag.clone());
+                content_obj.insert("_version".to_string(), version.clone());
             }
         }
 
@@ -283,7 +274,7 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
         let error_msg = response
             .error
             .unwrap_or_else(|| "Update failed".to_string());
-        let error_code = if error_msg.contains("version mismatch") || error_msg.contains("ETag") {
+        let error_code = if error_msg.contains("version mismatch") || error_msg.contains("modified by another client") {
             "VERSION_MISMATCH"
         } else if error_msg.contains("not found") {
             "USER_NOT_FOUND"
@@ -309,7 +300,7 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
 
 /// Handle user deletion through MCP
 ///
-/// Deletes a user with optional ETag-based conditional delete.
+/// Deletes a user with optional version-based conditional delete.
 /// Supports optimistic concurrency control to prevent accidental deletion of modified resources.
 ///
 /// # Errors
@@ -317,7 +308,7 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
 /// Returns error result if:
 /// - Required user_id parameter is missing
 /// - User with specified ID does not exist
-/// - ETag version conflict (if expected_version provided)
+/// - Version conflict (if expected_version provided)
 /// - Tenant permissions are insufficient
 /// - Internal server error during deletion
 pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
@@ -345,9 +336,9 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
         request = request.with_tenant(tenant);
     }
 
-    // Handle optional ETag-based conditional delete
+    // Handle optional version-based conditional delete
     if let Some(expected_version_str) = arguments.get("expected_version").and_then(|v| v.as_str()) {
-        match ScimVersion::parse_http_header(expected_version_str) {
+        match ScimVersion::parse_raw(expected_version_str) {
             Ok(version) => {
                 request = request.with_expected_version(version);
             }
@@ -355,7 +346,7 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
                 return ScimToolResult {
                     success: false,
                     content: json!({
-                        "error": format!("Invalid expected_version format: '{}'. Expected ETag format like 'W/\"abc123\"'", expected_version_str),
+                        "error": format!("Invalid expected_version format: '{}'. Use raw version (e.g., 'abc123def')", expected_version_str),
                         "error_code": "INVALID_VERSION_FORMAT"
                     }),
                     metadata: None,
@@ -381,7 +372,7 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
         let error_msg = response
             .error
             .unwrap_or_else(|| "Delete failed".to_string());
-        let error_code = if error_msg.contains("version mismatch") || error_msg.contains("ETag") {
+        let error_code = if error_msg.contains("version mismatch") || error_msg.contains("modified by another client") {
             "VERSION_MISMATCH"
         } else if error_msg.contains("not found") {
             "USER_NOT_FOUND"

@@ -112,7 +112,7 @@ pub fn get_user_tool() -> Value {
 pub fn update_user_tool() -> Value {
     json!({
         "name": "scim_update_user",
-        "description": "Update an existing user in the SCIM server with optional ETag versioning for optimistic locking",
+        "description": "Update an existing user in the SCIM server with optional versioning for optimistic locking",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -126,7 +126,7 @@ pub fn update_user_tool() -> Value {
                 },
                 "expected_version": {
                     "type": "string",
-                    "description": "Optional ETag version for conditional update (e.g., 'W/\"abc123\"'). If provided, update only succeeds if current version matches. Prevents lost updates in concurrent scenarios."
+                    "description": "Optional version for conditional update (e.g., 'abc123def'). If provided, update only succeeds if current version matches. Prevents lost updates in concurrent scenarios."
                 },
                 "tenant_id": {
                     "type": "string",
@@ -142,7 +142,7 @@ pub fn update_user_tool() -> Value {
 pub fn delete_user_tool() -> Value {
     json!({
         "name": "scim_delete_user",
-        "description": "Delete a user from the SCIM server with optional ETag versioning for safe deletion",
+        "description": "Delete a user from the SCIM server with optional versioning for safe deletion",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -152,7 +152,7 @@ pub fn delete_user_tool() -> Value {
                 },
                 "expected_version": {
                     "type": "string",
-                    "description": "Optional ETag version for conditional delete (e.g., 'W/\"abc123\"'). If provided, delete only succeeds if current version matches. Prevents accidental deletion of modified resources."
+                    "description": "Optional version for conditional delete (e.g., 'abc123def'). If provided, delete only succeeds if current version matches. Prevents accidental deletion of modified resources."
                 },
                 "tenant_id": {
                     "type": "string",
