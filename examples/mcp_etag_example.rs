@@ -1,8 +1,8 @@
-//! MCP ETag Concurrency Control Example
+//! MCP Version-Based Concurrency Control Example
 //!
-//! This example demonstrates how AI agents can use ETag versioning through the
+//! This example demonstrates how AI agents can use raw version strings through the
 //! Model Context Protocol (MCP) integration to perform safe concurrent operations
-//! on SCIM resources. It shows how ETags prevent lost updates and enable proper
+//! on SCIM resources. It shows how versions prevent lost updates and enable proper
 //! conflict resolution in AI-driven identity management scenarios.
 
 #[cfg(feature = "mcp")]
@@ -20,8 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     env_logger::init();
 
-    println!("🤖 MCP ETag Concurrency Control Example");
-    println!("=======================================\n");
+    println!("🤖 MCP Version-Based Concurrency Control Example");
+    println!("===============================================\n");
 
     // 1. Setup SCIM server with MCP integration
     let storage = InMemoryStorage::new();
@@ -48,11 +48,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mcp_server = ScimMcpServer::new(scim_server);
 
-    println!("✅ MCP server initialized with ETag support\n");
+    println!("✅ MCP server initialized with version support\n");
 
     // === AVAILABLE MCP TOOLS ===
-    println!("🔧 AVAILABLE MCP TOOLS WITH ETAG SUPPORT");
-    println!("=========================================");
+    println!("🔧 AVAILABLE MCP TOOLS WITH VERSION SUPPORT");
+    println!("==========================================");
 
     let tools = mcp_server.get_tools();
     for tool in &tools {
@@ -60,13 +60,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let description = tool["description"].as_str().unwrap();
         println!("• {}: {}", name, description);
 
-        // Show ETag parameters for update/delete tools
+        // Show version parameters for update/delete tools
         if name.contains("update") || name.contains("delete") {
             if let Some(expected_version_prop) =
                 tool["input_schema"]["properties"]["expected_version"].as_object()
             {
                 println!(
-                    "  └─ ETag parameter: {}",
+                    "  └─ Version parameter: {}",
                     expected_version_prop["description"].as_str().unwrap()
                 );
             }
@@ -104,22 +104,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await;
 
-    let (user_id, initial_etag) = if create_result.success {
+    let (user_id, initial_version) = if create_result.success {
         let user_id = create_result.metadata.as_ref().unwrap()["resource_id"]
             .as_str()
             .unwrap()
             .to_string();
-        let etag = create_result.metadata.as_ref().unwrap()["etag"]
+        let version = create_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
 
         println!("✅ AI Agent successfully created user:");
         println!("   User ID: {}", user_id);
-        println!("   Initial ETag: {}", etag);
-        println!("   Response includes ETag for subsequent operations");
+        println!("   Initial Version: {}", version);
+        println!("   Response includes version for subsequent operations");
 
-        (user_id, etag)
+        (user_id, version)
     } else {
         panic!("Failed to create user: {:?}", create_result.content);
     };
@@ -140,24 +140,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     if get_result.success {
-        let current_etag = get_result.metadata.as_ref().unwrap()["etag"]
+        let current_version = get_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap();
         println!("✅ AI Agent retrieved user successfully:");
-        println!("   Current ETag: {}", current_etag);
-        println!("   User data includes _etag field for easy access");
+        println!("   Current Version: {}", current_version);
+        println!("   User data includes _version field for easy access");
 
-        // Show that ETag is also embedded in content for easy AI access
-        if let Some(embedded_etag) = get_result.content["_etag"].as_str() {
-            println!("   Embedded ETag in content: {}", embedded_etag);
+        // Show that version is also embedded in content for easy AI access
+        if let Some(embedded_version) = get_result.content["_version"].as_str() {
+            println!("   Embedded Version in content: {}", embedded_version);
         }
     }
 
     println!();
 
-    // === AI AGENT CONDITIONAL UPDATE (SUCCESS) ===
-    println!("✅ AI AGENT: CONDITIONAL UPDATE (SUCCESS)");
-    println!("==========================================");
+    // === AI AGENT CONDITIONAL UPDATE WITH VERSION ===
+    println!("\n🤖 AI AGENT: CONDITIONAL UPDATE WITH VERSION");
+    println!("============================================");
 
     let conditional_update_result = mcp_server
         .execute_tool(
@@ -182,21 +182,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ],
                     "active": true
                 },
-                "expected_version": initial_etag  // Using ETag from creation
+                "expected_version": initial_version  // Using raw version from creation
             }),
         )
         .await;
 
-    let _new_etag = if conditional_update_result.success {
-        let new_etag = conditional_update_result.metadata.as_ref().unwrap()["etag"]
+    let _new_version = if conditional_update_result.success {
+        let new_version = conditional_update_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
         println!("✅ AI Agent conditional update succeeded:");
-        println!("   Old ETag: {}", initial_etag);
-        println!("   New ETag: {}", new_etag);
+        println!("   Old Version: {}", initial_version);
+        println!("   New Version: {}", new_version);
         println!("   Version-safe update completed");
-        new_etag
+        new_version
     } else {
         panic!(
             "Conditional update should have succeeded: {:?}",
@@ -207,10 +207,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // === AI AGENT CONCURRENT MODIFICATION SIMULATION ===
-    println!("⚠️  AI AGENT: SIMULATING VERSION CONFLICT");
+    // === AI AGENT CONFLICT DETECTION ===
+    println!("\n🚨 AI AGENT: SIMULATING VERSION CONFLICT");
     println!("=========================================");
 
-    // Simulate another AI agent trying to update with stale ETag
+    // Simulate another AI agent trying to update with stale version
     let conflict_update_result = mcp_server
         .execute_tool(
             "scim_update_user",
@@ -222,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "userName": "ai.assistant@company.com",
                     "active": false  // Different change
                 },
-                "expected_version": initial_etag  // Using stale ETag
+                "expected_version": initial_version  // Using stale version
             }),
         )
         .await;
@@ -269,20 +270,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await;
 
-    let current_etag = if refresh_result.success {
-        let current_etag = refresh_result.metadata.as_ref().unwrap()["etag"]
+    let current_version = if refresh_result.success {
+        let current_version = refresh_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
         println!("✅ Refreshed user data successfully");
-        println!("   Current ETag: {}", current_etag);
-        current_etag
+        println!("   Current Version: {}", current_version);
+        current_version
     } else {
         panic!("Failed to refresh user data");
     };
 
-    // Step 2: AI Agent retries with current ETag
-    println!("\nStep 2: AI Agent retries update with current ETag");
+    // Step 2: AI Agent retries with current version
+    println!("\nStep 2: AI Agent retries update with current version");
     let retry_update_result = mcp_server
         .execute_tool(
             "scim_update_user",
@@ -306,21 +307,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ],
                     "active": false  // Applying the change that failed before
                 },
-                "expected_version": current_etag  // Using current ETag
+                "expected_version": current_version  // Using current version
             }),
         )
         .await;
 
-    let final_etag = if retry_update_result.success {
-        let final_etag = retry_update_result.metadata.as_ref().unwrap()["etag"]
+    let final_version = if retry_update_result.success {
+        let final_version = retry_update_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
         println!("✅ AI Agent retry succeeded:");
-        println!("   Previous ETag: {}", current_etag);
-        println!("   Final ETag: {}", final_etag);
+        println!("   Previous Version: {}", current_version);
+        println!("   Final Version: {}", final_version);
         println!("   Conflict successfully resolved");
-        final_etag
+        final_version
     } else {
         panic!(
             "Retry update should have succeeded: {:?}",
@@ -331,17 +332,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // === AI AGENT CONDITIONAL DELETE ===
-    println!("🗑️  AI AGENT: CONDITIONAL DELETE");
-    println!("=================================");
+    println!("\n🗑️  AI AGENT: CONDITIONAL DELETE WITH VERSION");
+    println!("====================================");
 
-    // First try delete with wrong ETag
-    println!("Attempting delete with stale ETag (should fail):");
+    // First try delete with wrong version
+    println!("Attempting delete with stale version (should fail):");
     let wrong_delete_result = mcp_server
         .execute_tool(
             "scim_delete_user",
             json!({
                 "user_id": user_id,
-                "expected_version": initial_etag  // Stale ETag
+                "expected_version": initial_version  // Stale version
             }),
         )
         .await;
@@ -358,14 +359,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   Is Version Conflict: {}", is_version_conflict);
     }
 
-    // Now try delete with correct ETag
-    println!("\nAttempting delete with current ETag (should succeed):");
+    // Now try delete with correct version
+    println!("\nAttempting delete with current version (should succeed):");
     let correct_delete_result = mcp_server
         .execute_tool(
             "scim_delete_user",
             json!({
                 "user_id": user_id,
-                "expected_version": final_etag  // Current ETag
+                "expected_version": final_version
             }),
         )
         .await;
@@ -380,27 +381,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // === AI AGENT BEST PRACTICES ===
-    println!("🎯 AI AGENT BEST PRACTICES FOR ETAG USAGE");
-    println!("==========================================");
+    println!("🎯 AI AGENT BEST PRACTICES FOR VERSION USAGE");
+    println!("===========================================");
 
-    println!("1. Always capture ETag from operation responses:");
-    println!("   • Create operations return ETag in metadata['etag']");
-    println!("   • Get operations return ETag in metadata['etag']");
-    println!("   • Content also includes _etag field for convenience");
+    println!("1. Always capture version from operation responses:");
+    println!("   • Create operations return version in metadata['version']");
+    println!("   • Get operations return version in metadata['version']");
+    println!("   • Content also includes _version field for convenience");
 
-    println!("\n2. Use ETags for all update and delete operations:");
-    println!("   • Include 'expected_version' parameter with ETag value");
-    println!("   • ETag format: W/\"<version-string>\" (weak ETag)");
+    println!("\n2. Use raw versions for all update and delete operations:");
+    println!("   • Include 'expected_version' parameter with raw version value");
+    println!("   • Version format: Simple string like 'abc123def456'");
 
     println!("\n3. Handle version conflicts gracefully:");
-    println!("   • Check 'is_version_conflict' field in error responses");
+    println!("   • Check 'error_code' for 'VERSION_MISMATCH' in error responses");
     println!("   • Refresh resource data when conflicts occur");
-    println!("   • Retry operation with current ETag");
+    println!("   • Retry operation with current version");
 
-    println!("\n4. ETag format and parsing:");
-    println!("   • Always use complete ETag including W/ prefix");
-    println!("   • Example: W/\"abc123def456\"");
-    println!("   • Do not modify or parse ETag content manually");
+    println!("\n4. Version format and usage:");
+    println!("   • Use raw version strings directly");
+    println!("   • Example: 'abc123def456' (no HTTP formatting needed)");
+    println!("   • No parsing or modification required - use as-is");
 
     println!();
 
@@ -427,13 +428,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tenant_user_id = tenant_create_result.metadata.as_ref().unwrap()["resource_id"]
             .as_str()
             .unwrap();
-        let tenant_etag = tenant_create_result.metadata.as_ref().unwrap()["etag"]
+        let tenant_version = tenant_create_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap();
 
         println!("✅ AI Agent created user in tenant 'enterprise-corp':");
         println!("   User ID: {}", tenant_user_id);
-        println!("   ETag: {}", tenant_etag);
+        println!("   Version: {}", tenant_version);
 
         // Update in same tenant with ETag
         let tenant_update_result = mcp_server
@@ -447,32 +448,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "userName": "tenant.ai@enterprise.com",
                         "active": false
                     },
-                    "expected_version": tenant_etag,
+                    "expected_version": tenant_version,
                     "tenant_id": "enterprise-corp"
                 }),
             )
             .await;
 
         if tenant_update_result.success {
-            println!("✅ AI Agent updated tenant user with ETag successfully");
+            println!("✅ AI Agent updated tenant user with version successfully");
         }
     }
 
     println!();
 
     // === CONCLUSION ===
-    println!("🎉 MCP ETAG CONCURRENCY CONTROL EXAMPLE COMPLETED!");
-    println!("==================================================");
-    println!("✅ Demonstrated AI agent ETag usage patterns");
+    println!("🎉 MCP VERSION-BASED CONCURRENCY CONTROL EXAMPLE COMPLETED!");
+    println!("==========================================================");
+    println!("✅ Demonstrated AI agent version usage patterns");
     println!("✅ Showed version conflict detection and resolution");
     println!("✅ Illustrated safe conditional operations");
-    println!("✅ Covered multi-tenant ETag scenarios");
+    println!("✅ Covered multi-tenant version scenarios");
     println!("✅ Provided AI agent best practices");
     println!();
     println!("🤖 AI INTEGRATION BENEFITS:");
-    println!("   • Automatic ETag handling in MCP tools");
+    println!("   • Simple raw version handling in MCP tools");
     println!("   • Clear version conflict indicators");
-    println!("   • Embedded ETags in response content");
+    println!("   • Embedded versions in response content");
     println!("   • Structured error responses for AI decision making");
     println!("   • Multi-tenant aware versioning");
     println!("   • Zero-configuration optimistic locking");
