@@ -121,14 +121,16 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
             return resource;
         }
 
-        // Add version to the meta
+        // Add version to the meta using content-based versioning
         if let Some(meta) = resource.get_meta().cloned() {
-            if let Some(id) = resource.get_id() {
-                let now = chrono::Utc::now();
-                let version = crate::resource::value_objects::Meta::generate_version(id, now);
-                if let Ok(meta_with_version) = meta.with_version(version) {
-                    resource.set_meta(meta_with_version);
-                }
+            // Generate version from resource content
+            let resource_json = resource.to_json().unwrap_or_default();
+            let content_bytes = resource_json.to_string().as_bytes().to_vec();
+            let scim_version = ScimVersion::from_content(&content_bytes);
+            let version = scim_version.to_http_header();
+
+            if let Ok(meta_with_version) = meta.with_version(version) {
+                resource.set_meta(meta_with_version);
             }
         }
 
@@ -659,6 +661,51 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
     ) -> Result<Resource, Self::Error> {
         let _tenant_id = self.effective_tenant_id(context);
 
+        // Check for ETag validation if provided in patch request
+        if let Some(etag_value) = patch_request.get("etag") {
+            if let Some(etag_str) = etag_value.as_str() {
+                // Get current resource to check version
+                let tenant_id = self.effective_tenant_id(context);
+                let key = StorageKey::new(&tenant_id, resource_type, id);
+
+                match self.storage.get(key).await {
+                    Ok(Some(current_data)) => {
+                        // Parse current resource to get version
+                        let current_resource = Resource::from_json(resource_type.to_string(), current_data)
+                            .map_err(|e| InMemoryError::InvalidData {
+                                message: format!("Failed to deserialize current resource: {}", e),
+                            })?;
+
+                        // Get current resource version for comparison
+                        if let Some(current_version) = current_resource.get_meta().and_then(|m| m.version.as_ref()) {
+                            let current_etag = current_version.as_str();
+                            // Compare the provided ETag with current version
+                            // Remove W/ prefix if present for comparison
+                            let normalized_current = current_etag.trim_start_matches("W/").trim_matches('"');
+                            let normalized_provided = etag_str.trim_start_matches("W/").trim_matches('"');
+
+                            if normalized_current != normalized_provided {
+                                return Err(InMemoryError::PreconditionFailed {
+                                    message: format!("ETag mismatch. Expected '{}', got '{}'", normalized_current, normalized_provided),
+                                });
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        return Err(InMemoryError::NotFound {
+                            resource_type: resource_type.to_string(),
+                            id: id.to_string(),
+                        });
+                    }
+                    Err(_) => {
+                        return Err(InMemoryError::Internal {
+                            message: "Failed to retrieve resource for ETag validation".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
         // Extract operations from patch request
         let operations = patch_request
             .get("Operations")
@@ -736,6 +783,15 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
         let path = operation.get("path").and_then(|v| v.as_str());
         let value = operation.get("value");
 
+        // Check if the operation targets a readonly attribute
+        if let Some(path_str) = path {
+            if self.is_readonly_attribute(path_str) {
+                return Err(InMemoryError::InvalidInput {
+                    message: format!("Cannot modify readonly attribute: {}", path_str),
+                });
+            }
+        }
+
         match op.to_lowercase().as_str() {
             "add" => self.apply_add_operation(resource_data, path, value),
             "remove" => self.apply_remove_operation(resource_data, path),
@@ -745,9 +801,25 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
             }),
         }
     }
+
 }
 
 impl<S: StorageProvider> StandardResourceProvider<S> {
+    /// Check if an attribute path refers to a readonly attribute
+    fn is_readonly_attribute(&self, path: &str) -> bool {
+        // SCIM readonly attributes according to RFC 7643
+        match path.to_lowercase().as_str() {
+            // Meta attributes that are readonly
+            "meta.created" => true,
+            "meta.resourcetype" => true,
+            "meta.location" => true,
+            "id" => true,
+            // Complex attribute readonly subattributes
+            path if path.starts_with("meta.") && (path.ends_with(".created") || path.ends_with(".resourcetype") || path.ends_with(".location")) => true,
+            _ => false,
+        }
+    }
+
     /// Apply ADD operation
     fn apply_add_operation(
         &self,

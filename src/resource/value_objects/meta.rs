@@ -210,14 +210,7 @@ impl Meta {
         )
     }
 
-    /// Generate an ETag version identifier.
-    ///
-    /// Creates a weak ETag version identifier based on the resource ID and
-    /// last modified timestamp.
-    pub fn generate_version(resource_id: &str, last_modified: DateTime<Utc>) -> String {
-        let timestamp = last_modified.timestamp_millis();
-        format!("W/\"{}-{}\"", resource_id, timestamp)
-    }
+
 
     /// Validate the resource type value.
     fn validate_resource_type(resource_type: &str) -> ValidationResult<()> {
@@ -496,13 +489,7 @@ mod tests {
         assert_eq!(location, "https://example.com/Groups/456");
     }
 
-    #[test]
-    fn test_generate_version() {
-        let timestamp = Utc.with_ymd_and_hms(2023, 1, 1, 12, 0, 0).unwrap();
-        let version = Meta::generate_version("123", timestamp);
-        let expected_millis = timestamp.timestamp_millis();
-        assert_eq!(version, format!("W/\"123-{}\"", expected_millis));
-    }
+
 
     #[test]
     fn test_display() {

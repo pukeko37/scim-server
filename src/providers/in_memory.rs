@@ -146,14 +146,16 @@ impl InMemoryProvider {
             return resource;
         }
 
-        // Add version to the meta
+        // Add version to the meta using content-based versioning
         if let Some(meta) = resource.get_meta().cloned() {
-            if let Some(id) = resource.get_id() {
-                let now = chrono::Utc::now();
-                let version = crate::resource::value_objects::Meta::generate_version(id, now);
-                if let Ok(meta_with_version) = meta.with_version(version) {
-                    resource.set_meta(meta_with_version);
-                }
+            // Generate version from resource content
+            let resource_json = resource.to_json().unwrap_or_default();
+            let content_bytes = resource_json.to_string().as_bytes().to_vec();
+            let scim_version = ScimVersion::from_content(&content_bytes);
+            let version = scim_version.to_http_header();
+
+            if let Ok(meta_with_version) = meta.with_version(version) {
+                resource.set_meta(meta_with_version);
             }
         }
 

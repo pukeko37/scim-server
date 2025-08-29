@@ -79,7 +79,7 @@ pub async fn handle_server_info<P: ResourceProvider + Send + Sync + 'static>(
             "filtering": true
         },
         "mcp_integration": {
-            "version": "1.0.0",
+            "version": env!("CARGO_PKG_VERSION"),
             "available_tools": server.get_tools().len()
         }
     });
