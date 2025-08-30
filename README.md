@@ -10,7 +10,24 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.3.11"`. Breaking changes are signaled by minor version increments until v1.0.
+> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.4.0"`. Breaking changes are signaled by minor version increments until v1.0.
+
+## 🚨 v0.4.0 Breaking Changes
+
+**InMemoryProvider Removed**: If you're upgrading from v0.3.x, the deprecated `InMemoryProvider` has been removed. Update your code:
+
+```rust
+// Before v0.4.0 (removed)
+use scim_server::providers::InMemoryProvider;
+let provider = InMemoryProvider::new();
+
+// v0.4.0+ (current)
+use scim_server::{providers::StandardResourceProvider, storage::InMemoryStorage};
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+```
+
+**Custom Storage Implementations**: Must implement new discovery methods. See [CHANGELOG.md](CHANGELOG.md#040) for details.
 
 ## Quick Start
 
@@ -18,7 +35,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "=0.3.11"
+scim-server = "=0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -127,16 +144,11 @@ See [examples/](examples/) for complete working examples including:
 - ETag concurrency control
 - AI assistant integration
 
-## Migration from InMemoryProvider
+## Storage Backends
 
-If you're upgrading from the deprecated `InMemoryProvider`, update your code:
+The recommended approach is to use `StandardResourceProvider` with pluggable storage:
 
 ```rust
-// Old (deprecated)
-use scim_server::providers::InMemoryProvider;
-let provider = InMemoryProvider::new();
-
-// New (current)
 use scim_server::{
     providers::StandardResourceProvider,
     storage::InMemoryStorage,

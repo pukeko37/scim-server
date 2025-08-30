@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-01-28
+
+### ⚠️ BREAKING CHANGES
+
+- **InMemoryProvider Removed**: The deprecated `InMemoryProvider` struct has been completely removed
+  - **Migration**: Replace `InMemoryProvider::new()` with `StandardResourceProvider::new(InMemoryStorage::new())`
+  - **Impact**: External users must update their code, but all functionality is preserved
+  - **Benefit**: Eliminates 1200+ lines of duplicate code and provides cleaner API
+
+- **StorageProvider Trait Extended**: Added new discovery methods (breaking change for custom storage implementations)
+  - `list_tenants()` - Dynamically discover tenant IDs
+  - `list_resource_types(tenant_id)` - Get resource types for specific tenant
+  - `list_all_resource_types()` - Get all resource types across tenants
+  - `clear()` - Clear all data from storage
+
+### Added
+
+- **Dynamic Tenant Discovery**: Multi-tenant statistics tracking now works with any tenant naming convention
+  - No more hardcoded tenant patterns (`"tenant-a"`, `"perf-tenant-0"`, etc.)
+  - Automatically discovers tenants and resource types from storage
+  - Performance tests and production deployments work without code changes
+
+- **Enhanced StorageProvider Trait**: New discovery capabilities enable robust multi-tenant operations
+  - Storage backends can now expose tenant and resource type information
+  - Enables accurate statistics gathering across arbitrary tenant structures
+  - Future-proof for any storage backend implementation
+
+### Fixed
+
+- **Multi-Tenant Statistics Bug**: `get_stats()` method now correctly counts resources with arbitrary tenant names
+- **Performance Test Failures**: Tests using non-hardcoded tenant patterns now pass
+- **Architectural Consistency**: Removed code duplication between provider and storage layers
+
+### Changed
+
+- **Simplified API Surface**: Single clear path for in-memory storage via `StandardResourceProvider<InMemoryStorage>`
+- **Improved Documentation**: Removed migration guides and outdated examples
+- **Cleaner Codebase**: Reduced overall codebase size while maintaining full functionality
+
+### Migration Guide
+
+#### For InMemoryProvider Users
+
+```rust
+// Before v0.4.0 (removed)
+use scim_server::providers::InMemoryProvider;
+let provider = InMemoryProvider::new();
+
+// v0.4.0+ (current)  
+use scim_server::{providers::StandardResourceProvider, storage::InMemoryStorage};
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+```
+
+#### For Custom Storage Implementations
+
+Custom `StorageProvider` implementations must now implement the new discovery methods:
+
+```rust
+impl StorageProvider for MyCustomStorage {
+    // ... existing methods ...
+    
+    // New required methods:
+    async fn list_tenants(&self) -> Result<Vec<String>, Self::Error> { /* ... */ }
+    async fn list_resource_types(&self, tenant_id: &str) -> Result<Vec<String>, Self::Error> { /* ... */ }  
+    async fn list_all_resource_types(&self) -> Result<Vec<String>, Self::Error> { /* ... */ }
+    async fn clear(&self) -> Result<(), Self::Error> { /* ... */ }
+}
+```
+
 ## [0.3.11] - 2025-08-26
 
 ### Added

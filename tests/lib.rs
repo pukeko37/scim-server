@@ -165,7 +165,7 @@ pub use integration::{
     },
     providers::{
         common::{MultiTenantScenarioBuilder, ProviderTestingSuite},
-        in_memory::{InMemoryProvider, InMemoryProviderConfig},
+        // InMemoryProvider removed in v0.4.0 - use StandardResourceProvider<InMemoryStorage>
     },
 };
 */

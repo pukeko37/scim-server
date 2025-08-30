@@ -1,6 +1,6 @@
 //! Integration tests for permission enforcement and tenant isolation.
 //!
-//! This module tests that the InMemoryProvider correctly enforces tenant permissions
+//! This module tests that the StandardResourceProvider correctly enforces tenant permissions
 //! and maintains proper isolation between tenants.
 
 use scim_server::{

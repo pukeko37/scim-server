@@ -1,7 +1,7 @@
 //! Unit tests for the StandardResourceProvider.
 //!
-//! These tests are copied from the InMemoryProvider tests and adapted to use
-//! StandardResourceProvider<InMemoryStorage> to ensure behavioral equivalence.
+//! These tests verify StandardResourceProvider<InMemoryStorage> functionality
+//! and ensure complete behavioral compatibility with SCIM specifications.
 
 use scim_server::providers::{InMemoryError, StandardResourceProvider};
 use scim_server::resource::version::ConditionalResult;
@@ -323,6 +323,38 @@ async fn test_provider_stats() {
     assert_eq!(final_stats.resource_type_count, 2); // User and Group
     assert!(final_stats.resource_types.contains(&"User".to_string()));
     assert!(final_stats.resource_types.contains(&"Group".to_string()));
+}
+
+#[tokio::test]
+async fn test_dynamic_tenant_discovery() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    // Create resources in tenants with arbitrary names (not hardcoded patterns)
+    let tenants = vec!["arbitrary-tenant-123", "perf-tenant-999", "custom-org-456"];
+
+    for (idx, tenant_name) in tenants.iter().enumerate() {
+        let tenant_context = TenantContext::new(tenant_name.to_string(), "client".to_string());
+        let context = RequestContext::with_tenant_generated_id(tenant_context);
+
+        // Create 2 users per tenant
+        for i in 0..2 {
+            let user_data = create_test_user_data(&format!("user{}", idx * 2 + i));
+            provider.create_resource("User", user_data, &context).await.unwrap();
+        }
+
+        // Create 1 group per tenant
+        let group_data = json!({"displayName": format!("Group for {}", tenant_name)});
+        provider.create_resource("Group", group_data, &context).await.unwrap();
+    }
+
+    // The stats should dynamically discover all tenants, regardless of naming pattern
+    let stats = provider.get_stats().await;
+    assert_eq!(stats.tenant_count, 3, "Should discover all 3 tenants dynamically");
+    assert_eq!(stats.total_resources, 9, "Should count 6 users + 3 groups = 9 total");
+    assert_eq!(stats.resource_type_count, 2, "Should discover User and Group types");
+    assert!(stats.resource_types.contains(&"User".to_string()));
+    assert!(stats.resource_types.contains(&"Group".to_string()));
 }
 
 #[tokio::test]

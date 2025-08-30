@@ -297,7 +297,8 @@ use scim_server::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let server = ScimServerBuilder::new()
         .add_provider("User", provider.clone())
         .add_provider("Group", provider)
@@ -334,7 +335,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 // ✅ Full tenant isolation works:
 async fn multi_tenant_example() -> Result<(), ScimError> {
-    let provider = Arc::new(InMemoryProvider::new());
+    let storage = InMemoryStorage::new();
+    let provider = Arc::new(StandardResourceProvider::new(storage));
     let server = ScimServerBuilder::new()
         .add_provider("User", provider)
         .build()?;

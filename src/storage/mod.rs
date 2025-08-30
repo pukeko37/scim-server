@@ -285,6 +285,134 @@ pub trait StorageProvider: Send + Sync {
         &self,
         prefix: StoragePrefix,
     ) -> impl Future<Output = Result<usize, Self::Error>> + Send;
+
+    /// List all tenant IDs that currently have data in storage.
+    ///
+    /// Returns tenant IDs for all tenants that contain at least one resource of any type.
+    /// This method enables dynamic tenant discovery without requiring hardcoded tenant patterns.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tenant ID strings. Empty vector if no tenants have data.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage-specific errors if the discovery operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::storage::{StorageProvider, InMemoryStorage};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let tenants = storage.list_tenants().await?;
+    /// println!("Found {} tenants", tenants.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn list_tenants(&self) -> impl Future<Output = Result<Vec<String>, Self::Error>> + Send;
+
+    /// List all resource types for a specific tenant.
+    ///
+    /// Returns resource type names (e.g., "User", "Group") that exist within the specified
+    /// tenant. Only resource types with at least one stored resource are included.
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant_id` - The tenant ID to query for resource types
+    ///
+    /// # Returns
+    ///
+    /// A vector of resource type strings. Empty vector if tenant doesn't exist or has no resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage-specific errors if the query operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::storage::{StorageProvider, InMemoryStorage};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let types = storage.list_resource_types("tenant1").await?;
+    /// for resource_type in types {
+    ///     println!("Tenant has resource type: {}", resource_type);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn list_resource_types(
+        &self,
+        tenant_id: &str,
+    ) -> impl Future<Output = Result<Vec<String>, Self::Error>> + Send;
+
+    /// List all resource types across all tenants.
+    ///
+    /// Returns a deduplicated collection of all resource type names found across all tenants
+    /// in storage. This provides a global view of resource types without tenant boundaries.
+    ///
+    /// # Returns
+    ///
+    /// A vector of unique resource type strings. Empty vector if no resources exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage-specific errors if the discovery operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::storage::{StorageProvider, InMemoryStorage};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let all_types = storage.list_all_resource_types().await?;
+    /// println!("System supports {} resource types", all_types.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn list_all_resource_types(&self) -> impl Future<Output = Result<Vec<String>, Self::Error>> + Send;
+
+    /// Clear all data from storage.
+    ///
+    /// Removes all resources from all tenants, effectively resetting the storage to an empty state.
+    /// This operation is primarily intended for testing scenarios and should be used with caution
+    /// in production environments.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on successful clearing, or a storage-specific error on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage-specific errors if the clear operation fails partially or completely.
+    ///
+    /// # Behavior
+    ///
+    /// - Removes all resources from all tenants atomically where possible
+    /// - After successful clearing, [`list_tenants`] should return an empty vector
+    /// - Primarily intended for testing scenarios
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::storage::{StorageProvider, InMemoryStorage};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// // ... populate storage with data ...
+    /// storage.clear().await?;
+    /// let tenants = storage.list_tenants().await?;
+    /// assert_eq!(tenants.len(), 0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`list_tenants`]: Self::list_tenants
+    fn clear(&self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
 #[cfg(test)]

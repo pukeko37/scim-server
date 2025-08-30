@@ -7,8 +7,7 @@
 //! # Available Providers
 //!
 //! * [`StandardResourceProvider`] - **RECOMMENDED** Production-ready provider with pluggable storage backends
-//! * [`InMemoryProvider`] - ⚠️ **DEPRECATED** Thread-safe in-memory provider for testing and development
-//!   - Use `StandardResourceProvider<InMemoryStorage>` instead for better separation of concerns
+//! * **InMemoryProvider** - ⚠️ **REMOVED** in v0.4.0 - Use `StandardResourceProvider<InMemoryStorage>` instead
 //!
 //! All providers in this module implement the unified ResourceProvider trait,
 //! supporting both single-tenant and multi-tenant operations through the
@@ -33,8 +32,4 @@ pub use crate::storage::{InMemoryStorage, StorageProvider};
 pub use standard::StandardResourceProvider;
 
 // Legacy deprecated exports - will be removed in future version
-#[deprecated(
-    since = "0.3.10",
-    note = "Use `StandardResourceProvider<InMemoryStorage>` instead. InMemoryProvider will be removed in a future version."
-)]
-pub use in_memory::{InMemoryError, InMemoryProvider, InMemoryStats};
+pub use in_memory::{InMemoryError, InMemoryStats};

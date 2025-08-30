@@ -11,7 +11,7 @@ use scim_server::{
 };
 use serde_json::json;
 
-// MockSingleTenantProvider removed - was unused after transitioning to standard InMemoryProvider
+// MockSingleTenantProvider removed - was unused after transitioning to StandardResourceProvider
 
 /// Test basic multi-tenant context creation and usage
 #[tokio::test]

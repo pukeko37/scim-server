@@ -158,7 +158,7 @@ pub fn create_test_context_with_tenant(tenant_id: &str, client_id: &str) -> Requ
     RequestContext::with_tenant_generated_id(tenant_context)
 }
 
-/// Create an InMemoryProvider with patch capabilities enabled
+/// Create a provider with patch capabilities enabled
 pub fn create_provider_with_patch_enabled() -> StandardResourceProvider<InMemoryStorage> {
     // For now, return default provider
     // In a real implementation, this would configure the provider to advertise patch support
@@ -166,7 +166,7 @@ pub fn create_provider_with_patch_enabled() -> StandardResourceProvider<InMemory
     StandardResourceProvider::new(storage)
 }
 
-/// Create an InMemoryProvider with patch capabilities disabled
+/// Create a provider with patch capabilities disabled
 pub fn create_provider_with_patch_disabled() -> StandardResourceProvider<InMemoryStorage> {
     // For now, return default provider
     // In a real implementation, this would configure the provider to not advertise patch support

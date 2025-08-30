@@ -51,7 +51,7 @@ use crate::resource::{
 use crate::storage::{StorageKey, StorageProvider};
 use log::{debug, info, trace, warn};
 use serde_json::{Value, json};
-use std::collections::HashSet;
+
 
 /// Standard resource provider with pluggable storage backend.
 ///
@@ -137,64 +137,108 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         resource
     }
 
-    /// Clear all data (useful for testing).
+    /// Clear all data from storage.
+    ///
+    /// Removes all resources from all tenants by delegating to the storage backend's
+    /// clear operation. This method provides a consistent interface for clearing data
+    /// regardless of the underlying storage implementation.
+    ///
+    /// # Behavior
+    ///
+    /// - Delegates to [`StorageProvider::clear`] for actual data removal
+    /// - Logs warnings if the clear operation fails
+    /// - Primarily intended for testing scenarios
+    /// - After successful clearing, [`get_stats`] should report zero resources
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::providers::StandardResourceProvider;
+    /// use scim_server::storage::InMemoryStorage;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let provider = StandardResourceProvider::new(storage);
+    ///
+    /// // ... create some resources ...
+    /// provider.clear().await;
+    ///
+    /// let stats = provider.get_stats().await;
+    /// assert_eq!(stats.total_resources, 0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`StorageProvider::clear`]: crate::storage::StorageProvider::clear
+    /// [`get_stats`]: Self::get_stats
     pub async fn clear(&self) {
-        // Since we don't have a generic way to list all data, we'll try common patterns
-        // This is primarily for testing scenarios with known data patterns
-        let common_tenants = vec!["default", "tenant-a", "tenant-b", "test"];
-        let common_types = vec!["User", "Group"];
-
-        for tenant_id in &common_tenants {
-            for resource_type in &common_types {
-                let prefix = StorageKey::prefix(*tenant_id, *resource_type);
-                if let Ok(results) = self.storage.list(prefix, 0, usize::MAX).await {
-                    for (key, _value) in results {
-                        let key_string = key.to_string();
-                        if let Err(e) = self.storage.delete(key).await {
-                            warn!("Failed to delete key {} during clear: {:?}", key_string, e);
-                        }
-                    }
-                }
-            }
+        // Delegate to storage backend for proper clearing
+        if let Err(e) = self.storage.clear().await {
+            warn!("Failed to clear storage: {:?}", e);
         }
     }
 
-    /// Get statistics about stored data.
+    /// Get comprehensive statistics about stored data across all tenants.
+    ///
+    /// Dynamically discovers all tenants and resource types from storage to provide
+    /// accurate statistics without relying on hardcoded patterns. This method uses
+    /// the storage provider's discovery capabilities to enumerate actual data.
+    ///
+    /// # Returns
+    ///
+    /// [`InMemoryStats`] containing:
+    /// - `tenant_count`: Number of tenants with at least one resource
+    /// - `total_resources`: Sum of all resources across all tenants and types
+    /// - `resource_type_count`: Number of distinct resource types found
+    /// - `resource_types`: List of all resource type names
+    ///
+    /// # Errors
+    ///
+    /// This method handles storage errors gracefully by using default values
+    /// (empty collections) when discovery operations fail.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::providers::StandardResourceProvider;
+    /// use scim_server::storage::InMemoryStorage;
+    /// use scim_server::resource::{RequestContext, TenantContext};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let provider = StandardResourceProvider::new(storage);
+    ///
+    /// // ... create resources in multiple tenants ...
+    ///
+    /// let stats = provider.get_stats().await;
+    /// println!("Total resources: {}", stats.total_resources);
+    /// println!("Active tenants: {}", stats.tenant_count);
+    /// println!("Resource types: {:?}", stats.resource_types);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get_stats(&self) -> InMemoryStats {
-        // Dynamically discover all tenants and resource types by scanning storage patterns
-        let mut tenant_set = HashSet::new();
-        let mut resource_type_set = HashSet::new();
+        // Dynamically discover all tenants and resource types from storage
+        let tenants = self.storage.list_tenants().await.unwrap_or_default();
+        let resource_types = self.storage.list_all_resource_types().await.unwrap_or_default();
+
         let mut total_resources = 0;
 
-        // Try common tenant patterns and any that start with perf- for the test
-        let tenant_patterns = vec![
-            "default", "tenant-a", "tenant-b", "test", "test-tenant",
-            // Dynamically include performance test patterns
-            "perf-tenant-0", "perf-tenant-1", "perf-tenant-2", "perf-tenant-3", "perf-tenant-4"
-        ];
-        let resource_types = vec!["User", "Group"];
-
-        for tenant_id in &tenant_patterns {
+        // Count total resources across all tenants and resource types
+        for tenant_id in &tenants {
             for resource_type in &resource_types {
-                let prefix = StorageKey::prefix(*tenant_id, *resource_type);
-
-                if let Ok(results) = self.storage.list(prefix, 0, usize::MAX).await {
-                    if !results.is_empty() {
-                        tenant_set.insert(tenant_id.to_string());
-                        resource_type_set.insert(resource_type.to_string());
-                        total_resources += results.len();
-                    }
+                let prefix = StorageKey::prefix(tenant_id, resource_type);
+                if let Ok(count) = self.storage.count(prefix).await {
+                    total_resources += count;
                 }
             }
         }
 
-        let resource_types_vec: Vec<String> = resource_type_set.into_iter().collect();
-
         InMemoryStats {
-            tenant_count: tenant_set.len(),
+            tenant_count: tenants.len(),
             total_resources,
-            resource_type_count: resource_types_vec.len(),
-            resource_types: resource_types_vec,
+            resource_type_count: resource_types.len(),
+            resource_types,
         }
     }
 

@@ -240,14 +240,9 @@ let user = provider.create_resource("User", user_data, &context).await?;
 - Unit test isolation
 - Quick prototyping
 
-**Migration from InMemoryProvider:**
+**Using In-Memory Storage:**
 
 ```rust
-// Old (deprecated)
-use scim_server::providers::InMemoryProvider;
-let provider = InMemoryProvider::new();
-
-// New (current)
 use scim_server::{
     providers::StandardResourceProvider,
     storage::InMemoryStorage,

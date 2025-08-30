@@ -347,7 +347,7 @@ async fn test_clear_functionality() {
 
 #[tokio::test]
 async fn test_conditional_operations_via_resource_provider() {
-    // This test ensures InMemoryProvider implements conditional operations via ResourceProvider trait
+    // This test ensures StandardResourceProvider implements conditional operations via ResourceProvider trait
     // Using static dispatch with generic function to enforce trait bounds
     async fn test_provider<P>(provider: &P, context: &RequestContext)
     where

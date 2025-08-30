@@ -104,26 +104,7 @@ impl InMemoryStorage {
         }
     }
 
-    /// Clear all data (useful for testing).
-    pub async fn clear(&self) {
-        let mut data_guard = self.data.write().await;
-        data_guard.clear();
-    }
 
-    /// Get all tenant IDs currently in storage.
-    pub async fn list_tenants(&self) -> Vec<String> {
-        let data_guard = self.data.read().await;
-        data_guard.keys().cloned().collect()
-    }
-
-    /// Get all resource types for a specific tenant.
-    pub async fn list_resource_types(&self, tenant_id: &str) -> Vec<String> {
-        let data_guard = self.data.read().await;
-        data_guard
-            .get(tenant_id)
-            .map(|tenant_data| tenant_data.keys().cloned().collect())
-            .unwrap_or_default()
-    }
 
     /// Extract a nested attribute value from JSON data using dot notation.
     fn extract_attribute_value(data: &Value, attribute_path: &str) -> Option<String> {
@@ -305,6 +286,38 @@ impl StorageProvider for InMemoryStorage {
             .unwrap_or(0);
 
         Ok(count)
+    }
+
+    async fn list_tenants(&self) -> Result<Vec<String>, Self::Error> {
+        let data_guard = self.data.read().await;
+        Ok(data_guard.keys().cloned().collect())
+    }
+
+    async fn list_resource_types(&self, tenant_id: &str) -> Result<Vec<String>, Self::Error> {
+        let data_guard = self.data.read().await;
+        Ok(data_guard
+            .get(tenant_id)
+            .map(|tenant_data| tenant_data.keys().cloned().collect())
+            .unwrap_or_default())
+    }
+
+    async fn list_all_resource_types(&self) -> Result<Vec<String>, Self::Error> {
+        let data_guard = self.data.read().await;
+        let mut resource_types = std::collections::HashSet::new();
+
+        for tenant_data in data_guard.values() {
+            for resource_type in tenant_data.keys() {
+                resource_types.insert(resource_type.clone());
+            }
+        }
+
+        Ok(resource_types.into_iter().collect())
+    }
+
+    async fn clear(&self) -> Result<(), Self::Error> {
+        let mut data_guard = self.data.write().await;
+        data_guard.clear();
+        Ok(())
     }
 }
 
@@ -576,7 +589,7 @@ mod tests {
         );
 
         // Clear all data
-        storage.clear().await;
+        let _ = storage.clear().await;
 
         // Verify data is gone
         assert_eq!(
@@ -609,20 +622,20 @@ mod tests {
             .unwrap();
 
         // Test list_tenants
-        let mut tenants = storage.list_tenants().await;
+        let mut tenants = storage.list_tenants().await.unwrap();
         tenants.sort();
         assert_eq!(tenants, vec!["tenant1", "tenant2"]);
 
         // Test list_resource_types
-        let mut types1 = storage.list_resource_types("tenant1").await;
+        let mut types1 = storage.list_resource_types("tenant1").await.unwrap();
         types1.sort();
         assert_eq!(types1, vec!["Group", "User"]);
 
-        let types2 = storage.list_resource_types("tenant2").await;
+        let types2 = storage.list_resource_types("tenant2").await.unwrap();
         assert_eq!(types2, vec!["User"]);
 
         // Non-existent tenant
-        let types_none = storage.list_resource_types("nonexistent").await;
+        let types_none = storage.list_resource_types("nonexistent").await.unwrap();
         assert!(types_none.is_empty());
     }
 
