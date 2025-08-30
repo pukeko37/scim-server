@@ -35,6 +35,8 @@ pub enum PathType {
     Filtered,
     /// Invalid path for error testing
     Invalid,
+    /// Invalid syntax for error testing (malformed filter expressions)
+    InvalidSyntax,
     /// Read-only attribute path
     ReadOnly,
     /// Immutable attribute path

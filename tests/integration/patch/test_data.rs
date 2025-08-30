@@ -270,7 +270,7 @@ impl TestDataFactory {
             (
                 "invalid_malformed",
                 "emails[invalid syntax",
-                PathType::Invalid,
+                PathType::InvalidSyntax,
                 false,
             ),
         ];
@@ -299,6 +299,10 @@ impl TestDataFactory {
                                 error_type: ScimErrorType::InvalidPath,
                                 status_code: 400,
                             },
+                            PathType::InvalidSyntax => ExpectedResult::ScimError {
+                                error_type: ScimErrorType::InvalidSyntax,
+                                status_code: 400,
+                            },
                             _ => ExpectedResult::Success,
                         }
                     } else {
@@ -309,6 +313,10 @@ impl TestDataFactory {
                             },
                             PathType::Invalid => ExpectedResult::ScimError {
                                 error_type: ScimErrorType::InvalidPath,
+                                status_code: 400,
+                            },
+                            PathType::InvalidSyntax => ExpectedResult::ScimError {
+                                error_type: ScimErrorType::InvalidSyntax,
                                 status_code: 400,
                             },
                             _ => ExpectedResult::ScimError {
