@@ -13,7 +13,9 @@ use crate::{
         create_version_conflict_response,
     },
     resource::{
-        RequestContext, conditional_provider::VersionedResource, version::ConditionalResult,
+        RequestContext,
+        conditional_provider::VersionedResource,
+        version::{ConditionalResult, HttpVersion},
     },
 };
 use std::collections::HashMap;
@@ -42,12 +44,18 @@ pub async fn handle_create<P: ResourceProvider + Sync>(
     );
     additional.insert(
         "etag".to_string(),
-        serde_json::Value::String(versioned_resource.version().to_http_header()),
+        serde_json::Value::String(
+            HttpVersion::from(versioned_resource.version().clone()).to_string(),
+        ),
     );
 
     Ok(ScimOperationResponse {
         success: true,
-        data: Some(resource.to_json()?),
+        data: Some(
+            handler
+                .server()
+                .serialize_resource_with_refs(&resource, context.tenant_id())?,
+        ),
         error: None,
         error_code: None,
         metadata: OperationMetadata {
@@ -95,12 +103,18 @@ pub async fn handle_get<P: ResourceProvider + Sync>(
             );
             additional.insert(
                 "etag".to_string(),
-                serde_json::Value::String(versioned_resource.version().to_http_header()),
+                serde_json::Value::String(
+                    HttpVersion::from(versioned_resource.version().clone()).to_string(),
+                ),
             );
 
             Ok(ScimOperationResponse {
                 success: true,
-                data: Some(resource.to_json()?),
+                data: Some(
+                    handler
+                        .server()
+                        .serialize_resource_with_refs(&resource, context.tenant_id())?,
+                ),
                 error: None,
                 error_code: None,
                 metadata: OperationMetadata {
@@ -166,12 +180,17 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
                 );
                 additional.insert(
                     "etag".to_string(),
-                    serde_json::Value::String(versioned_resource.version().to_http_header()),
+                    serde_json::Value::String(
+                        HttpVersion::from(versioned_resource.version().clone()).to_string(),
+                    ),
                 );
 
                 Ok(ScimOperationResponse {
                     success: true,
-                    data: Some(versioned_resource.resource().to_json()?),
+                    data: Some(handler.server().serialize_resource_with_refs(
+                        versioned_resource.resource(),
+                        context.tenant_id(),
+                    )?),
                     error: None,
                     error_code: None,
                     metadata: OperationMetadata {
@@ -220,12 +239,18 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
         );
         additional.insert(
             "etag".to_string(),
-            serde_json::Value::String(versioned_resource.version().to_http_header()),
+            serde_json::Value::String(
+                HttpVersion::from(versioned_resource.version().clone()).to_string(),
+            ),
         );
 
         Ok(ScimOperationResponse {
             success: true,
-            data: Some(resource.to_json()?),
+            data: Some(
+                handler
+                    .server()
+                    .serialize_resource_with_refs(&resource, context.tenant_id())?,
+            ),
             error: None,
             error_code: None,
             metadata: OperationMetadata {
@@ -354,12 +379,18 @@ pub async fn handle_patch<P: ResourceProvider + Sync>(
     );
     additional.insert(
         "etag".to_string(),
-        serde_json::Value::String(versioned_resource.version().to_http_header()),
+        serde_json::Value::String(
+            HttpVersion::from(versioned_resource.version().clone()).to_string(),
+        ),
     );
 
     Ok(ScimOperationResponse {
         success: true,
-        data: Some(resource.to_json()?),
+        data: Some(
+            handler
+                .server()
+                .serialize_resource_with_refs(&resource, context.tenant_id())?,
+        ),
         error: None,
         error_code: None,
         metadata: OperationMetadata {

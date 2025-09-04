@@ -36,10 +36,13 @@
 //! - `protocol` - Tool discovery and dispatch functionality
 //! - `tools/` - JSON schema definitions for MCP tool discovery
 //!   - `user_schemas` - User operation tool schemas
+//!   - `group_schemas` - Group operation tool schemas
 //!   - `system_schemas` - System information tool schemas
 //! - `handlers/` - Tool execution handlers
 //!   - `user_crud` - User CRUD operation handlers
 //!   - `user_queries` - User query and search handlers
+//!   - `group_crud` - Group CRUD operation handlers
+//!   - `group_queries` - Group query and search handlers
 //!   - `system_info` - System metadata handlers
 //!
 //! ## Usage Example

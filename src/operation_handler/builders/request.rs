@@ -5,7 +5,7 @@
 
 use crate::{
     operation_handler::core::{ScimOperationRequest, ScimOperationType, ScimQuery},
-    resource::{TenantContext, version::ScimVersion},
+    resource::{TenantContext, version::RawVersion},
 };
 use serde_json::Value;
 
@@ -179,18 +179,19 @@ impl ScimOperationRequest {
     /// # Examples
     /// ```rust
     /// use scim_server::operation_handler::ScimOperationRequest;
-    /// use scim_server::resource::version::ScimVersion;
+    /// use scim_server::resource::version::{RawVersion, HttpVersion};
     /// use serde_json::json;
     ///
-    /// let version = ScimVersion::parse_http_header("\"abc123\"").unwrap();
+    /// let version: HttpVersion = "\"abc123\"".parse().unwrap();
     /// let request = ScimOperationRequest::update(
     ///     "User",
     ///     "123",
     ///     json!({"userName": "updated.name"})
     /// ).with_expected_version(version);
     /// ```
-    pub fn with_expected_version(mut self, version: ScimVersion) -> Self {
-        self.expected_version = Some(version);
+    pub fn with_expected_version(mut self, version: impl Into<RawVersion>) -> Self {
+        self.expected_version = Some(version.into());
+
         self
     }
 }

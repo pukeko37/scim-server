@@ -7,11 +7,13 @@
 //! # Module Organization
 //!
 //! * [`core`] - Core ScimServer struct and initialization
+//! * [`builder`] - Builder pattern for server configuration and tenant handling
 //! * [`registration`] - Resource type registration and operation support management
 //! * [`operations`] - CRUD operations for resources (create, read, update, delete, list, search)
 //! * [`schema_management`] - Schema-related operations and validation helpers
 //! - `tests` - Test infrastructure and comprehensive test cases
 
+pub mod builder;
 pub mod core;
 pub mod operations;
 pub mod registration;
@@ -20,8 +22,9 @@ pub mod schema_management;
 #[cfg(test)]
 pub mod tests;
 
-// Re-export the main ScimServer type to maintain API compatibility
+// Re-export the main types to maintain API compatibility
 pub use core::ScimServer;
+pub use builder::{ScimServerBuilder, ScimServerConfig, TenantStrategy};
 
 #[cfg(test)]
 mod integration_tests {

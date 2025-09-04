@@ -6,7 +6,7 @@
 
 use crate::{
     ResourceProvider, ScimServer,
-    resource::version::ScimVersion,
+    resource::version::RawVersion,
     resource::{RequestContext, TenantContext},
 };
 use log::{debug, info, warn};
@@ -43,7 +43,7 @@ pub struct ScimOperationRequest {
     /// Request ID for tracing and correlation
     pub request_id: Option<String>,
     /// Expected version for conditional operations
-    pub expected_version: Option<ScimVersion>,
+    pub expected_version: Option<RawVersion>,
 }
 
 /// Types of SCIM operations supported by the handler

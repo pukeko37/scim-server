@@ -73,7 +73,7 @@ impl TestDataFactory {
                 "created": "2025-08-12T10:00:00.000Z",
                 "lastModified": "2025-08-12T10:00:00.000Z",
                 "location": "https://example.com/scim/v2/Users/user-123",
-                "version": "W/\"abc123\""
+                "version": "abc123"
             }
         })
     }
@@ -90,7 +90,7 @@ impl TestDataFactory {
                 "created": "2025-08-12T10:00:00.000Z",
                 "lastModified": "2025-08-12T10:00:00.000Z",
                 "location": "https://example.com/scim/v2/Users/user-minimal",
-                "version": "W/\"def456\""
+                "version": "def456"
             }
         })
     }
@@ -118,7 +118,7 @@ impl TestDataFactory {
                 "created": "2025-08-12T10:00:00.000Z",
                 "lastModified": "2025-08-12T10:00:00.000Z",
                 "location": "https://example.com/scim/v2/Groups/group-123",
-                "version": "W/\"ghi789\""
+                "version": "ghi789"
             }
         })
     }

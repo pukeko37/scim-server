@@ -37,7 +37,7 @@ use std::fmt;
 ///         now,
 ///         now,
 ///         Some("https://example.com/Users/123".to_string()),
-///         Some("W/\"123-456\"".to_string())
+///         Some("123-456".to_string())
 ///     )?;
 ///     println!("Resource type: {}", meta.resource_type());
 ///
@@ -67,7 +67,7 @@ impl Meta {
     /// * `created` - The resource creation timestamp
     /// * `last_modified` - The resource last modification timestamp
     /// * `location` - Optional location URI for the resource
-    /// * `version` - Optional version identifier (ETag format)
+    /// * `version` - Optional version identifier (raw format)
     ///
     /// # Returns
     ///
@@ -210,8 +210,6 @@ impl Meta {
         )
     }
 
-
-
     /// Validate the resource type value.
     fn validate_resource_type(resource_type: &str) -> ValidationResult<()> {
         if resource_type.is_empty() {
@@ -265,12 +263,12 @@ impl Meta {
             return Err(ValidationError::InvalidVersionFormat);
         }
 
-        // Version should follow ETag format: W/"..." or "..."
-        if !version.starts_with("W/\"") && !version.starts_with('"') {
-            return Err(ValidationError::InvalidVersionFormat);
-        }
-
-        if !version.ends_with('"') {
+        // Version should be alphanumeric with common separators
+        // Allow letters, numbers, hyphens, underscores, dots, and equals (for base64)
+        if !version
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '+' | '/' | '='))
+        {
             return Err(ValidationError::InvalidVersionFormat);
         }
 
@@ -306,7 +304,7 @@ mod tests {
             created,
             modified,
             Some("https://example.com/Users/123".to_string()),
-            Some("W/\"123-456\"".to_string()),
+            Some("123-456".to_string()),
         );
         assert!(meta.is_ok());
 
@@ -315,7 +313,7 @@ mod tests {
         assert_eq!(meta.created(), created);
         assert_eq!(meta.last_modified(), modified);
         assert_eq!(meta.location(), Some("https://example.com/Users/123"));
-        assert_eq!(meta.version(), Some("W/\"123-456\""));
+        assert_eq!(meta.version(), Some("123-456"));
     }
 
     #[test]
@@ -419,7 +417,7 @@ mod tests {
             now,
             now,
             None,
-            Some("invalid-etag".to_string()),
+            Some("invalid@version!".to_string()),
         );
         assert!(result.is_err());
 
@@ -468,15 +466,15 @@ mod tests {
         let now = Utc::now();
         let meta = Meta::new_simple("User".to_string(), now, now).unwrap();
 
-        let meta_with_version = meta.clone().with_version("W/\"123-456\"".to_string());
+        let meta_with_version = meta.clone().with_version("123-456".to_string());
         assert!(meta_with_version.is_ok());
 
         let meta_with_version = meta_with_version.unwrap();
-        assert_eq!(meta_with_version.version(), Some("W/\"123-456\""));
+        assert_eq!(meta_with_version.version(), Some("123-456"));
 
         // Test invalid version
-        let invalid_result = meta.with_version("invalid-version".to_string());
-        assert!(invalid_result.is_err());
+        let invalid_meta = meta.with_version("invalid@version".to_string());
+        assert!(invalid_meta.is_err());
     }
 
     #[test]
@@ -488,8 +486,6 @@ mod tests {
         let location = Meta::generate_location("https://example.com/", "Group", "456");
         assert_eq!(location, "https://example.com/Groups/456");
     }
-
-
 
     #[test]
     fn test_display() {
@@ -514,7 +510,7 @@ mod tests {
             created,
             modified,
             Some("https://example.com/Users/123".to_string()),
-            Some("W/\"123-456\"".to_string()),
+            Some("123-456".to_string()),
         )
         .unwrap();
 
@@ -522,7 +518,7 @@ mod tests {
         assert!(json.contains("\"resourceType\":\"User\""));
         assert!(json.contains("\"lastModified\""));
         assert!(json.contains("\"location\":\"https://example.com/Users/123\""));
-        assert!(json.contains("\"version\":\"W/\\\"123-456\\\"\""));
+        assert!(json.contains("\"version\":\"123-456\""));
     }
 
     #[test]
@@ -532,13 +528,13 @@ mod tests {
             "created": "2023-01-01T12:00:00Z",
             "lastModified": "2023-01-02T12:00:00Z",
             "location": "https://example.com/Groups/456",
-            "version": "W/\"456-789\""
+            "version": "456-789"
         }"#;
 
         let meta: Meta = serde_json::from_str(json).unwrap();
         assert_eq!(meta.resource_type(), "Group");
         assert_eq!(meta.location(), Some("https://example.com/Groups/456"));
-        assert_eq!(meta.version(), Some("W/\"456-789\""));
+        assert_eq!(meta.version(), Some("456-789"));
     }
 
     #[test]
@@ -564,7 +560,7 @@ mod tests {
             created,
             modified,
             Some("https://example.com/Users/123".to_string()),
-            Some("W/\"123-456\"".to_string()),
+            Some("123-456".to_string()),
         )
         .unwrap();
 

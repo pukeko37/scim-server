@@ -10,7 +10,23 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.4.0"`. Breaking changes are signaled by minor version increments until v1.0.
+> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.4.1"`. Breaking changes are signaled by minor version increments until v1.0.
+
+## ✨ v0.4.1 New Features
+
+**Type-Safe Version Control**: Enhanced compile-time safety for SCIM resource versioning with phantom types:
+
+```rust
+// Type-safe version handling prevents format confusion
+let raw_version = RawVersion::from_hash("abc123");
+let http_version = HttpVersion::from(raw_version);
+let etag_header = http_version.to_string(); // "W/\"abc123\""
+
+// Cross-format equality works seamlessly
+assert!(raw_version == http_version);
+```
+
+**Enhanced Documentation**: New comprehensive concurrency control concepts covering when to use versioning and protocol differences between HTTP ETags and MCP versions.
 
 ## 🚨 v0.4.0 Breaking Changes
 
@@ -21,7 +37,7 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 use scim_server::providers::InMemoryProvider;
 let provider = InMemoryProvider::new();
 
-// v0.4.0+ (current)
+// v0.4.1+ (current)
 use scim_server::{providers::StandardResourceProvider, storage::InMemoryStorage};
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
@@ -44,31 +60,42 @@ Create a basic SCIM server:
 
 ```rust
 use scim_server::{
-    RequestContext,
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
-    resource::provider::ResourceProvider,
+    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    multi_tenant::ScimOperation,
+    RequestContext,
 };
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create StandardResourceProvider with InMemoryStorage
+    // Create storage and provider
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider)?;
+    
+    // Register User resource type with schema validation
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .expect("User schema should exist").clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server.register_resource_type("User", user_handler,
+        vec![ScimOperation::Create, ScimOperation::Read])?;
     
     // Create request context
     let context = RequestContext::new("example-request-1".to_string());
     
-    // Create a user
+    // Create a user with full SCIM compliance
     let user_data = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "userName": "john.doe",
         "emails": [{"value": "john@example.com", "primary": true}]
     });
     
-    let user = provider.create_resource("User", user_data, &context).await?;
-    println!("Created user: {}", user.id);
+    let user_json = server.create_resource_with_refs("User", user_data, &context).await?;
+    println!("Created user: {}", user_json["userName"]);
     
     Ok(())
 }
@@ -114,21 +141,31 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 
 ```rust
 use scim_server::{
-    ScimServer,
+    ScimServer, ScimServerBuilder, TenantStrategy,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    multi_tenant::ScimOperation,
 };
 
-// Multi-tenant server with StandardResourceProvider
+// Multi-tenant server with proper configuration
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
-let mut server = ScimServer::new(provider)?;
+let mut server = ScimServerBuilder::new(provider)
+    .with_base_url("https://api.company.com")
+    .with_tenant_strategy(TenantStrategy::PathBased)
+    .build()?;
 
-// Register tenant
-server.register_tenant("org1").await?;
+// Register User and Group resource types
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
+let user_handler = create_user_resource_handler(user_schema.clone());
+server.register_resource_type("User", user_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update])?;
 
-// Custom resource types
-server.register_schema(custom_schema).await?;
+let group_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")?;
+let group_handler = create_group_resource_handler(group_schema.clone());
+server.register_resource_type("Group", group_handler,
+    vec![ScimOperation::Create, ScimOperation::Read])?;
 
 // Web framework integration (Axum example)
 let app = Router::new()
@@ -146,15 +183,26 @@ See [examples/](examples/) for complete working examples including:
 
 ## Storage Backends
 
-The recommended approach is to use `StandardResourceProvider` with pluggable storage:
+The recommended approach is to use `ScimServer` with `StandardResourceProvider` and pluggable storage:
 
 ```rust
 use scim_server::{
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::{create_user_resource_handler},
+    multi_tenant::ScimOperation,
 };
+
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServer::new(provider)?;
+
+// Register resource types for full SCIM compliance
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
+let user_handler = create_user_resource_handler(user_schema.clone());
+server.register_resource_type("User", user_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update])?;
 ```
 
 ## Contributing

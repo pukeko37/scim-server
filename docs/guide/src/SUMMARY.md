@@ -16,6 +16,7 @@
 
 - [Understanding SCIM Schemas](./concepts/schemas.md)
 - [Schema Mechanisms in SCIM Server](./concepts/schema-mechanisms.md)
+- [Concurrency Control in SCIM Operations](./concepts/concurrency.md)
 
 # Advanced Topics
 

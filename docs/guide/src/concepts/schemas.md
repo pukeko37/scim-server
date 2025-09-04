@@ -617,7 +617,7 @@ Servers validate:
 
 The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a `meta.version` field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (`If-Match`, `If-None-Match`) with these ETags to ensure they're operating on the expected version of a resource.
 
-For implementation details and practical usage patterns, see the [ETag Concurrency Control](./etag-concurrency.md) chapter and [Schema Mechanisms in SCIM Server](./schema-mechanisms.md).
+For implementation details and practical usage patterns, see the [Concurrency Control in SCIM Operations](./concurrency.md) chapter and [Schema Mechanisms in SCIM Server](./schema-mechanisms.md).
 
 ## Schema Extensibility Patterns
 

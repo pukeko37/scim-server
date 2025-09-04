@@ -308,7 +308,7 @@ fn test_group_meta_validation() {
             "resourceType": "Group",
             "created": "2010-01-23T04:56:22Z",
             "lastModified": "2011-05-13T04:42:34Z",
-            "version": "W/\"3694e05e9dff592\"",
+            "version": "3694e05e9dff592",
             "location": "https://example.com/v2/Groups/group-123"
         }
     });

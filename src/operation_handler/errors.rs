@@ -6,7 +6,7 @@
 use crate::{
     ScimError,
     operation_handler::core::{OperationMetadata, ScimOperationResponse},
-    resource::version::VersionConflict,
+    resource::version::{HttpVersion, VersionConflict},
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -91,11 +91,11 @@ pub fn create_version_conflict_response(
     );
     additional.insert(
         "expected_etag".to_string(),
-        Value::String(conflict.expected.to_http_header()),
+        Value::String(HttpVersion::from(conflict.expected.clone()).to_string()),
     );
     additional.insert(
         "current_etag".to_string(),
-        Value::String(conflict.current.to_http_header()),
+        Value::String(HttpVersion::from(conflict.current.clone()).to_string()),
     );
 
     ScimOperationResponse {

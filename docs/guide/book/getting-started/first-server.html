@@ -184,34 +184,44 @@ cd my-scim-server
 </code></pre>
 <h3 id="2-add-dependencies"><a class="header" href="#2-add-dependencies">2. Add Dependencies</a></h3>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.3.11"
+scim-server = "0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
-<h3 id="3-basic-server-15-lines"><a class="header" href="#3-basic-server-15-lines">3. Basic Server (15 lines)</a></h3>
+<h3 id="3-basic-server-20-lines"><a class="header" href="#3-basic-server-20-lines">3. Basic Server (20 lines)</a></h3>
 <pre><pre class="playground"><code class="language-rust">use scim_server::{
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::create_user_resource_handler,
+    multi_tenant::ScimOperation,
     RequestContext,
 };
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create storage and provider - the foundation of your SCIM server
-    let storage = InMemoryStorage::new();  // Simple storage for development
-    let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
+    // Create storage, provider, and SCIM server
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider)?;
 
-    // Create a single-tenant request context - tracks this operation for logging
+    // Register User resource type with schema validation
+    let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server.register_resource_type("User", user_handler, vec![ScimOperation::Create])?;
+
+    // Create request context and user data
     let context = RequestContext::new("demo".to_string());
     let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "userName": "john.doe",
         "emails": [{"value": "john@example.com", "primary": true}],
         "active": true
     });
 
-    let user = provider.create_resource("User", user_data, &amp;context).await?;
-    println!("Created user: {}", user.get_username().unwrap());
+    let user_json = server.create_resource_with_refs("User", user_data, &amp;context).await?;
+    println!("Created user: {}", user_json["userName"]);
 
     Ok(())
 }</code></pre></pre>
@@ -221,29 +231,45 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </code></pre>
 <h2 id="core-operations"><a class="header" href="#core-operations">Core Operations</a></h2>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
-<p>For the following examples, we'll use this provider and context setup:</p>
+<p>For the following examples, we'll use this server and context setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use scim_server::{
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    multi_tenant::ScimOperation,
     RequestContext,
 };
 use serde_json::json;
 
-// Create storage and provider - the foundation of your SCIM server
-let storage = InMemoryStorage::new();  // Simple storage for development
-let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
+// Create storage, provider, and SCIM server
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServer::new(provider)?;
+
+// Register User and Group resource types with schema validation
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+let user_handler = create_user_resource_handler(user_schema);
+server.register_resource_type("User", user_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update, ScimOperation::Delete])?;
+
+let group_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")?.clone();
+let group_handler = create_group_resource_handler(group_schema);
+server.register_resource_type("Group", group_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update, ScimOperation::Delete])?;
 
 // Single-tenant RequestContext tracks each operation for logging
 let context = RequestContext::new("demo".to_string());
 <span class="boring">}</span></code></pre></pre>
-<p>All the following examples will use these <code>provider</code> and <code>context</code> variables.</p>
+<p>All the following examples will use these <code>server</code> and <code>context</code> variables.</p>
 <h3 id="creating-resources"><a class="header" href="#creating-resources">Creating Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Use JSON to define user attributes following SCIM 2.0 schema
 let user_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "userName": "alice.smith",
     "name": {
         "givenName": "Alice",
@@ -253,30 +279,29 @@ let user_data = json!({
     "active": true
 });
 
-// Create the user - provider handles validation and storage
-let user = provider.create_resource("User", user_data, &amp;context).await?;
-let user_id = user.get_id().unwrap();  // Get the auto-generated unique ID
+// Create the user - server handles validation, $ref fields, and metadata
+let user_json = server.create_resource_with_refs("User", user_data, &amp;context).await?;
+let user_id = user_json["id"].as_str().unwrap();  // Get the auto-generated unique ID
 <span class="boring">}</span></code></pre></pre>
 <h3 id="reading-resources"><a class="header" href="#reading-resources">Reading Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Get user by ID - returns Option&lt;Resource&gt; (None if not found)
-let retrieved_user = provider.get_resource("User", &amp;user_id, &amp;context).await?;
-
-if let Some(user) = retrieved_user {
-    println!("Found: {}", user.get_username().unwrap());
-}
+</span>// Get user by ID - returns SCIM-compliant JSON with proper $ref fields
+let retrieved_user = server.get_resource("User", &amp;user_id, &amp;context).await?;
+println!("Found: {}", retrieved_user["userName"]);
 
 // Search by specific attribute value - useful for username lookups
-let found_user = provider
-    .find_resource_by_attribute("User", "userName", &amp;json!("alice.smith"), &amp;context)
-    .await?;
+let search_results = server.search_resources("User", "userName", &amp;json!("alice.smith"), &amp;context).await?;
+if !search_results.is_empty() {
+    println!("Search found: {}", search_results[0]["userName"]);
+}
 <span class="boring">}</span></code></pre></pre>
 <h3 id="updating-resources"><a class="header" href="#updating-resources">Updating Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Updates require the full resource data, including the ID
+</span>// Updates require the full resource data, including the ID and schemas
 let update_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "id": user_id,
     "userName": "alice.smith",
     "name": {
@@ -287,34 +312,33 @@ let update_data = json!({
     "active": false  // Deactivated
 });
 
-// Update replaces the entire resource with new data
-let updated_user = provider
-    .update_resource("User", &amp;user_id, update_data, &amp;context)
-    .await?;
+// Update replaces the entire resource with new data, maintains SCIM compliance
+let updated_user = server.update_resource("User", &amp;user_id, update_data, &amp;context).await?;
 <span class="boring">}</span></code></pre></pre>
 <h3 id="listing-and-searching"><a class="header" href="#listing-and-searching">Listing and Searching</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// List all users - None means no pagination/filtering
-let all_users = provider.list_resources("User", None, &amp;context).await?;
+</span>// List all users with proper SCIM compliance
+let all_users = server.list_resources("User", &amp;context).await?;
 println!("Total users: {}", all_users.len());
 
-// Efficiently check existence without retrieving full data
-let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+// Check existence
+let exists = server.resource_exists("User", &amp;user_id, &amp;context).await?;
 println!("User exists: {}", exists);
 <span class="boring">}</span></code></pre></pre>
 <h3 id="validation-and-error-handling"><a class="header" href="#validation-and-error-handling">Validation and Error Handling</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// The provider automatically validates data against SCIM schemas
+</span>// The server automatically validates data against SCIM schemas
 let invalid_user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "userName": "",  // Empty username - violates SCIM requirements
     "emails": [{"value": "not-an-email"}],  // Invalid email format
 });
 
 // Always handle validation errors gracefully
-match provider.create_resource("User", invalid_user, &amp;context).await {
-    Ok(user) =&gt; println!("User created: {}", user.get_id().unwrap()),
+match server.create_resource_with_refs("User", invalid_user, &amp;context).await {
+    Ok(user_json) =&gt; println!("User created: {}", user_json["id"]),
     Err(e) =&gt; println!("Validation failed: {}", e),  // Detailed error message
 }
 <span class="boring">}</span></code></pre></pre>
@@ -322,10 +346,10 @@ match provider.create_resource("User", invalid_user, &amp;context).await {
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Delete a resource by ID
-provider.delete_resource("User", &amp;user_id, &amp;context).await?;
+server.delete_resource("User", &amp;user_id, &amp;context).await?;
 
 // Verify deletion
-let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+let exists = server.resource_exists("User", &amp;user_id, &amp;context).await?;
 println!("User still exists: {}", exists); // Should be false
 <span class="boring">}</span></code></pre></pre>
 <h2 id="working-with-groups"><a class="header" href="#working-with-groups">Working with Groups</a></h2>
@@ -334,31 +358,41 @@ println!("User still exists: {}", exists); // Should be false
 </span>// Groups can contain users as members - useful for access control
 // Create a group (assuming you have a user_id from previous examples)
 let group_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
     "displayName": "Engineering Team",  // Required: human-readable name
     "members": [  // Optional: list of member references
         {
             "value": user_id,  // Reference to the user's ID
-            "$ref": format!("https://example.com/v2/Users/{}", user_id),  // Full URI
             "type": "User"  // Type of the referenced resource
+            // Note: $ref field will be automatically generated by the server
         }
     ]
 });
 
-// Using the context and user_id from previous examples
-// Create group just like users - same provider interface
-let group = provider.create_resource("Group", group_data, &amp;context).await?;
-println!("Created group: {}", group.get_attribute("displayName").unwrap());
+// Create group with full SCIM compliance - server will inject proper $ref fields
+let group_json = server.create_resource_with_refs("Group", group_data, &amp;context).await?;
+println!("Created group: {}", group_json["displayName"]);
+println!("Member $ref: {}", group_json["members"][0]["$ref"]);  // Auto-generated!
 <span class="boring">}</span></code></pre></pre>
 <h2 id="multi-tenant-support"><a class="header" href="#multi-tenant-support">Multi-Tenant Support</a></h2>
 <p>For multi-tenant scenarios, you create explicit tenant contexts instead of using the default single-tenant setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Import TenantContext for multi-tenant operations
-use scim_server::resource::TenantContext;
+use scim_server::{ScimServerBuilder, TenantStrategy, multi_tenant::TenantContext};
 
-// Create the same provider as before
+// Create multi-tenant server with proper configuration
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServerBuilder::new(provider)
+    .with_base_url("https://api.company.com")
+    .with_tenant_strategy(TenantStrategy::PathBased)
+    .build()?;
+
+// Register resource types (same as before)
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+let user_handler = create_user_resource_handler(user_schema);
+server.register_resource_type("User", user_handler, vec![ScimOperation::Create])?;
 
 // Multi-tenant contexts - each gets isolated data space
 let tenant_a = TenantContext::new("company-a".to_string(), "client-123".to_string());
@@ -367,13 +401,18 @@ let tenant_a_context = RequestContext::with_tenant("req-a".to_string(), tenant_a
 let tenant_b = TenantContext::new("company-b".to_string(), "client-456".to_string());
 let tenant_b_context = RequestContext::with_tenant("req-b".to_string(), tenant_b);
 
-// Same provider, different tenants - data is completely isolated
-provider.create_resource("User", user_data.clone(), &amp;tenant_a_context).await?;
-provider.create_resource("User", user_data, &amp;tenant_b_context).await?;
+// Same server, different tenants - data is completely isolated
+let user_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john.doe",
+    "emails": [{"value": "john@company.com", "primary": true}]
+});
+server.create_resource_with_refs("User", user_data.clone(), &amp;tenant_a_context).await?;
+server.create_resource_with_refs("User", user_data, &amp;tenant_b_context).await?;
 
 // Each tenant sees only their own data
-let tenant_a_users = provider.list_resources("User", None, &amp;tenant_a_context).await?;
-let tenant_b_users = provider.list_resources("User", None, &amp;tenant_b_context).await?;
+let tenant_a_users = server.list_resources("User", &amp;tenant_a_context).await?;
+let tenant_b_users = server.list_resources("User", &amp;tenant_b_context).await?;
 
 println!("Company A users: {}", tenant_a_users.len());
 println!("Company B users: {}", tenant_b_users.len());
@@ -381,11 +420,11 @@ println!("Company B users: {}", tenant_b_users.len());
 <h2 id="provider-statistics"><a class="header" href="#provider-statistics">Provider Statistics</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Useful for monitoring and debugging your SCIM server
-let stats = provider.get_stats().await;
-println!("Total tenants: {}", stats.tenant_count);  // Number of active tenants
-println!("Total resources: {}", stats.total_resources);  // Users + Groups + etc.
-println!("Resource types: {:?}", stats.resource_types);  // ["User", "Group", ...]
+</span>// Get server information and capabilities
+let server_info = server.get_server_info();
+println!("Supported resource types: {:?}", server_info.supported_resource_types);
+println!("SCIM version: {}", server_info.scim_version);
+println!("Server capabilities: {:?}", server_info.capabilities);
 <span class="boring">}</span></code></pre></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
@@ -408,13 +447,16 @@ cargo run --example group_example
 </code></pre>
 <h2 id="key-concepts"><a class="header" href="#key-concepts">Key Concepts</a></h2>
 <ul>
-<li><strong><code>StandardResourceProvider</code></strong> - Main interface for SCIM operations</li>
+<li><strong><code>ScimServer</code></strong> - Main interface providing full SCIM 2.0 compliance</li>
+<li><strong><code>StandardResourceProvider</code></strong> - Storage abstraction layer</li>
 <li><strong><code>InMemoryStorage</code></strong> - Simple storage backend for development</li>
 <li><strong><code>RequestContext</code></strong> - Request tracking and tenant isolation</li>
-<li><strong>Resource Types</strong> - "User", "Group", or custom types</li>
+<li><strong>Resource Handlers</strong> - Schema validation and business logic</li>
+<li><strong>Resource Types</strong> - "User", "Group", or custom types registered with schemas</li>
 <li><strong>JSON Data</strong> - All resource data uses <code>serde_json::Value</code></li>
+<li><strong>Auto-generated Fields</strong> - Server automatically adds <code>$ref</code>, <code>meta.location</code>, and other SCIM compliance fields</li>
 </ul>
-<p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for most SCIM implementations.</p>
+<p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for SCIM 2.0 compliant implementations.</p>
 
                     </main>
 

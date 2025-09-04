@@ -437,45 +437,9 @@ fn test_invalid_reference_type() {
     }
 }
 
-/// Test Error #32: Broken reference (referencing non-existent resource)
-#[test]
-fn test_broken_reference() {
-    let registry = SchemaRegistry::new().expect("Failed to create registry");
-
-    // Test references to resources that don't exist
-    let user_broken_ref = UserBuilder::new().with_broken_reference().build();
-
-    // Verify reference points to non-existent resource
-    assert_eq!(user_broken_ref["groups"][0]["value"], "nonexistent-group");
-
-    // Actually validate the resource
-    let result = registry.validate_json_resource_with_context(
-        "User",
-        &user_broken_ref,
-        OperationContext::Update,
-    );
-
-    // This will likely fail with UnknownAttribute since groups might not be in current User schema
-    // But this documents the expected behavior for broken reference validation
-    assert!(result.is_err());
-    match result {
-        Err(ValidationError::BrokenReference {
-            attribute,
-            reference,
-        }) => {
-            assert_eq!(attribute, "groups");
-            assert_eq!(reference, "nonexistent-group");
-        }
-        Err(ValidationError::UnknownAttribute { attribute, .. }) => {
-            assert_eq!(attribute, "groups");
-        }
-        Err(other) => {
-            // Accept other validation errors for now
-            println!("Got validation error: {:?}", other);
-        }
-        Ok(_) => panic!("Expected validation to fail, but it passed"),
-    }
-}
+// Test removed: Broken reference validation is not the SCIM server's responsibility.
+// The server should accept whatever group references the client provides, even if they
+// point to non-existent resources. Referential integrity is maintained by the client.
 
 /// Test valid data types to ensure no false positives
 #[test]

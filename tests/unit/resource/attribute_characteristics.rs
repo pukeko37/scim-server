@@ -151,7 +151,7 @@ fn test_server_generated_readonly_attributes() {
             "resourceType": "User",
             "created": "2024-01-01T00:00:00Z", // This is read-only and server-generated
             "lastModified": "2024-01-01T00:00:00Z", // This is read-only and server-generated
-            "version": "W/\"custom-version\"", // This is read-only and server-generated
+            "version": "custom-version", // This is read-only and server-generated
             "location": "https://custom.example.com/Users/123" // This is read-only and server-generated
         }
     });

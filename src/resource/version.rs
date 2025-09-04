@@ -11,162 +11,185 @@
 //! simultaneously. All versions are computed deterministically from resource content
 //! using SHA-256 hashing.
 //!
-//! # Core Types
+//! # Type-Safe Format Management
 //!
-//! * [`ScimVersion`] - Opaque version identifier for resources
+//! This module uses phantom types to distinguish between HTTP ETag format and raw
+//! internal format at compile time, preventing format confusion:
+//!
+//! * [`HttpVersion`] - HTTP ETag format ("W/\"abc123\"")
+//! * [`RawVersion`] - Internal raw format ("abc123")
 //! * [`ConditionalResult`] - Result type for conditional operations
 //! * [`VersionConflict`] - Error details for version mismatches
 //!
 //! # Basic Usage
 //!
 //! ```rust
-//! use scim_server::resource::version::{ScimVersion, ConditionalResult};
+//! use scim_server::resource::version::{RawVersion, HttpVersion};
 //!
 //! // Create version from hash string (for provider-specific versioning)
-//! let version = ScimVersion::from_hash("db-sequence-123");
+//! let raw_version = RawVersion::from_hash("db-sequence-123");
 //!
 //! // Create version from content hash (automatic versioning)
 //! let resource_json = br#"{"id":"123","userName":"john.doe","active":true}"#;
-//! let content_version = ScimVersion::from_content(resource_json);
+//! let content_version = RawVersion::from_content(resource_json);
 //!
 //! // Parse from HTTP weak ETag header (client-provided versions)
-//! let etag_version = ScimVersion::parse_http_header("W/\"abc123def\"").unwrap();
+//! let etag_version: HttpVersion = "W/\"abc123def\"".parse().unwrap();
 //!
 //! // Convert to HTTP weak ETag header (for responses)
-//! let etag_header = version.to_http_header(); // Returns: "W/abc123def"
+//! let etag_header = HttpVersion::from(raw_version).to_string(); // Returns: "W/\"abc123def\""
 //!
-//! // Check version equality (for conditional operations)
-//! let matches = version.matches(&etag_version);
+//! // Check version equality (works across formats)
+//! let matches = raw_version == etag_version;
+//! ```
+//!
+//! # Format Conversions
+//!
+//! ```rust
+//! use scim_server::resource::version::{RawVersion, HttpVersion};
+//!
+//! // Raw to HTTP format
+//! let raw_version = RawVersion::from_hash("abc123");
+//! let http_version = HttpVersion::from(raw_version);
+//!
+//! // HTTP to Raw format
+//! let http_version: HttpVersion = "W/\"xyz789\"".parse().unwrap();
+//! let raw_version = RawVersion::from(http_version);
+//!
+//! // Direct string parsing
+//! let raw_from_str: RawVersion = "abc123".parse().unwrap();
+//! let http_from_str: HttpVersion = "\"xyz789\"".parse().unwrap();
 //! ```
 //!
 //! # Conditional Operations
 //!
 //! ```rust,no_run
-//! use scim_server::resource::version::{ConditionalResult, ScimVersion};
+//! use scim_server::resource::version::{ConditionalResult, RawVersion, HttpVersion};
 //! use scim_server::resource::{ResourceProvider, RequestContext};
 //! use serde_json::json;
 //!
 //! # async fn example<P: ResourceProvider + Sync>(provider: &P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 //! let context = RequestContext::with_generated_id();
-//! let expected_version = ScimVersion::from_hash("current-version");
+//! let expected_version = RawVersion::from_hash("current-version");
 //! let update_data = json!({"userName": "updated.name", "active": false});
 //!
-//! // Conditional update with version checking
-//! match provider.conditional_update("User", "123", update_data, &expected_version, &context).await? {
-//!     ConditionalResult::Success(versioned_resource) => {
-//!         println!("Update successful!");
-//!         println!("New weak ETag: {}", versioned_resource.version().to_http_header());
-//!     },
-//!     ConditionalResult::VersionMismatch(conflict) => {
-//!         println!("Version conflict detected!");
-//!         println!("Expected: {}", conflict.expected);
-//!         println!("Current: {}", conflict.current);
-//!         println!("Message: {}", conflict.message);
-//!         // Client should refresh and retry with current version
-//!     },
-//!     ConditionalResult::NotFound => {
+//! // Conditional update with type-safe version handling
+//! match provider.conditional_update("User", "123", update_data, &expected_version, &context).await {
+//!     Ok(ConditionalResult::Success(updated_resource)) => {
+//!         println!("Update succeeded: {}", updated_resource.resource().get_id().unwrap_or("unknown"));
+//!     }
+//!     Ok(ConditionalResult::VersionMismatch(conflict)) => {
+//!         println!("Version conflict: expected {}, found {}", conflict.expected, conflict.current);
+//!     }
+//!     Ok(ConditionalResult::NotFound) => {
 //!         println!("Resource not found");
-//!         // Handle missing resource scenario
+//!     }
+//!     Err(e) => {
+//!         println!("Operation failed: {}", e);
 //!     }
 //! }
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! # HTTP Integration
-//!
-//! The version system integrates seamlessly with HTTP weak ETags:
-//!
-//! ```rust
-//! use scim_server::resource::version::ScimVersion;
-//!
-//! // Server generates weak ETag for response
-//! let resource_data = br#"{"id":"123","userName":"alice","active":true}"#;
-//! let version = ScimVersion::from_content(resource_data);
-//! let etag_header = version.to_http_header(); // "W/xyz789abc"
-//!
-//! // Client provides weak ETag in subsequent request (If-Match header)
-//! let client_etag = "W/\"xyz789abc\"";
-//! let client_version = ScimVersion::parse_http_header(client_etag).unwrap();
-//!
-//! // Server validates version before operation
-//! if version.matches(&client_version) {
-//!     println!("Versions match - proceed with operation");
-//! } else {
-//!     println!("Version mismatch - return 412 Precondition Failed");
-//! }
-//! ```
-//!
-//! # Version Properties
-//!
-//! - **Deterministic**: Same content always produces the same version
-//! - **Content-Based**: Any change to resource data changes the version
-//! - **Collision-Resistant**: SHA-256 based hashing prevents accidental conflicts
-//! - **Compact**: Base64 encoded for efficient transmission
-//! - **Opaque**: Internal representation prevents manipulation
-//! - **HTTP Compatible**: Direct integration with weak ETag headers
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::fmt;
+use std::{fmt, marker::PhantomData, str::FromStr};
 use thiserror::Error;
 
-/// Opaque version identifier for SCIM resources.
+// Phantom type markers for format distinction
+#[derive(Debug, Clone, Copy)]
+pub struct Http;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Raw;
+
+/// Opaque version identifier for SCIM resources with compile-time format safety.
 ///
-/// Represents a version of a resource that can be used for optimistic concurrency
-/// control. The internal representation is opaque to prevent direct manipulation
-/// and ensure version consistency across different provider implementations.
+/// This type uses phantom types to distinguish between HTTP ETag format and raw
+/// internal format at compile time, preventing format confusion and runtime errors.
+/// The internal representation remains opaque to prevent direct manipulation.
 ///
 /// Versions can be created from:
 /// - Provider-specific identifiers (database sequence numbers, timestamps, etc.)
 /// - Content hashes (for stateless version generation)
-/// - HTTP ETag headers (for parsing client-provided versions)
+/// - String parsing with automatic format detection
+///
+/// # Type Safety
+///
+/// The phantom type parameter prevents mixing formats accidentally:
+/// ```compile_fail
+/// use scim_server::resource::version::{RawVersion, HttpVersion};
+///
+/// let raw_version = RawVersion::from_hash("123");
+/// let http_version: HttpVersion = "W/\"456\"".parse().unwrap();
+///
+/// // This won't compile - cannot pass HttpVersion where RawVersion expected
+/// some_function_expecting_raw(http_version);
+/// ```
 ///
 /// # Examples
 ///
 /// ```rust
-/// use scim_server::resource::version::ScimVersion;
+/// use scim_server::resource::version::{RawVersion, HttpVersion};
 ///
-/// // From hash string
-/// let version = ScimVersion::from_hash("12345");
+/// // From hash string (always produces Raw format)
+/// let raw_version = RawVersion::from_hash("12345");
 ///
-/// // From content hash
+/// // From content hash (always produces Raw format)
 /// let content = br#"{"id":"123","name":"John Doe"}"#;
-/// let hash_version = ScimVersion::from_content(content);
+/// let hash_version = RawVersion::from_content(content);
 ///
-/// // From HTTP ETag
-/// let etag_version = ScimVersion::parse_http_header("\"abc123def\"").unwrap();
+/// // Parse from strings with format detection
+/// let raw_parsed: RawVersion = "abc123def".parse().unwrap();
+/// let http_parsed: HttpVersion = "\"abc123def\"".parse().unwrap();
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ScimVersion {
+#[derive(Debug, Clone, Eq, Hash)]
+pub struct ScimVersion<Format> {
     /// Opaque version identifier
     opaque: String,
+    /// Phantom type marker for compile-time format distinction
+    #[allow(dead_code)]
+    _format: PhantomData<Format>,
 }
 
-impl ScimVersion {
+/// Type alias for HTTP ETag format versions ("W/\"abc123\"")
+pub type HttpVersion = ScimVersion<Http>;
+
+/// Type alias for raw internal format versions ("abc123")
+pub type RawVersion = ScimVersion<Raw>;
+
+// Core constructors (always produce Raw format as the canonical form)
+impl<Format> ScimVersion<Format> {
     /// Create a version from resource content.
     ///
     /// This generates a deterministic hash-based version from the resource content,
     /// ensuring universal compatibility across all provider implementations.
     /// The version is based on the full resource content including all fields.
     ///
+    /// Always produces a [`RawVersion`] as content hashing creates canonical versions.
+    ///
     /// # Arguments
     /// * `content` - The complete resource content as bytes
     ///
     /// # Examples
     /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
+    /// use scim_server::resource::version::RawVersion;
     ///
     /// let resource_json = br#"{"id":"123","userName":"john.doe"}"#;
-    /// let version = ScimVersion::from_content(resource_json);
+    /// let version = RawVersion::from_content(resource_json);
     /// ```
-    pub fn from_content(content: &[u8]) -> Self {
+    pub fn from_content(content: &[u8]) -> RawVersion {
         let mut hasher = Sha256::new();
         hasher.update(content);
         let hash = hasher.finalize();
         let encoded = BASE64.encode(&hash[..8]); // Use first 8 bytes for shorter ETags
-        Self { opaque: encoded }
+
+        ScimVersion {
+            opaque: encoded,
+            _format: PhantomData,
+        }
     }
 
     /// Create a version from a pre-computed hash string.
@@ -175,55 +198,79 @@ impl ScimVersion {
     /// sequence numbers, timestamps, or UUIDs. The provider can use any string
     /// as a version identifier.
     ///
+    /// Always produces a [`RawVersion`] as the canonical internal format.
+    ///
     /// # Arguments
     /// * `hash_string` - Provider-specific version identifier
     ///
     /// # Examples
     /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
+    /// use scim_server::resource::version::RawVersion;
     ///
     /// // Database sequence number
-    /// let db_version = ScimVersion::from_hash("seq_12345");
+    /// let db_version = RawVersion::from_hash("seq_12345");
     ///
     /// // Timestamp-based version
-    /// let time_version = ScimVersion::from_hash("1703123456789");
+    /// let time_version = RawVersion::from_hash("1703123456789");
     ///
     /// // UUID-based version
-    /// let uuid_version = ScimVersion::from_hash("550e8400-e29b-41d4-a716-446655440000");
+    /// let uuid_version = RawVersion::from_hash("550e8400-e29b-41d4-a716-446655440000");
     /// ```
-    ///
-    /// # Examples
-    /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
-    ///
-    /// let version = ScimVersion::from_hash("abc123def");
-    /// ```
-    pub fn from_hash(hash_string: impl AsRef<str>) -> Self {
-        Self {
+    pub fn from_hash(hash_string: impl AsRef<str>) -> RawVersion {
+        ScimVersion {
             opaque: hash_string.as_ref().to_string(),
+            _format: PhantomData,
         }
     }
 
-    /// Parse a version from an HTTP ETag header value.
+    /// Get the opaque version string.
     ///
-    /// Accepts both weak and strong ETags as defined in RFC 7232.
-    /// Weak ETags (prefixed with "W/") are treated the same as strong ETags
-    /// for SCIM resource versioning purposes.
-    ///
-    /// # Arguments
-    /// * `etag_header` - The ETag header value (e.g., "\"abc123\"" or "W/\"abc123\"")
-    ///
-    /// # Returns
-    /// The parsed version or an error if the ETag format is invalid
-    ///
-    /// # Examples
-    /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
-    ///
-    /// let version = ScimVersion::parse_http_header("\"abc123\"").unwrap();
-    /// let weak_version = ScimVersion::parse_http_header("W/\"abc123\"").unwrap();
-    /// ```
-    pub fn parse_http_header(etag_header: &str) -> Result<Self, VersionError> {
+    /// This is primarily for internal use and debugging. The opaque string
+    /// should not be relied upon for any business logic outside of equality comparisons.
+    pub fn as_str(&self) -> &str {
+        &self.opaque
+    }
+}
+
+// Display implementation for Raw format (simple string output)
+impl fmt::Display for ScimVersion<Raw> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.opaque)
+    }
+}
+
+// Display implementation for HTTP format (weak ETag format)
+impl fmt::Display for ScimVersion<Http> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "W/\"{}\"", self.opaque)
+    }
+}
+
+// FromStr implementation for Raw format (direct string parsing)
+impl FromStr for ScimVersion<Raw> {
+    type Err = VersionError;
+
+    fn from_str(version_str: &str) -> Result<Self, Self::Err> {
+        let trimmed = version_str.trim();
+
+        if trimmed.is_empty() {
+            return Err(VersionError::ParseError(
+                "Version string cannot be empty".to_string(),
+            ));
+        }
+
+        Ok(ScimVersion {
+            opaque: trimmed.to_string(),
+            _format: PhantomData,
+        })
+    }
+}
+
+// FromStr implementation for HTTP format (ETag parsing)
+impl FromStr for ScimVersion<Http> {
+    type Err = VersionError;
+
+    fn from_str(etag_header: &str) -> Result<Self, Self::Err> {
         let trimmed = etag_header.trim();
 
         // Handle weak ETags by removing W/ prefix
@@ -244,93 +291,59 @@ impl ScimVersion {
             return Err(VersionError::InvalidEtagFormat(etag_header.to_string()));
         }
 
-        Ok(Self { opaque })
-    }
-
-    /// Parse a version from a raw version string (MCP-native).
-    ///
-    /// This method accepts raw version strings directly without HTTP ETag formatting,
-    /// making it suitable for JSON-RPC protocols like MCP where HTTP semantics
-    /// are not applicable.
-    ///
-    /// # Arguments
-    /// * `version_str` - The raw version string (e.g., "abc123def")
-    ///
-    /// # Returns
-    /// The parsed version or an error if the version string is invalid
-    ///
-    /// # Examples
-    /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
-    ///
-    /// let version = ScimVersion::parse_raw("abc123def").unwrap();
-    /// ```
-    pub fn parse_raw(version_str: &str) -> Result<Self, VersionError> {
-        let trimmed = version_str.trim();
-
-        if trimmed.is_empty() {
-            return Err(VersionError::ParseError("Version string cannot be empty".to_string()));
-        }
-
-        Ok(Self {
-            opaque: trimmed.to_string()
+        Ok(ScimVersion {
+            opaque,
+            _format: PhantomData,
         })
-    }
-
-    /// Convert version to HTTP ETag header value.
-    ///
-    /// This generates a weak HTTP ETag header value that can be used in conditional
-    /// HTTP requests. SCIM resources use weak ETags since they represent semantic
-    /// equivalence rather than byte-for-byte identity. The returned value includes
-    /// the W/ prefix and surrounding quotes required by RFC 7232.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
-    ///
-    /// let version = ScimVersion::from_hash("12345");
-    /// let etag = version.to_http_header();
-    /// assert_eq!(etag, "W/\"12345\"");
-    /// ```
-    pub fn to_http_header(&self) -> String {
-        format!("W/\"{}\"", self.opaque)
-    }
-
-    /// Check if this version matches another version.
-    ///
-    /// This is used for conditional operations to determine if the expected
-    /// version matches the current version of a resource.
-    ///
-    /// # Arguments
-    /// * `other` - The version to compare against
-    ///
-    /// # Examples
-    /// ```rust
-    /// use scim_server::resource::version::ScimVersion;
-    ///
-    /// let v1 = ScimVersion::from_hash("123");
-    /// let v2 = ScimVersion::from_hash("123");
-    /// let v3 = ScimVersion::from_hash("456");
-    ///
-    /// assert!(v1.matches(&v2));
-    /// assert!(!v1.matches(&v3));
-    /// ```
-    pub fn matches(&self, other: &ScimVersion) -> bool {
-        self.opaque == other.opaque
-    }
-
-    /// Get the opaque version string.
-    ///
-    /// This is primarily for internal use and debugging. The opaque string
-    /// should not be relied upon for any business logic.
-    pub fn as_str(&self) -> &str {
-        &self.opaque
     }
 }
 
-impl fmt::Display for ScimVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.opaque)
+// Bidirectional conversions through owned values
+impl From<ScimVersion<Raw>> for ScimVersion<Http> {
+    fn from(raw: ScimVersion<Raw>) -> Self {
+        ScimVersion {
+            opaque: raw.opaque,
+            _format: PhantomData,
+        }
+    }
+}
+
+impl From<ScimVersion<Http>> for ScimVersion<Raw> {
+    fn from(http: ScimVersion<Http>) -> Self {
+        ScimVersion {
+            opaque: http.opaque,
+            _format: PhantomData,
+        }
+    }
+}
+
+// Cross-format comparison (versions are equal if opaque strings match)
+impl<F1, F2> PartialEq<ScimVersion<F2>> for ScimVersion<F1> {
+    fn eq(&self, other: &ScimVersion<F2>) -> bool {
+        self.opaque == other.opaque
+    }
+}
+
+// Serde implementations that preserve the opaque string regardless of format
+impl<Format> Serialize for ScimVersion<Format> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.opaque.serialize(serializer)
+    }
+}
+
+impl<'de, Format> Deserialize<'de> for ScimVersion<Format> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opaque = String::deserialize(deserializer)?;
+        Ok(ScimVersion {
+            opaque,
+            _format: PhantomData,
+        })
     }
 }
 
@@ -344,18 +357,18 @@ impl fmt::Display for ScimVersion {
 /// # Examples
 ///
 /// ```rust
-/// use scim_server::resource::version::{ConditionalResult, ScimVersion, VersionConflict};
+/// use scim_server::resource::version::{ConditionalResult, RawVersion, VersionConflict};
 /// use serde_json::json;
 ///
 /// // Successful operation
 /// let success = ConditionalResult::Success(json!({"id": "123"}));
 ///
 /// // Version mismatch
-/// let expected = ScimVersion::from_hash("1");
-/// let current = ScimVersion::from_hash("2");
+/// let expected = RawVersion::from_hash("1");
+/// let current = RawVersion::from_hash("2");
 /// let conflict: ConditionalResult<serde_json::Value> = ConditionalResult::VersionMismatch(VersionConflict {
-///     expected,
-///     current,
+///     expected: expected.into(),
+///     current: current.into(),
 ///     message: "Resource was modified by another client".to_string(),
 /// });
 ///
@@ -425,26 +438,29 @@ impl<T> ConditionalResult<T> {
 ///
 /// Provides information about the expected version (from the client)
 /// and the current version (from the server), along with a human-readable
-/// error message.
+/// error message. Uses [`RawVersion`] internally for consistent storage
+/// and comparison.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use scim_server::resource::version::{VersionConflict, ScimVersion};
+/// use scim_server::resource::version::{VersionConflict, RawVersion};
 ///
+/// let expected = RawVersion::from_hash("1");
+/// let current = RawVersion::from_hash("2");
 /// let conflict = VersionConflict {
-///     expected: ScimVersion::from_hash("1"),
-///     current: ScimVersion::from_hash("2"),
+///     expected,
+///     current,
 ///     message: "Resource was modified by another client".to_string(),
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VersionConflict {
-    /// The version that was expected by the client
-    pub expected: ScimVersion,
+    /// The version that was expected by the client (raw format)
+    pub expected: RawVersion,
 
-    /// The current version of the resource on the server
-    pub current: ScimVersion,
+    /// The current version of the resource on the server (raw format)
+    pub current: RawVersion,
 
     /// Human-readable error message describing the conflict
     pub message: String,
@@ -453,24 +469,36 @@ pub struct VersionConflict {
 impl VersionConflict {
     /// Create a new version conflict.
     ///
+    /// Accepts versions in any format and converts to raw format for internal storage.
+    ///
     /// # Arguments
     /// * `expected` - The version expected by the client
     /// * `current` - The current version on the server
     /// * `message` - Human-readable error message
-    pub fn new(expected: ScimVersion, current: ScimVersion, message: impl Into<String>) -> Self {
+    pub fn new<E, C>(expected: E, current: C, message: impl Into<String>) -> Self
+    where
+        E: Into<RawVersion>,
+        C: Into<RawVersion>,
+    {
         Self {
-            expected,
-            current,
+            expected: expected.into(),
+            current: current.into(),
             message: message.into(),
         }
     }
 
     /// Create a standard version conflict message.
     ///
+    /// Accepts versions in any format and converts to raw format for internal storage.
+    ///
     /// # Arguments
     /// * `expected` - The version expected by the client
     /// * `current` - The current version on the server
-    pub fn standard_message(expected: ScimVersion, current: ScimVersion) -> Self {
+    pub fn standard_message<E, C>(expected: E, current: C) -> Self
+    where
+        E: Into<RawVersion>,
+        C: Into<RawVersion>,
+    {
         Self::new(
             expected,
             current,
@@ -509,162 +537,143 @@ mod tests {
 
     #[test]
     fn test_version_from_content() {
-        let content = br#"{"id":"123","userName":"john.doe"}"#;
-        let version = ScimVersion::from_content(content);
+        let content1 = b"test content";
+        let content2 = b"test content";
+        let content3 = b"different content";
 
-        // Version should be deterministic
-        let version2 = ScimVersion::from_content(content);
-        assert_eq!(version, version2);
+        let version1 = RawVersion::from_content(content1);
+        let version2 = RawVersion::from_content(content2);
+        let version3 = RawVersion::from_content(content3);
 
-        // Different content should produce different versions
-        let different_content = br#"{"id":"123","userName":"jane.doe"}"#;
-        let different_version = ScimVersion::from_content(different_content);
-        assert_ne!(version, different_version);
+        // Same content should produce same version
+        assert_eq!(version1, version2);
+        // Different content should produce different version
+        assert_ne!(version1, version3);
     }
 
     #[test]
     fn test_version_from_hash() {
-        let hash_string = "abc123def456";
-        let version = ScimVersion::from_hash(hash_string);
-        assert_eq!(version.as_str(), hash_string);
-        assert_eq!(version.to_http_header(), "W/\"abc123def456\"");
+        let version1 = RawVersion::from_hash("abc123def");
+        let version2 = RawVersion::from_hash("abc123def");
+        let version3 = RawVersion::from_hash("xyz789");
 
-        // Test with different hash strings
-        let version2 = ScimVersion::from_hash("different123");
-        assert_ne!(version, version2);
+        assert_eq!(version1, version2);
+        assert_ne!(version1, version3);
+        assert_eq!(version1.as_str(), "abc123def");
     }
 
     #[test]
-    fn test_version_parse_http_header() {
-        // Strong ETag
-        let version = ScimVersion::parse_http_header("\"abc123\"").unwrap();
-        assert_eq!(version.as_str(), "abc123");
+    fn test_http_version_parse() {
+        // Test weak ETag parsing
+        let version1: HttpVersion = "W/\"abc123\"".parse().unwrap();
+        assert_eq!(version1.as_str(), "abc123");
 
-        // Weak ETag
-        let weak_version = ScimVersion::parse_http_header("W/\"abc123\"").unwrap();
-        assert_eq!(weak_version.as_str(), "abc123");
+        // Test strong ETag parsing
+        let version2: HttpVersion = "\"xyz789\"".parse().unwrap();
+        assert_eq!(version2.as_str(), "xyz789");
 
-        // Invalid formats
-        assert!(ScimVersion::parse_http_header("abc123").is_err());
-        assert!(ScimVersion::parse_http_header("\"\"").is_err());
-        assert!(ScimVersion::parse_http_header("").is_err());
+        // Test invalid formats
+        assert!("invalid".parse::<HttpVersion>().is_err());
+        assert!("\"\"".parse::<HttpVersion>().is_err());
+        assert!("W/invalid".parse::<HttpVersion>().is_err());
     }
 
     #[test]
-    fn test_version_parse_raw() {
-        // Valid raw version
-        let version = ScimVersion::parse_raw("abc123def").unwrap();
+    fn test_raw_version_parse() {
+        let version: RawVersion = "abc123def".parse().unwrap();
         assert_eq!(version.as_str(), "abc123def");
 
-        // Whitespace handling
-        let trimmed_version = ScimVersion::parse_raw("  xyz789  ").unwrap();
-        assert_eq!(trimmed_version.as_str(), "xyz789");
-
-        // Empty string should fail
-        assert!(ScimVersion::parse_raw("").is_err());
-        assert!(ScimVersion::parse_raw("   ").is_err());
-
-        // Compare with HTTP header parsing - raw should be simpler
-        let raw_version = ScimVersion::parse_raw("test123").unwrap();
-        let http_version = ScimVersion::parse_http_header("W/\"test123\"").unwrap();
-        assert!(raw_version.matches(&http_version));
+        // Test empty string fails
+        assert!("".parse::<RawVersion>().is_err());
+        assert!("   ".parse::<RawVersion>().is_err());
     }
 
     #[test]
-    fn test_version_matches() {
-        let content = br#"{"id":"123","data":"test"}"#;
-        let v1 = ScimVersion::from_content(content);
-        let v2 = ScimVersion::from_content(content);
-        let v3 = ScimVersion::from_content(br#"{"id":"456","data":"test"}"#);
+    fn test_format_display() {
+        let raw_version = RawVersion::from_hash("abc123");
+        let http_version = HttpVersion::from(raw_version.clone());
 
-        assert!(v1.matches(&v2));
-        assert!(!v1.matches(&v3));
-    }
+        assert_eq!(raw_version.to_string(), "abc123");
+        assert_eq!(http_version.to_string(), "W/\"abc123\"");
 
-    #[test]
-    fn test_version_round_trip() {
-        let content = br#"{"id":"test","version":"round-trip"}"#;
-        let original = ScimVersion::from_content(content);
-        let etag = original.to_http_header();
-        let parsed = ScimVersion::parse_http_header(&etag).unwrap();
-
-        assert_eq!(original, parsed);
+        // Cross-format equality is guaranteed by type system
+        assert_eq!(raw_version, http_version);
     }
 
     #[test]
     fn test_conditional_result() {
         let success: ConditionalResult<i32> = ConditionalResult::Success(42);
-        assert!(success.is_success());
-        assert_eq!(success.into_success(), Some(42));
-
-        let conflict = ConditionalResult::<i32>::VersionMismatch(VersionConflict::new(
-            ScimVersion::from_hash("version1"),
-            ScimVersion::from_hash("version2"),
-            "test conflict",
-        ));
-        assert!(conflict.is_version_mismatch());
-
         let not_found: ConditionalResult<i32> = ConditionalResult::NotFound;
+        let conflict: ConditionalResult<i32> =
+            ConditionalResult::VersionMismatch(VersionConflict::new(
+                RawVersion::from_hash("1"),
+                RawVersion::from_hash("2"),
+                "test conflict",
+            ));
+
+        assert!(success.is_success());
+        assert!(!success.is_version_mismatch());
+        assert!(!success.is_not_found());
+
+        assert!(!not_found.is_success());
+        assert!(!not_found.is_version_mismatch());
         assert!(not_found.is_not_found());
+
+        assert!(!conflict.is_success());
+        assert!(conflict.is_version_mismatch());
+        assert!(!conflict.is_not_found());
     }
 
     #[test]
     fn test_conditional_result_map() {
-        let success: ConditionalResult<i32> = ConditionalResult::Success(42);
-        let mapped = success.map(|x| x.to_string());
-        assert_eq!(mapped.into_success(), Some("42".to_string()));
+        let success: ConditionalResult<i32> = ConditionalResult::Success(21);
+        let doubled = success.map(|x| x * 2);
+        assert_eq!(doubled.into_success(), Some(42));
     }
 
     #[test]
     fn test_version_conflict() {
-        let conflict = VersionConflict::standard_message(
-            ScimVersion::from_hash("version1"),
-            ScimVersion::from_hash("version2"),
-        );
+        let expected = RawVersion::from_hash("1");
+        let current = RawVersion::from_hash("2");
+        let conflict = VersionConflict::new(expected.clone(), current.clone(), "test message");
 
-        assert_eq!(conflict.expected.as_str(), "version1");
-        assert_eq!(conflict.current.as_str(), "version2");
-        assert!(!conflict.message.is_empty());
+        assert_eq!(conflict.expected, expected);
+        assert_eq!(conflict.current, current);
+        assert_eq!(conflict.message, "test message");
     }
 
     #[test]
     fn test_version_conflict_display() {
-        let conflict = VersionConflict::new(
-            ScimVersion::from_hash("old-hash"),
-            ScimVersion::from_hash("new-hash"),
-            "Custom message",
+        let conflict = VersionConflict::standard_message(
+            RawVersion::from_hash("old"),
+            RawVersion::from_hash("new"),
         );
-
-        let display = format!("{}", conflict);
-        assert!(display.contains("old-hash"));
-        assert!(display.contains("new-hash"));
-        assert!(display.contains("Custom message"));
+        let display_str = format!("{}", conflict);
+        assert!(display_str.contains("expected 'old'"));
+        assert!(display_str.contains("found 'new'"));
+        assert!(display_str.contains("Resource was modified"));
     }
 
     #[test]
     fn test_version_serialization() {
-        let content = br#"{"test":"serialization"}"#;
-        let version = ScimVersion::from_content(content);
-
-        // Test JSON serialization
+        let version = RawVersion::from_hash("test123");
         let json = serde_json::to_string(&version).unwrap();
-        let deserialized: ScimVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(json, "\"test123\"");
 
+        let deserialized: RawVersion = serde_json::from_str(&json).unwrap();
         assert_eq!(version, deserialized);
     }
 
     #[test]
     fn test_version_conflict_serialization() {
         let conflict = VersionConflict::new(
-            ScimVersion::from_hash("hash-v1"),
-            ScimVersion::from_hash("hash-v2"),
-            "Serialization test conflict",
+            RawVersion::from_hash("1"),
+            RawVersion::from_hash("2"),
+            "test",
         );
 
-        // Test JSON serialization
         let json = serde_json::to_string(&conflict).unwrap();
         let deserialized: VersionConflict = serde_json::from_str(&json).unwrap();
-
         assert_eq!(conflict, deserialized);
     }
 }

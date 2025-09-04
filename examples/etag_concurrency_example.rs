@@ -12,7 +12,7 @@ use scim_server::{
     resource::{
         RequestContext, ResourceProvider,
         conditional_provider::VersionedResource,
-        version::{ConditionalResult, ScimVersion},
+        version::{ConditionalResult, HttpVersion, RawVersion},
     },
     resource_handlers::create_user_resource_handler,
     storage::InMemoryStorage,
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("✅ Retrieved user successfully");
         println!("   Current ETag (weak): {}", etag.as_str().unwrap());
 
-        ScimVersion::parse_http_header(etag.as_str().unwrap())?
+        etag.as_str().unwrap().parse::<HttpVersion>()?
     } else {
         panic!("Failed to retrieve user: {:?}", get_response.error);
     };
@@ -144,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conditional_update_response = handler.handle_operation(conditional_update_request).await;
 
     let _new_version = if conditional_update_response.success {
-        let old_etag = current_version.to_http_header();
+        let old_etag = current_version.to_string();
         let new_etag = conditional_update_response
             .metadata
             .additional
@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   Old ETag (weak): {}", old_etag);
         println!("   New ETag (weak): {}", new_etag.as_str().unwrap());
 
-        ScimVersion::parse_http_header(new_etag.as_str().unwrap())?
+        new_etag.as_str().unwrap().parse::<HttpVersion>()?
     } else {
         panic!(
             "Conditional update should have succeeded: {:?}",
@@ -250,7 +250,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let versioned_current = VersionedResource::new(current_resource);
     println!(
         "✅ Current resource ETag (weak): {}",
-        versioned_current.version().to_http_header()
+        HttpVersion::from(versioned_current.version().clone()).to_string()
     );
 
     // Successful conditional update
@@ -280,7 +280,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✅ Provider conditional update succeeded!");
             println!(
                 "   New ETag (weak): {}",
-                updated_versioned.version().to_http_header()
+                HttpVersion::from(updated_versioned.version().clone()).to_string()
             );
         }
         ConditionalResult::VersionMismatch(conflict) => {
@@ -292,7 +292,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Try update with wrong version
-    let wrong_version = ScimVersion::from_hash("wrong-version");
+    let wrong_version = RawVersion::from_hash("wrong-version");
     let failing_update_data = json!({
         "id": provider_user_id,
         "userName": "should.fail",
@@ -338,11 +338,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let versioned_for_delete = VersionedResource::new(current_resource);
     println!(
         "✅ Resource ETag for delete (weak): {}",
-        versioned_for_delete.version().to_http_header()
+        HttpVersion::from(versioned_for_delete.version().clone()).to_string()
     );
 
     // Try delete with wrong version first
-    let wrong_delete_version = ScimVersion::from_hash("wrong-delete-version");
+    let wrong_delete_version = RawVersion::from_hash("wrong-delete-version");
 
     match provider
         .conditional_delete(
@@ -415,13 +415,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": false  // Only this field changed
     });
 
-    let version1 = ScimVersion::from_content(test_resource1.to_string().as_bytes());
-    let version2 = ScimVersion::from_content(test_resource2.to_string().as_bytes());
+    let version1 = RawVersion::from_content(test_resource1.to_string().as_bytes());
+    let version2 = RawVersion::from_content(test_resource2.to_string().as_bytes());
 
     println!("✅ Content-based version computation:");
-    println!("   Resource 1 ETag (weak): {}", version1.to_http_header());
-    println!("   Resource 2 ETag (weak): {}", version2.to_http_header());
-    println!("   Versions match: {}", version1.matches(&version2));
+    println!(
+        "   Resource 1 ETag (weak): {}",
+        HttpVersion::from(version1.clone()).to_string()
+    );
+    println!(
+        "   Resource 2 ETag (weak): {}",
+        HttpVersion::from(version2.clone()).to_string()
+    );
+    println!("   Versions match: {}", version1 == version2);
 
     // Show identical content produces identical versions
     let test_resource1_copy = json!({
@@ -430,10 +436,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "active": true
     });
 
-    let version1_copy = ScimVersion::from_content(test_resource1_copy.to_string().as_bytes());
+    let version1_copy = RawVersion::from_content(test_resource1_copy.to_string().as_bytes());
     println!(
         "   Identical content versions match: {}",
-        version1.matches(&version1_copy)
+        version1 == version1_copy
     );
 
     println!();
@@ -465,7 +471,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .as_str()
         .unwrap();
-    let initial_version = ScimVersion::parse_http_header(initial_etag)?;
+    let initial_version: HttpVersion = initial_etag.parse()?;
 
     println!(
         "✅ Created user for concurrent test: {}",
@@ -477,14 +483,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client_a_version = initial_version.clone();
     println!(
         "👤 Client A has ETag (weak): {}",
-        client_a_version.to_http_header()
+        client_a_version.to_string()
     );
 
     // Simulate Client B getting the resource
     let client_b_version = initial_version.clone();
     println!(
         "👤 Client B has ETag (weak): {}",
-        client_b_version.to_http_header()
+        client_b_version.to_string()
     );
 
     // Client A successfully updates
@@ -551,7 +557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .as_str()
         .unwrap();
-    let current_version = ScimVersion::parse_http_header(current_etag)?;
+    let current_version: HttpVersion = current_etag.parse()?;
 
     println!(
         "👤 Client B retrieves current ETag (weak): {}",

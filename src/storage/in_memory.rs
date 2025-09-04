@@ -56,7 +56,7 @@
 //! # }
 //! ```
 
-use crate::storage::{StorageError, StorageKey, StoragePrefix, StorageProvider};
+use crate::storage::{StorageError, StorageKey, StoragePrefix, StorageProvider, StorageStats};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -81,30 +81,6 @@ impl InMemoryStorage {
             data: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-
-    /// Get storage statistics for debugging and monitoring.
-    pub async fn stats(&self) -> InMemoryStorageStats {
-        let data_guard = self.data.read().await;
-        let mut tenant_count = 0;
-        let mut resource_type_count = 0;
-        let mut total_resources = 0;
-
-        for (_, tenant_data) in data_guard.iter() {
-            tenant_count += 1;
-            for (_, type_data) in tenant_data.iter() {
-                resource_type_count += 1;
-                total_resources += type_data.len();
-            }
-        }
-
-        InMemoryStorageStats {
-            tenant_count,
-            resource_type_count,
-            total_resources,
-        }
-    }
-
-
 
     /// Extract a nested attribute value from JSON data using dot notation.
     fn extract_attribute_value(data: &Value, attribute_path: &str) -> Option<String> {
@@ -319,17 +295,27 @@ impl StorageProvider for InMemoryStorage {
         data_guard.clear();
         Ok(())
     }
-}
 
-/// Statistics about the current state of in-memory storage.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InMemoryStorageStats {
-    /// Number of tenants with data
-    pub tenant_count: usize,
-    /// Number of resource types across all tenants
-    pub resource_type_count: usize,
-    /// Total number of individual resources
-    pub total_resources: usize,
+    async fn stats(&self) -> Result<StorageStats, Self::Error> {
+        let data_guard = self.data.read().await;
+        let mut tenant_count = 0;
+        let mut resource_type_count = 0;
+        let mut total_resources = 0;
+
+        for (_, tenant_data) in data_guard.iter() {
+            tenant_count += 1;
+            for (_, type_data) in tenant_data.iter() {
+                resource_type_count += 1;
+                total_resources += type_data.len();
+            }
+        }
+
+        Ok(StorageStats {
+            tenant_count,
+            resource_type_count,
+            total_resources,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -540,7 +526,7 @@ mod tests {
         let storage = InMemoryStorage::new();
 
         // Initially empty
-        let stats = storage.stats().await;
+        let stats = storage.stats().await.unwrap();
         assert_eq!(stats.tenant_count, 0);
         assert_eq!(stats.resource_type_count, 0);
         assert_eq!(stats.total_resources, 0);
@@ -563,7 +549,7 @@ mod tests {
             .await
             .unwrap();
 
-        let stats = storage.stats().await;
+        let stats = storage.stats().await.unwrap();
         assert_eq!(stats.tenant_count, 2);
         assert_eq!(stats.resource_type_count, 3); // tenant1:User, tenant1:Group, tenant2:User
         assert_eq!(stats.total_resources, 4);
@@ -599,7 +585,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        let stats = storage.stats().await;
+        let stats = storage.stats().await.unwrap();
         assert_eq!(stats.total_resources, 0);
     }
 

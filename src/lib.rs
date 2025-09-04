@@ -50,7 +50,7 @@ pub use resource::{IsolationLevel, ResourceProvider, TenantPermissions};
 pub use resource::{ListQuery, RequestContext, Resource, ScimOperation, TenantContext};
 pub use schema::{Schema, SchemaRegistry};
 pub use schema_discovery::SchemaDiscovery;
-pub use scim_server::ScimServer;
+pub use scim_server::{ScimServer, ScimServerBuilder, ScimServerConfig, TenantStrategy};
 
 // Re-export additional types needed by examples and advanced usage
 pub use operation_handler::{

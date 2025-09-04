@@ -13,6 +13,7 @@
 //! - Error handling and validation
 //! - Multi-tenant support
 //! - ETag-based concurrency control
+//! - Persistent SQLite storage
 //!
 //! ## Usage
 //!
@@ -22,6 +23,8 @@
 //! ```
 //!
 //! The server will start and listen on stdin/stdout for MCP protocol messages.
+//! Data is persisted to `scim_data/scim_server.db` SQLite database, so resources
+//! created during one session will be available in subsequent runs.
 //! You can interact with it using any MCP-compatible client or by sending
 //! JSON-RPC messages directly.
 //!
@@ -48,8 +51,8 @@ use scim_server::{
     multi_tenant::ScimOperation,
     providers::StandardResourceProvider,
     resource_handlers::{create_group_resource_handler, create_user_resource_handler},
-    scim_server::ScimServer,
-    storage::InMemoryStorage,
+    scim_server::{ScimServerBuilder, TenantStrategy},
+    storage::SqliteStorage,
 };
 
 #[cfg(feature = "mcp")]
@@ -61,10 +64,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     eprintln!("🚀 Starting SCIM MCP Stdio Server");
     eprintln!("==================================\n");
 
-    // 1. Create storage and provider
-    let storage = InMemoryStorage::new();
+    // 1. Create storage and provider with proper MCP configuration
+    let storage = SqliteStorage::new().await?;
     let provider = StandardResourceProvider::new(storage);
-    let mut scim_server = ScimServer::new(provider)?;
+    let mut scim_server = ScimServerBuilder::new(provider)
+        .with_base_url("mcp://scim".to_string())
+        .with_tenant_strategy(TenantStrategy::SingleTenant)
+        .build()?;
 
     // 2. Register User resource type with all operations
     let user_schema = scim_server
@@ -114,9 +120,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?;
 
         eprintln!("✅ Registered Group resource type with operations:");
-        eprintln!("   • Create, Read, Update, Delete");
-        eprintln!("   • List, Search operations");
-        eprintln!("   (Note: Group-specific MCP tools not yet implemented)");
+        eprintln!("   • Create (scim_create_group)");
+        eprintln!("   • Read (scim_get_group)");
+        eprintln!("   • Update (scim_update_group)");
+        eprintln!("   • Delete (scim_delete_group)");
+        eprintln!("   • Search (scim_search_groups, scim_list_groups)");
+        eprintln!("   • Existence Check (scim_group_exists)");
         eprintln!();
     }
 
@@ -125,6 +134,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // 5. Display available tools
     let tools = mcp_server.get_tools();
+    eprintln!("💾 Database: Using persistent SQLite storage at scim_data/scim_server.db");
+    eprintln!("   Resources created will persist across server restarts");
+    eprintln!();
     eprintln!("🔧 Available MCP Tools ({} total):", tools.len());
     eprintln!("=====================================");
 
@@ -149,6 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     eprintln!("• ETag-based optimistic locking");
     eprintln!("• Comprehensive error handling");
     eprintln!("• Async/non-blocking operations");
+    eprintln!("• Persistent SQLite storage");
     eprintln!();
 
     eprintln!("📡 Starting MCP stdio communication...");

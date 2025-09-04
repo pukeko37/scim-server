@@ -129,3 +129,5 @@ Understanding these schema mechanisms prepares you for implementing SCIM Server 
 4. **API Reference**: Consult [API Documentation](https://docs.rs/scim-server) for detailed interfaces
 
 These conceptual mechanisms become practical tools through hands-on implementation and real-world usage patterns.
+
+For understanding how schema versioning enables concurrency control in multi-client scenarios, see [Concurrency Control in SCIM Operations](./concurrency.md).

@@ -41,6 +41,9 @@ pub use value_objects::{
     Address, EmailAddress as EmailAddressValue, ExternalId, Meta, Name, PhoneNumber, ResourceId,
     SchemaUri, UserName,
 };
+pub use version::{
+    ConditionalResult, HttpVersion, RawVersion, ScimVersion, VersionConflict, VersionError,
+};
 
 #[cfg(test)]
 mod tests {
@@ -148,7 +151,7 @@ mod tests {
                 "created": "2023-01-01T12:00:00Z",
                 "lastModified": "2023-01-02T12:00:00Z",
                 "location": "https://example.com/Users/12345",
-                "version": "W/\"12345-1672574400000\""
+                "version": "12345-1672574400000"
             }
         });
 
@@ -165,7 +168,7 @@ mod tests {
             Utc.with_ymd_and_hms(2023, 1, 2, 12, 0, 0).unwrap()
         );
         assert_eq!(meta.location(), Some("https://example.com/Users/12345"));
-        assert_eq!(meta.version(), Some("W/\"12345-1672574400000\""));
+        assert_eq!(meta.version(), Some("12345-1672574400000"));
     }
 
     #[test]
@@ -319,34 +322,6 @@ mod tests {
     }
 
     #[test]
-    fn test_add_metadata_legacy_compatibility() {
-        let mut resource = Resource::from_json(
-            "User".to_string(),
-            json!({
-                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-                "id": "12345",
-                "userName": "testuser"
-            }),
-        )
-        .unwrap();
-
-        resource.add_metadata(
-            "https://example.com",
-            "2023-01-01T12:00:00Z",
-            "2023-01-02T12:00:00Z",
-        );
-
-        // Should create Meta value object
-        let meta = resource.get_meta().unwrap();
-        assert_eq!(meta.resource_type(), "User");
-        assert_eq!(meta.location(), Some("https://example.com/Users/12345"));
-
-        // Should also be in JSON attributes for backward compatibility
-        let json_output = resource.to_json().unwrap();
-        assert!(json_output.get("meta").is_some());
-    }
-
-    #[test]
     fn test_meta_serialization_in_to_json() {
         use crate::resource::value_objects::Meta;
         use chrono::{TimeZone, Utc};
@@ -367,7 +342,7 @@ mod tests {
             created,
             modified,
             Some("https://example.com/Users/123".to_string()),
-            Some("W/\"123-456\"".to_string()),
+            Some("123-456".to_string()),
         )
         .unwrap();
 
@@ -402,7 +377,7 @@ mod tests {
         );
         assert_eq!(
             meta_json.get("version").unwrap().as_str().unwrap(),
-            "W/\"123-456\""
+            "123-456"
         );
     }
 

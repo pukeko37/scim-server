@@ -665,6 +665,7 @@ fn demonstrate_compile_time_rbac_prevention() {
 
 #[cfg(test)]
 mod tests {
+    use super::rbac::Role;
     use super::*;
 
     #[test]

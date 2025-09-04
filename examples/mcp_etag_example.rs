@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Show version parameters for update/delete tools
         if name.contains("update") || name.contains("delete") {
             if let Some(expected_version_prop) =
-                tool["input_schema"]["properties"]["expected_version"].as_object()
+                tool["inputSchema"]["properties"]["expected_version"].as_object()
             {
                 println!(
                     "  └─ Version parameter: {}",
@@ -145,11 +145,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap();
         println!("✅ AI Agent retrieved user successfully:");
         println!("   Current Version: {}", current_version);
-        println!("   User data includes _version field for easy access");
+        println!("   Version is available in standard meta.version field");
 
-        // Show that version is also embedded in content for easy AI access
-        if let Some(embedded_version) = get_result.content["_version"].as_str() {
-            println!("   Embedded Version in content: {}", embedded_version);
+        // Verify no _version field exists in content (standardized approach)
+        if get_result.content.get("_version").is_some() {
+            println!("   WARNING: _version field found in content - this should not exist");
         }
     }
 
@@ -182,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ],
                     "active": true
                 },
-                "expected_version": initial_version  // Using raw version from creation
+                "expected_version": initial_version  // Using ETag format version
             }),
         )
         .await;
@@ -223,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "userName": "ai.assistant@company.com",
                     "active": false  // Different change
                 },
-                "expected_version": initial_version  // Using stale version
+                "expected_version": initial_version  // Using stale ETag version
             }),
         )
         .await;
@@ -307,7 +307,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ],
                     "active": false  // Applying the change that failed before
                 },
-                "expected_version": current_version  // Using current version
+                "expected_version": current_version  // Using current ETag version
             }),
         )
         .await;

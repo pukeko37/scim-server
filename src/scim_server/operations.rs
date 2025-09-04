@@ -59,6 +59,21 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
         result
     }
 
+    /// Create a resource and return its JSON representation with $ref fields.
+    ///
+    /// This is a convenience method that combines resource creation with
+    /// proper $ref field injection for SCIM compliance.
+    pub async fn create_resource_with_refs(
+        &self,
+        resource_type: &str,
+        data: Value,
+        context: &RequestContext,
+    ) -> ScimResult<serde_json::Value> {
+        let resource = self.create_resource(resource_type, data, context).await?;
+        self.serialize_resource_with_refs(&resource, context.tenant_id())
+            .map_err(|e| e.into())
+    }
+
     /// Generic read operation
     pub async fn get_resource(
         &self,

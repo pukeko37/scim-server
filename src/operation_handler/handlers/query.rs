@@ -25,7 +25,9 @@ pub async fn handle_list<P: ResourceProvider + Sync>(
         .await?;
 
     let resource_count = resources.len();
-    let resources_json: Result<Vec<_>, _> = resources.iter().map(|r| r.to_json()).collect();
+    let resources_json: Result<Vec<_>, _> = resources.iter()
+        .map(|r| handler.server().serialize_resource_with_refs(r, context.tenant_id()))
+        .collect();
 
     let resources_json = resources_json?;
 
@@ -72,7 +74,7 @@ pub async fn handle_search<P: ResourceProvider + Sync>(
         .into_iter()
         .filter(|resource| {
             // Simple attribute-based filtering for now
-            if let Ok(json) = resource.to_json() {
+            if let Ok(json) = handler.server().serialize_resource_with_refs(resource, context.tenant_id()) {
                 if let Some(value) = json.get(&search_attribute) {
                     return value == &search_value;
                 }
@@ -82,7 +84,9 @@ pub async fn handle_search<P: ResourceProvider + Sync>(
         .collect::<Vec<_>>();
 
     let resource_count = resources.len();
-    let resources_json: Result<Vec<_>, _> = resources.iter().map(|r| r.to_json()).collect();
+    let resources_json: Result<Vec<_>, _> = resources.iter()
+        .map(|r| handler.server().serialize_resource_with_refs(r, context.tenant_id()))
+        .collect();
 
     let resources_json = resources_json?;
 

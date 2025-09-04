@@ -55,13 +55,29 @@
 
 pub mod errors;
 pub mod in_memory;
+pub mod sqlite;
+
+#[cfg(test)]
+pub mod tests;
 
 pub use errors::StorageError;
-pub use in_memory::{InMemoryStorage, InMemoryStorageStats};
+pub use in_memory::InMemoryStorage;
+pub use sqlite::SqliteStorage;
 
 use serde_json::Value;
 use std::fmt;
 use std::future::Future;
+
+/// Statistics about storage usage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageStats {
+    /// Number of tenants with data
+    pub tenant_count: usize,
+    /// Number of resource types across all tenants
+    pub resource_type_count: usize,
+    /// Total number of individual resources
+    pub total_resources: usize,
+}
 
 /// A hierarchical key for identifying resources in storage.
 ///
@@ -374,7 +390,9 @@ pub trait StorageProvider: Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    fn list_all_resource_types(&self) -> impl Future<Output = Result<Vec<String>, Self::Error>> + Send;
+    fn list_all_resource_types(
+        &self,
+    ) -> impl Future<Output = Result<Vec<String>, Self::Error>> + Send;
 
     /// Clear all data from storage.
     ///
@@ -413,26 +431,31 @@ pub trait StorageProvider: Send + Sync {
     ///
     /// [`list_tenants`]: Self::list_tenants
     fn clear(&self) -> impl Future<Output = Result<(), Self::Error>> + Send;
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_storage_key() {
-        let key = StorageKey::new("tenant1", "User", "123");
-        assert_eq!(key.tenant_id(), "tenant1");
-        assert_eq!(key.resource_type(), "User");
-        assert_eq!(key.resource_id(), "123");
-        assert_eq!(key.to_string(), "tenant1/User/123");
-    }
-
-    #[tokio::test]
-    async fn test_storage_prefix() {
-        let prefix = StorageKey::prefix("tenant1", "User");
-        assert_eq!(prefix.tenant_id(), "tenant1");
-        assert_eq!(prefix.resource_type(), "User");
-        assert_eq!(prefix.to_string(), "tenant1/User");
-    }
+    /// Get storage statistics for debugging and monitoring.
+    ///
+    /// Returns statistics about storage usage including tenant count, resource type count,
+    /// and total number of resources across all tenants.
+    ///
+    /// # Returns
+    ///
+    /// A `StorageStats` struct containing usage metrics.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage-specific errors if the stats collection operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scim_server::storage::{StorageProvider, InMemoryStorage};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let storage = InMemoryStorage::new();
+    /// let stats = storage.stats().await?;
+    /// println!("Total resources: {}", stats.total_resources);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn stats(&self) -> impl Future<Output = Result<StorageStats, Self::Error>> + Send;
 }

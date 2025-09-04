@@ -1,12 +1,12 @@
-//! User tool schema definitions for MCP integration
+//! Group tool schema definitions for MCP integration
 //!
 //! This module contains JSON schema definitions that enable AI agents to discover
-//! and understand available user operations. The schemas define parameter validation
+//! and understand available group operations. The schemas define parameter validation
 //! and provide structured metadata for tool execution.
 //!
 //! # Architecture
 //!
-//! Each user tool schema includes:
+//! Each group tool schema includes:
 //! - **Tool name and description** for AI agent discovery
 //! - **Input parameter validation** using JSON Schema format
 //! - **Required vs optional parameters** clearly defined
@@ -16,15 +16,15 @@
 //! # Tool Categories
 //!
 //! **CRUD Operations**:
-//! - [`create_user_tool`] - User creation with schema validation
-//! - [`get_user_tool`] - User retrieval by ID
-//! - [`update_user_tool`] - User modification with version support
-//! - [`delete_user_tool`] - User deletion with conditional operation
+//! - [`create_group_tool`] - Group creation with schema validation
+//! - [`get_group_tool`] - Group retrieval by ID
+//! - [`update_group_tool`] - Group modification with version support
+//! - [`delete_group_tool`] - Group deletion with conditional operation
 //!
 //! **Query Operations**:
-//! - [`list_users_tool`] - Paginated user listing
-//! - [`search_users_tool`] - Attribute-based user search
-//! - [`user_exists_tool`] - User existence checking
+//! - [`list_groups_tool`] - Paginated group listing
+//! - [`search_groups_tool`] - Attribute-based group search
+//! - [`group_exists_tool`] - Group existence checking
 //!
 //! # Usage
 //!
@@ -40,89 +40,93 @@
 
 use serde_json::{Value, json};
 
-/// Schema definition for user creation tool
-pub fn create_user_tool() -> Value {
+/// Schema definition for group creation tool
+pub fn create_group_tool() -> Value {
     json!({
-        "name": "scim_create_user",
-        "description": "Create a new user in the SCIM server",
+        "name": "scim_create_group",
+        "description": "Create a new group in the SCIM server",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_data": {
+                "group_data": {
                     "type": "object",
-                    "description": "User data conforming to SCIM User schema",
+                    "description": "Group data conforming to SCIM Group schema",
                     "properties": {
                         "schemas": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "SCIM schemas for the user"
+                            "description": "SCIM schemas for the group"
                         },
-                        "userName": {
+                        "displayName": {
                             "type": "string",
-                            "description": "Unique identifier for the user"
+                            "description": "Human-readable name for the group"
                         },
-                        "name": {
-                            "type": "object",
-                            "description": "User's name components"
-                        },
-                        "emails": {
+                        "members": {
                             "type": "array",
-                            "description": "User's email addresses"
+                            "description": "Group members with user references",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "value": {"type": "string"},
+                                    "$ref": {"type": "string"},
+                                    "type": {"type": "string"}
+                                }
+                            }
                         },
-                        "active": {
-                            "type": "boolean",
-                            "description": "Whether the user is active"
+                        "externalId": {
+                            "type": "string",
+                            "description": "External identifier for the group"
                         }
                     },
-                    "required": ["schemas", "userName"]
+                    "required": ["schemas", "displayName"]
                 },
                 "tenant_id": {
                     "type": "string",
                     "description": "Optional tenant identifier"
                 }
             },
-            "required": ["user_data"]
+            "required": ["group_data"]
         }
     })
 }
 
-/// Schema definition for user retrieval tool
-pub fn get_user_tool() -> Value {
+/// Schema definition for group retrieval tool
+pub fn get_group_tool() -> Value {
     json!({
-        "name": "scim_get_user",
-        "description": "Retrieve a user by ID from the SCIM server",
+        "name": "scim_get_group",
+        "description": "Retrieve a group by ID from the SCIM server",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {
+                "group_id": {
                     "type": "string",
-                    "description": "The unique identifier of the user to retrieve"
+                    "description": "The unique identifier of the group to retrieve"
                 },
                 "tenant_id": {
                     "type": "string",
                     "description": "Optional tenant identifier"
                 }
             },
-            "required": ["user_id"]
+            "required": ["group_id"]
         }
     })
 }
 
-/// Schema definition for user update tool
-pub fn update_user_tool() -> Value {
+/// Schema definition for group update tool
+pub fn update_group_tool() -> Value {
     json!({
-        "name": "scim_update_user",
-        "description": "Update an existing user in the SCIM server with optional versioning for optimistic locking",
+        "name": "scim_update_group",
+        "description": "Update an existing group in the SCIM server with optional versioning for optimistic locking",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {
+                "group_id": {
                     "type": "string",
-                    "description": "The unique identifier of the user to update"
+                    "description": "The unique identifier of the group to update"
                 },
-                "user_data": {
+                "group_data": {
                     "type": "object",
-                    "description": "Updated user data conforming to SCIM User schema"
+                    "description": "Updated group data conforming to SCIM Group schema"
                 },
                 "expected_version": {
                     "type": "string",
@@ -133,22 +137,22 @@ pub fn update_user_tool() -> Value {
                     "description": "Optional tenant identifier"
                 }
             },
-            "required": ["user_id", "user_data"]
+            "required": ["group_id", "group_data"]
         }
     })
 }
 
-/// Schema definition for user deletion tool
-pub fn delete_user_tool() -> Value {
+/// Schema definition for group deletion tool
+pub fn delete_group_tool() -> Value {
     json!({
-        "name": "scim_delete_user",
-        "description": "Delete a user from the SCIM server with optional versioning for safe deletion",
+        "name": "scim_delete_group",
+        "description": "Delete a group from the SCIM server with optional versioning for safe deletion",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {
+                "group_id": {
                     "type": "string",
-                    "description": "The unique identifier of the user to delete"
+                    "description": "The unique identifier of the group to delete"
                 },
                 "expected_version": {
                     "type": "string",
@@ -159,16 +163,16 @@ pub fn delete_user_tool() -> Value {
                     "description": "Optional tenant identifier"
                 }
             },
-            "required": ["user_id"]
+            "required": ["group_id"]
         }
     })
 }
 
-/// Schema definition for user listing tool
-pub fn list_users_tool() -> Value {
+/// Schema definition for group listing tool
+pub fn list_groups_tool() -> Value {
     json!({
-        "name": "scim_list_users",
-        "description": "List users with optional pagination and sorting",
+        "name": "scim_list_groups",
+        "description": "List groups with optional pagination and sorting",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -191,17 +195,17 @@ pub fn list_users_tool() -> Value {
     })
 }
 
-/// Schema definition for user search tool
-pub fn search_users_tool() -> Value {
+/// Schema definition for group search tool
+pub fn search_groups_tool() -> Value {
     json!({
-        "name": "scim_search_users",
-        "description": "Search for users by attribute value",
+        "name": "scim_search_groups",
+        "description": "Search for groups by attribute value",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "attribute": {
                     "type": "string",
-                    "description": "The attribute name to search by (e.g., 'userName', 'email')"
+                    "description": "The attribute name to search by (e.g., 'displayName', 'externalId')"
                 },
                 "value": {
                     "description": "The value to search for"
@@ -216,24 +220,24 @@ pub fn search_users_tool() -> Value {
     })
 }
 
-/// Schema definition for user existence check tool
-pub fn user_exists_tool() -> Value {
+/// Schema definition for group existence check tool
+pub fn group_exists_tool() -> Value {
     json!({
-        "name": "scim_user_exists",
-        "description": "Check if a user exists in the SCIM server",
+        "name": "scim_group_exists",
+        "description": "Check if a group exists in the SCIM server",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {
+                "group_id": {
                     "type": "string",
-                    "description": "The unique identifier of the user to check"
+                    "description": "The unique identifier of the group to check"
                 },
                 "tenant_id": {
                     "type": "string",
                     "description": "Optional tenant identifier"
                 }
             },
-            "required": ["user_id"]
+            "required": ["group_id"]
         }
     })
 }

@@ -513,7 +513,7 @@ async fn test_atomic_case(case: &AtomicTestCase) {
 }
 
 async fn test_etag_case(case: &ETagTestCase) {
-    use scim_server::resource::version::{ConditionalResult, ScimVersion};
+    use scim_server::resource::version::{ConditionalResult, HttpVersion, RawVersion};
 
     let server = test_helpers::create_test_server_with_patch_support();
     let context = test_helpers::create_test_context();
@@ -532,8 +532,17 @@ async fn test_etag_case(case: &ETagTestCase) {
         .expect("Should be able to get current resource")
         .expect("Resource should exist");
 
-    let actual_current_version =
-        ScimVersion::from_content(&current_resource.to_json().unwrap().to_string().as_bytes());
+    let actual_current_version = if let Some(meta) = current_resource.get_meta() {
+        if let Some(version_str) = meta.version() {
+            version_str
+                .parse::<RawVersion>()
+                .expect("Should be able to parse stored version")
+        } else {
+            RawVersion::from_content(&current_resource.to_json().unwrap().to_string().as_bytes())
+        }
+    } else {
+        RawVersion::from_content(&current_resource.to_json().unwrap().to_string().as_bytes())
+    };
 
     // Create PATCH request with conditional headers
     let patch_request = TestDataFactory::patch_request(vec![TestDataFactory::replace_operation(
@@ -549,7 +558,11 @@ async fn test_etag_case(case: &ETagTestCase) {
             actual_current_version.clone()
         } else {
             // Use a different ETag for conflict case
-            ScimVersion::parse_http_header(request_etag_str).expect("Should be able to parse ETag")
+            RawVersion::from(
+                request_etag_str
+                    .parse::<HttpVersion>()
+                    .expect("Should be able to parse ETag"),
+            )
         };
 
         // Use conditional patch

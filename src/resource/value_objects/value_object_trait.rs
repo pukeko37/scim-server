@@ -257,7 +257,7 @@ macro_rules! impl_value_object {
         }
     };
 }
-
+#[allow(dead_code)]
 /// Generic constructor for simple value objects
 pub struct GenericValueObjectConstructor<T> {
     _phantom: std::marker::PhantomData<T>,

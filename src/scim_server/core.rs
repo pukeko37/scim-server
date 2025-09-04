@@ -11,6 +11,7 @@ use crate::provider_capabilities::{
 use crate::resource::{ResourceHandler, ResourceProvider, ScimOperation};
 use crate::schema::SchemaRegistry;
 use crate::schema_discovery::ServiceProviderConfig;
+use crate::scim_server::builder::ScimServerConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -46,12 +47,14 @@ pub struct ScimServer<P> {
     pub(super) schema_registry: SchemaRegistry,
     pub(super) resource_handlers: HashMap<String, Arc<ResourceHandler>>, // resource_type -> handler
     pub(super) supported_operations: HashMap<String, Vec<ScimOperation>>, // resource_type -> supported ops
+    pub(super) config: ScimServerConfig,
 }
 
 impl<P: ResourceProvider> ScimServer<P> {
     /// Creates a new SCIM server with the given resource provider.
     ///
-    /// Initializes the server with a schema registry containing standard SCIM schemas.
+    /// Initializes the server with a schema registry containing standard SCIM schemas
+    /// and default configuration (single tenant, localhost base URL).
     /// Resource types must be registered separately using [`register_resource_type`].
     ///
     /// # Arguments
@@ -64,6 +67,23 @@ impl<P: ResourceProvider> ScimServer<P> {
     ///
     /// [`register_resource_type`]: Self::register_resource_type
     pub fn new(provider: P) -> Result<Self, ScimError> {
+        Self::with_config(provider, ScimServerConfig::default())
+    }
+
+    /// Creates a new SCIM server with the given resource provider and configuration.
+    ///
+    /// This is the primary constructor used by the builder pattern, but can also
+    /// be used directly for more advanced configuration scenarios.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - The resource provider for storage operations
+    /// * `config` - Server configuration for URL generation and tenant handling
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ScimError::Internal`] if the schema registry cannot be initialized.
+    pub fn with_config(provider: P, config: ScimServerConfig) -> Result<Self, ScimError> {
         let schema_registry = SchemaRegistry::new()
             .map_err(|e| ScimError::internal(format!("Failed to create schema registry: {}", e)))?;
 
@@ -72,6 +92,7 @@ impl<P: ResourceProvider> ScimServer<P> {
             schema_registry,
             resource_handlers: HashMap::new(),
             supported_operations: HashMap::new(),
+            config,
         })
     }
 
@@ -147,5 +168,182 @@ impl<P: ResourceProvider> ScimServer<P> {
     /// This allows access to provider-specific functionality like conditional operations.
     pub fn provider(&self) -> &P {
         &self.provider
+    }
+
+    /// Get a reference to the server configuration.
+    ///
+    /// This allows access to URL generation and tenant handling configuration.
+    pub fn config(&self) -> &ScimServerConfig {
+        &self.config
+    }
+
+    /// Generate a $ref URL for a resource.
+    ///
+    /// Combines server configuration with tenant and resource information
+    /// to create properly formatted SCIM $ref URLs.
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant_id` - Optional tenant identifier from request context
+    /// * `resource_type` - SCIM resource type (e.g., "Users", "Groups")
+    /// * `resource_id` - Unique identifier of the resource
+    ///
+    /// # Returns
+    ///
+    /// A complete $ref URL following SCIM 2.0 specification
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tenant information is required but missing
+    pub fn generate_ref_url(
+        &self,
+        tenant_id: Option<&str>,
+        resource_type: &str,
+        resource_id: &str,
+    ) -> Result<String, ScimError> {
+        self.config
+            .generate_ref_url(tenant_id, resource_type, resource_id)
+    }
+
+    /// Inject $ref fields into resource JSON for SCIM compliance.
+    ///
+    /// This method post-processes resource JSON to add proper $ref fields
+    /// to Group.members and User.groups arrays based on server configuration
+    /// and tenant context.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource_json` - Mutable JSON object representing the resource
+    /// * `tenant_id` - Optional tenant identifier from request context
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if $ref URL generation fails due to missing tenant information
+    pub fn inject_ref_fields(
+        &self,
+        resource_json: &mut serde_json::Value,
+        tenant_id: Option<&str>,
+    ) -> Result<(), ScimError> {
+        // Handle Group.members array
+        if let Some(members_array) = resource_json.get_mut("members") {
+            if let Some(members) = members_array.as_array_mut() {
+                for member in members {
+                    if let Some(member_obj) = member.as_object_mut() {
+                        if let (Some(member_id), Some(member_type)) = (
+                            member_obj.get("value").and_then(|v| v.as_str()),
+                            member_obj.get("type").and_then(|v| v.as_str()),
+                        ) {
+                            // Determine resource type for $ref URL
+                            let resource_type = match member_type {
+                                "User" => "Users",
+                                "Group" => "Groups",
+                                _ => member_type, // Use as-is for unknown types
+                            };
+
+                            let ref_url =
+                                self.generate_ref_url(tenant_id, resource_type, member_id)?;
+                            member_obj
+                                .insert("$ref".to_string(), serde_json::Value::String(ref_url));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle User.groups array
+        if let Some(groups_array) = resource_json.get_mut("groups") {
+            if let Some(groups) = groups_array.as_array_mut() {
+                for group in groups {
+                    if let Some(group_obj) = group.as_object_mut() {
+                        if let Some(group_id) = group_obj.get("value").and_then(|v| v.as_str()) {
+                            let ref_url = self.generate_ref_url(tenant_id, "Groups", group_id)?;
+                            group_obj
+                                .insert("$ref".to_string(), serde_json::Value::String(ref_url));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Inject proper location field into resource metadata based on server configuration.
+    ///
+    /// This method updates the meta.location field to use the server's configured
+    /// base URL instead of any hardcoded URLs that may have been set during
+    /// resource creation by the provider.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource_json` - Mutable JSON object representing the resource
+    /// * `tenant_id` - Optional tenant identifier from request context
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if location URL generation fails due to missing tenant information
+    pub fn inject_location_field(
+        &self,
+        resource_json: &mut serde_json::Value,
+        tenant_id: Option<&str>,
+    ) -> Result<(), ScimError> {
+        // Extract resource_id first to avoid borrowing conflicts
+        let resource_id = resource_json
+            .get("id")
+            .and_then(|id| id.as_str())
+            .map(|s| s.to_string());
+
+        if let Some(meta_obj) = resource_json
+            .get_mut("meta")
+            .and_then(|m| m.as_object_mut())
+        {
+            if let (Some(resource_type), Some(resource_id)) = (
+                meta_obj.get("resourceType").and_then(|rt| rt.as_str()),
+                resource_id.as_deref(),
+            ) {
+                // Generate proper location URL using server configuration
+                let resource_type_plural = match resource_type {
+                    "User" => "Users",
+                    "Group" => "Groups",
+                    _ => resource_type, // Use as-is for unknown types
+                };
+
+                let location_url =
+                    self.generate_ref_url(tenant_id, resource_type_plural, resource_id)?;
+                meta_obj.insert(
+                    "location".to_string(),
+                    serde_json::Value::String(location_url),
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Serialize a resource with proper $ref fields and location URL injected.
+    ///
+    /// This method combines `Resource::to_json()` with $ref field injection and
+    /// location URL correction to ensure SCIM 2.0 compliance for resource references
+    /// and proper server configuration usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to serialize
+    /// * `tenant_id` - Optional tenant identifier from request context
+    ///
+    /// # Returns
+    ///
+    /// JSON representation of the resource with proper $ref fields and location URL
+    pub fn serialize_resource_with_refs(
+        &self,
+        resource: &crate::resource::Resource,
+        tenant_id: Option<&str>,
+    ) -> Result<serde_json::Value, ScimError> {
+        let mut json = resource
+            .to_json()
+            .map_err(|e| ScimError::internal(format!("Failed to serialize resource: {}", e)))?;
+
+        self.inject_ref_fields(&mut json, tenant_id)?;
+        self.inject_location_field(&mut json, tenant_id)?;
+        Ok(json)
     }
 }

@@ -124,7 +124,10 @@
 //! - Clear documentation and examples
 //! - Better IDE support and tooling
 
-use super::{core::Resource, version::ScimVersion};
+use super::{
+    core::Resource,
+    version::{RawVersion, ScimVersion},
+};
 use serde::{Deserialize, Serialize};
 
 /// A resource with its associated version information.
@@ -157,7 +160,7 @@ pub struct VersionedResource {
     resource: Resource,
 
     /// The version computed from the resource content
-    version: ScimVersion,
+    version: RawVersion,
 }
 
 impl VersionedResource {
@@ -185,7 +188,7 @@ impl VersionedResource {
     /// let versioned = VersionedResource::new(resource);
     /// ```
     pub fn new(resource: Resource) -> Self {
-        let version = Self::compute_version(&resource);
+        let version = Self::get_or_compute_version(&resource);
         Self { resource, version }
     }
 
@@ -211,7 +214,7 @@ impl VersionedResource {
     /// let version = ScimVersion::from_hash("custom-version");
     /// let versioned = VersionedResource::with_version(resource, version);
     /// ```
-    pub fn with_version(resource: Resource, version: ScimVersion) -> Self {
+    pub fn with_version(resource: Resource, version: RawVersion) -> Self {
         Self { resource, version }
     }
 
@@ -221,7 +224,7 @@ impl VersionedResource {
     }
 
     /// Get the resource version.
-    pub fn version(&self) -> &ScimVersion {
+    pub fn version(&self) -> &RawVersion {
         &self.version
     }
 
@@ -266,8 +269,8 @@ impl VersionedResource {
     ///
     /// # Returns
     /// `true` if versions match, `false` otherwise
-    pub fn version_matches(&self, expected: &ScimVersion) -> bool {
-        self.version.matches(expected)
+    pub fn version_matches<F>(&self, expected: &ScimVersion<F>) -> bool {
+        self.version == *expected
     }
 
     /// Refresh the version based on current resource content.
@@ -278,13 +281,33 @@ impl VersionedResource {
         self.version = Self::compute_version(&self.resource);
     }
 
+    /// Get version from resource meta or compute from content if not available.
+    ///
+    /// This first tries to extract the version from the resource's meta field.
+    /// Meta now stores versions in raw format internally.
+    /// If no version exists in meta, it computes one from the resource content.
+    fn get_or_compute_version(resource: &Resource) -> RawVersion {
+        // Try to get version from meta first (now stored in raw format)
+        if let Some(meta) = resource.get_meta() {
+            if let Some(meta_version) = meta.version() {
+                // Meta now stores raw versions, so parse directly
+                if let Ok(version) = meta_version.parse::<RawVersion>() {
+                    return version;
+                }
+            }
+        }
+
+        // Fallback: compute version from content
+        Self::compute_version(resource)
+    }
+
     /// Compute version from resource content.
     ///
     /// This uses the resource's JSON representation to generate a consistent
     /// hash-based version that reflects all resource data.
-    fn compute_version(resource: &Resource) -> ScimVersion {
+    fn compute_version(resource: &Resource) -> RawVersion {
         let json_bytes = resource.to_json().unwrap().to_string().into_bytes();
-        ScimVersion::from_content(&json_bytes)
+        RawVersion::from_content(&json_bytes)
     }
 }
 
@@ -359,7 +382,7 @@ mod tests {
         let versioned2 = VersionedResource::new(resource2);
 
         // Different content should produce different versions
-        assert!(!versioned1.version().matches(versioned2.version()));
+        assert!(versioned1.version() != versioned2.version());
     }
 
     #[test]
@@ -390,7 +413,7 @@ mod tests {
         versioned.update_resource(updated_resource);
 
         // Version should change after update
-        assert!(!versioned.version().matches(&old_version));
+        assert!(versioned.version() != &old_version);
         assert_eq!(versioned.resource().get_id(), Some("123"));
     }
 
@@ -407,7 +430,7 @@ mod tests {
 
         let versioned = VersionedResource::new(resource);
         let version_copy = versioned.version().clone();
-        let different_version = ScimVersion::from_hash("different");
+        let different_version = RawVersion::from_hash("different");
 
         assert!(versioned.version_matches(&version_copy));
         assert!(!versioned.version_matches(&different_version));
@@ -416,7 +439,7 @@ mod tests {
     #[test]
     fn test_versioned_resource_with_version() {
         let resource = Resource::from_json("User".to_string(), json!({"id": "123"})).unwrap();
-        let custom_version = ScimVersion::from_hash("custom-version-123");
+        let custom_version = RawVersion::from_hash("custom-version-123");
 
         let versioned = VersionedResource::with_version(resource.clone(), custom_version.clone());
 
@@ -428,14 +451,14 @@ mod tests {
     fn test_versioned_resource_refresh_version() {
         let resource =
             Resource::from_json("User".to_string(), json!({"id": "123", "data": "test"})).unwrap();
-        let custom_version = ScimVersion::from_hash("custom");
+        let custom_version = RawVersion::from_hash("custom");
 
         let mut versioned = VersionedResource::with_version(resource, custom_version.clone());
         assert_eq!(versioned.version(), &custom_version);
 
         versioned.refresh_version();
         // After refresh, version should be computed from content, not the custom version
-        assert!(!versioned.version().matches(&custom_version));
+        assert!(versioned.version() != &custom_version);
     }
 
     #[test]
@@ -459,6 +482,6 @@ mod tests {
             versioned.resource().get_id(),
             deserialized.resource().get_id()
         );
-        assert!(versioned.version().matches(deserialized.version()));
+        assert!(versioned.version() == deserialized.version());
     }
 }

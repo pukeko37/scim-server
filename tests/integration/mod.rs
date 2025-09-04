@@ -61,6 +61,7 @@ pub mod multi_tenant;
 pub mod patch;
 pub mod permission_enforcement;
 pub mod providers;
+pub mod scim_compliance_ref_fields;
 pub mod scim_multi_tenant;
 pub mod scim_protocol;
 pub mod version_operations;

@@ -20,7 +20,7 @@
 
 use super::conditional_provider::VersionedResource;
 use super::core::{ListQuery, RequestContext, Resource};
-use super::version::{ConditionalResult, ScimVersion};
+use super::version::{ConditionalResult, RawVersion};
 use serde_json::Value;
 use std::future::Future;
 
@@ -191,7 +191,7 @@ pub trait ResourceProvider {
     /// ```rust,no_run
     /// use scim_server::resource::{
     ///     provider::ResourceProvider,
-    ///     version::{ScimVersion, ConditionalResult},
+    ///     version::{RawVersion, ConditionalResult},
     ///     conditional_provider::VersionedResource,
     ///     RequestContext,
     /// };
@@ -199,7 +199,7 @@ pub trait ResourceProvider {
     ///
     /// # async fn example<P: ResourceProvider + Sync>(provider: &P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let context = RequestContext::with_generated_id();
-    /// let expected_version = ScimVersion::from_hash("abc123");
+    /// let expected_version = RawVersion::from_hash("abc123");
     /// let update_data = json!({"userName": "new.name", "active": false});
     ///
     /// match provider.conditional_update("User", "123", update_data, &expected_version, &context).await? {
@@ -223,7 +223,7 @@ pub trait ResourceProvider {
         resource_type: &str,
         id: &str,
         data: Value,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> impl Future<Output = Result<ConditionalResult<VersionedResource>, Self::Error>> + Send
     where
@@ -234,7 +234,7 @@ pub trait ResourceProvider {
             match self.get_resource(resource_type, id, context).await? {
                 Some(current_resource) => {
                     let current_versioned = VersionedResource::new(current_resource);
-                    if current_versioned.version().matches(expected_version) {
+                    if current_versioned.version() == expected_version {
                         let updated = self
                             .update_resource(resource_type, id, data, context)
                             .await?;
@@ -289,13 +289,13 @@ pub trait ResourceProvider {
     /// ```rust,no_run
     /// use scim_server::resource::{
     ///     provider::ResourceProvider,
-    ///     version::{ScimVersion, ConditionalResult},
+    ///     version::{RawVersion, ConditionalResult},
     ///     RequestContext,
     /// };
     ///
     /// # async fn example<P: ResourceProvider + Sync>(provider: &P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let context = RequestContext::with_generated_id();
-    /// let expected_version = ScimVersion::from_hash("def456");
+    /// let expected_version = RawVersion::from_hash("def456");
     ///
     /// match provider.conditional_delete("User", "123", &expected_version, &context).await? {
     ///     ConditionalResult::Success(()) => {
@@ -316,7 +316,7 @@ pub trait ResourceProvider {
         &self,
         resource_type: &str,
         id: &str,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> impl Future<Output = Result<ConditionalResult<()>, Self::Error>> + Send
     where
@@ -327,7 +327,7 @@ pub trait ResourceProvider {
             match self.get_resource(resource_type, id, context).await? {
                 Some(current_resource) => {
                     let current_versioned = VersionedResource::new(current_resource);
-                    if current_versioned.version().matches(expected_version) {
+                    if current_versioned.version() == expected_version {
                         self.delete_resource(resource_type, id, context).await?;
                         Ok(ConditionalResult::Success(()))
                     } else {

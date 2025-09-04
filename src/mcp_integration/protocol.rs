@@ -5,8 +5,8 @@
 //! AI agents and the SCIM server operations.
 
 use super::core::{ScimMcpServer, ScimToolResult};
-use super::handlers::{system_info, user_crud, user_queries};
-use super::tools::{system_schemas, user_schemas};
+use super::handlers::{group_crud, group_queries, system_info, user_crud, user_queries};
+use super::tools::{group_schemas, system_schemas, user_schemas};
 use crate::ResourceProvider;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 /// MCP JSON-RPC request structure
 #[derive(Debug, Deserialize)]
 struct McpRequest {
+    #[allow(dead_code)]
     jsonrpc: String,
     id: Option<Value>,
     method: String,
@@ -85,6 +86,7 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
     /// ```
     pub fn get_tools(&self) -> Vec<Value> {
         vec![
+            // User operations
             user_schemas::create_user_tool(),
             user_schemas::get_user_tool(),
             user_schemas::update_user_tool(),
@@ -92,6 +94,15 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             user_schemas::list_users_tool(),
             user_schemas::search_users_tool(),
             user_schemas::user_exists_tool(),
+            // Group operations
+            group_schemas::create_group_tool(),
+            group_schemas::get_group_tool(),
+            group_schemas::update_group_tool(),
+            group_schemas::delete_group_tool(),
+            group_schemas::list_groups_tool(),
+            group_schemas::search_groups_tool(),
+            group_schemas::group_exists_tool(),
+            // System operations
             system_schemas::get_schemas_tool(),
             system_schemas::get_server_info_tool(),
         ]
@@ -122,6 +133,17 @@ impl<P: ResourceProvider + Send + Sync + 'static> ScimMcpServer<P> {
             "scim_list_users" => user_queries::handle_list_users(self, arguments).await,
             "scim_search_users" => user_queries::handle_search_users(self, arguments).await,
             "scim_user_exists" => user_queries::handle_user_exists(self, arguments).await,
+
+            // Group CRUD operations
+            "scim_create_group" => group_crud::handle_create_group(self, arguments).await,
+            "scim_get_group" => group_crud::handle_get_group(self, arguments).await,
+            "scim_update_group" => group_crud::handle_update_group(self, arguments).await,
+            "scim_delete_group" => group_crud::handle_delete_group(self, arguments).await,
+
+            // Group query operations
+            "scim_list_groups" => group_queries::handle_list_groups(self, arguments).await,
+            "scim_search_groups" => group_queries::handle_search_groups(self, arguments).await,
+            "scim_group_exists" => group_queries::handle_group_exists(self, arguments).await,
 
             // System information operations
             "scim_get_schemas" => system_info::handle_get_schemas(self, arguments).await,

@@ -4,8 +4,10 @@ use scim_server::ScimServer;
 use scim_server::multi_tenant::ScimOperation;
 use scim_server::operation_handler::{ScimOperationHandler, ScimOperationRequest};
 use scim_server::providers::StandardResourceProvider;
-use scim_server::resource_handlers::create_user_resource_handler;
+use scim_server::resource::version::RawVersion;
+use scim_server::resource_handlers::{create_group_resource_handler, create_user_resource_handler};
 use scim_server::storage::InMemoryStorage;
+use scim_server::{ScimServerBuilder, TenantContext, TenantStrategy};
 use serde_json::json;
 
 #[tokio::test]
@@ -78,8 +80,6 @@ async fn test_operation_handler_error_handling() {
 
 #[tokio::test]
 async fn test_conditional_update_with_correct_version() {
-    use scim_server::resource::version::ScimVersion;
-
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
@@ -133,7 +133,7 @@ async fn test_conditional_update_with_correct_version() {
         .additional
         .get("version")
         .and_then(|v| v.as_str())
-        .map(|v| ScimVersion::from_hash(v))
+        .map(|v| RawVersion::from_hash(v))
         .expect("Response should include version information");
 
     // Update with correct version should succeed
@@ -158,8 +158,6 @@ async fn test_conditional_update_with_correct_version() {
 
 #[tokio::test]
 async fn test_conditional_update_version_mismatch() {
-    use scim_server::resource::version::ScimVersion;
-
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
@@ -199,7 +197,7 @@ async fn test_conditional_update_version_mismatch() {
     let user_id = user_data["id"].as_str().unwrap();
 
     // Try to update with incorrect version should fail with version mismatch
-    let old_version = ScimVersion::from_hash("incorrect-version");
+    let old_version = RawVersion::from_hash("incorrect-version");
     let update_request = ScimOperationRequest::update(
         "User",
         user_id,
@@ -232,8 +230,6 @@ async fn test_conditional_update_version_mismatch() {
 
 #[tokio::test]
 async fn test_conditional_delete_with_correct_version() {
-    use scim_server::resource::version::ScimVersion;
-
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
@@ -287,7 +283,7 @@ async fn test_conditional_delete_with_correct_version() {
         .additional
         .get("version")
         .and_then(|v| v.as_str())
-        .map(|v| ScimVersion::from_hash(v))
+        .map(|v| RawVersion::from_hash(v))
         .expect("Response should include version information");
 
     // Delete with correct version should succeed
@@ -300,8 +296,6 @@ async fn test_conditional_delete_with_correct_version() {
 
 #[tokio::test]
 async fn test_conditional_delete_version_mismatch() {
-    use scim_server::resource::version::ScimVersion;
-
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider).unwrap();
@@ -341,7 +335,7 @@ async fn test_conditional_delete_version_mismatch() {
     let user_id = user_data["id"].as_str().unwrap();
 
     // Try to delete with incorrect version should fail with version mismatch
-    let old_version = ScimVersion::from_hash("incorrect-version");
+    let old_version = RawVersion::from_hash("incorrect-version");
     let delete_request =
         ScimOperationRequest::delete("User", user_id).with_expected_version(old_version);
 
@@ -442,7 +436,6 @@ async fn test_regular_operations_include_version_info() {
 #[tokio::test]
 async fn test_phase_3_complete_integration() {
     // Comprehensive test demonstrating complete Phase 3 ETag functionality
-    use scim_server::resource::version::ScimVersion;
 
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
@@ -503,7 +496,7 @@ async fn test_phase_3_complete_integration() {
     );
 
     // 3. Regular update (no expected_version) - should succeed and return new version
-    let v1_version = ScimVersion::from_hash(
+    let v1_version = RawVersion::from_hash(
         create_response.metadata.additional["version"]
             .as_str()
             .unwrap(),
@@ -531,7 +524,7 @@ async fn test_phase_3_complete_integration() {
     assert_ne!(v1_etag, v2_etag); // Version should have changed
 
     // 4. Conditional update with correct version - should succeed
-    let v2_version = ScimVersion::from_hash(
+    let v2_version = RawVersion::from_hash(
         update1_response.metadata.additional["version"]
             .as_str()
             .unwrap(),
@@ -584,7 +577,7 @@ async fn test_phase_3_complete_integration() {
     );
 
     // 6. Conditional delete with correct version - should succeed
-    let v3_version = ScimVersion::from_hash(
+    let v3_version = RawVersion::from_hash(
         conditional_update_response.metadata.additional["version"]
             .as_str()
             .unwrap(),
@@ -606,5 +599,379 @@ async fn test_phase_3_complete_integration() {
             .as_deref()
             .unwrap()
             .contains("NOT_FOUND")
+    );
+}
+
+/// Test that operation handler create operation returns Groups with $ref fields in members array
+#[tokio::test]
+async fn test_operation_handler_create_group_includes_ref_fields() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    // Create server with specific configuration for $ref generation
+    let mut server = ScimServerBuilder::new(provider)
+        .with_base_url("https://scim.company.com")
+        .with_tenant_strategy(TenantStrategy::SingleTenant)
+        .build()
+        .unwrap();
+
+    // Register User and Group resource types
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type(
+            "User",
+            user_handler,
+            vec![ScimOperation::Create, ScimOperation::Read],
+        )
+        .unwrap();
+
+    let group_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+        .unwrap()
+        .clone();
+    let group_handler = create_group_resource_handler(group_schema);
+    server
+        .register_resource_type("Group", group_handler, vec![ScimOperation::Create])
+        .unwrap();
+
+    let handler = ScimOperationHandler::new(server);
+
+    // First create a user to reference
+    let user_request = ScimOperationRequest::create(
+        "User",
+        json!({
+            "userName": "testuser@company.com",
+            "name": {
+                "givenName": "Test",
+                "familyName": "User"
+            }
+        }),
+    );
+
+    let user_response = handler.handle_operation(user_request).await;
+    assert!(user_response.success, "User creation should succeed");
+    let user_id = user_response.metadata.resource_id.unwrap();
+
+    // Create group with the user as a member (without $ref - should be added automatically)
+    let group_request = ScimOperationRequest::create(
+        "Group",
+        json!({
+            "displayName": "Test Engineering Team",
+            "members": [{
+                "value": user_id,
+                "type": "User",
+                "display": "Test User"
+            }]
+        }),
+    );
+
+    let group_response = handler.handle_operation(group_request).await;
+
+    // Verify response succeeded
+    assert!(group_response.success, "Group creation should succeed");
+    assert!(
+        group_response.data.is_some(),
+        "Group response should contain data"
+    );
+
+    let group_data = group_response.data.unwrap();
+    let members = group_data["members"].as_array().unwrap();
+    let member = &members[0];
+
+    // This is the key test - operation handler should include $ref fields
+    assert!(
+        member["$ref"].is_string(),
+        "Operation handler should automatically generate $ref field"
+    );
+
+    let ref_url = member["$ref"].as_str().unwrap();
+    let expected_url = format!("https://scim.company.com/v2/Users/{}", user_id);
+    assert_eq!(
+        ref_url, expected_url,
+        "Operation handler $ref should use server configuration"
+    );
+
+    // Verify other member fields are preserved
+    assert_eq!(member["value"], user_id);
+    assert_eq!(member["type"], "User");
+    assert_eq!(member["display"], "Test User");
+}
+
+/// Test that operation handler get operation returns Groups with $ref fields
+#[tokio::test]
+async fn test_operation_handler_get_group_includes_ref_fields() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    let mut server = ScimServerBuilder::new(provider)
+        .with_base_url("https://api.example.com")
+        .with_tenant_strategy(TenantStrategy::SingleTenant)
+        .build()
+        .unwrap();
+
+    // Register resource types
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type(
+            "User",
+            user_handler,
+            vec![ScimOperation::Create, ScimOperation::Read],
+        )
+        .unwrap();
+
+    let group_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+        .unwrap()
+        .clone();
+    let group_handler = create_group_resource_handler(group_schema);
+    server
+        .register_resource_type(
+            "Group",
+            group_handler,
+            vec![ScimOperation::Create, ScimOperation::Read],
+        )
+        .unwrap();
+
+    let handler = ScimOperationHandler::new(server);
+
+    // Create user and group first
+    let user_request = ScimOperationRequest::create(
+        "User",
+        json!({
+            "userName": "gettest@example.com",
+            "name": { "givenName": "Get", "familyName": "Test" }
+        }),
+    );
+    let user_response = handler.handle_operation(user_request).await;
+    let user_id = user_response.metadata.resource_id.unwrap();
+
+    let group_request = ScimOperationRequest::create(
+        "Group",
+        json!({
+            "displayName": "Get Test Group",
+            "members": [{
+                "value": user_id,
+                "type": "User",
+                "display": "Get Test"
+            }]
+        }),
+    );
+    let group_response = handler.handle_operation(group_request).await;
+    let group_id = group_response.metadata.resource_id.unwrap();
+
+    // Now get the group - this should include $ref fields
+    let get_request = ScimOperationRequest::get("Group", &group_id);
+    let get_response = handler.handle_operation(get_request).await;
+
+    assert!(get_response.success, "Group get should succeed");
+    assert!(get_response.data.is_some(), "Group get should return data");
+
+    let group_data = get_response.data.unwrap();
+    let members = group_data["members"].as_array().unwrap();
+    let member = &members[0];
+
+    // The get operation should also include $ref fields
+    assert!(
+        member["$ref"].is_string(),
+        "Operation handler get should include $ref fields"
+    );
+
+    let ref_url = member["$ref"].as_str().unwrap();
+    let expected_url = format!("https://api.example.com/v2/Users/{}", user_id);
+    assert_eq!(
+        ref_url, expected_url,
+        "Get operation $ref should use correct base URL"
+    );
+}
+
+/// Test that operation handler works with multi-tenant $ref generation
+#[tokio::test]
+async fn test_operation_handler_multitenant_ref_fields() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    // Configure for subdomain-based multi-tenancy
+    let mut server = ScimServerBuilder::new(provider)
+        .with_base_url("https://scim.example.com")
+        .with_tenant_strategy(TenantStrategy::Subdomain)
+        .build()
+        .unwrap();
+
+    // Register resource types
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type("User", user_handler, vec![ScimOperation::Create])
+        .unwrap();
+
+    let group_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+        .unwrap()
+        .clone();
+    let group_handler = create_group_resource_handler(group_schema);
+    server
+        .register_resource_type("Group", group_handler, vec![ScimOperation::Create])
+        .unwrap();
+
+    let handler = ScimOperationHandler::new(server);
+
+    // Create tenant context
+    let tenant_context = TenantContext::new("acme-corp".to_string(), "client-123".to_string());
+
+    // Create user in tenant
+    let mut user_request = ScimOperationRequest::create(
+        "User",
+        json!({
+            "userName": "tenant.user@acme.com",
+            "name": { "givenName": "Tenant", "familyName": "User" }
+        }),
+    );
+    user_request = user_request.with_tenant(tenant_context.clone());
+
+    let user_response = handler.handle_operation(user_request).await;
+    assert!(user_response.success);
+    let user_id = user_response.metadata.resource_id.unwrap();
+
+    // Create group in same tenant
+    let mut group_request = ScimOperationRequest::create(
+        "Group",
+        json!({
+            "displayName": "Tenant Test Group",
+            "members": [{
+                "value": user_id,
+                "type": "User",
+                "display": "Tenant User"
+            }]
+        }),
+    );
+    group_request = group_request.with_tenant(tenant_context);
+
+    let group_response = handler.handle_operation(group_request).await;
+
+    assert!(
+        group_response.success,
+        "Tenant group creation should succeed"
+    );
+
+    let group_data = group_response.data.unwrap();
+    let members = group_data["members"].as_array().unwrap();
+    let member = &members[0];
+
+    // Should generate subdomain-based $ref URL
+    assert!(
+        member["$ref"].is_string(),
+        "Multi-tenant operation should include $ref"
+    );
+
+    let ref_url = member["$ref"].as_str().unwrap();
+    let expected_url = format!("https://acme-corp.scim.example.com/v2/Users/{}", user_id);
+    assert_eq!(
+        ref_url, expected_url,
+        "Multi-tenant $ref should use subdomain strategy"
+    );
+}
+
+/// Test that operation handler list operations include $ref fields
+#[tokio::test]
+async fn test_operation_handler_list_includes_ref_fields() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+
+    let mut server = ScimServerBuilder::new(provider)
+        .with_base_url("https://list.test.com")
+        .with_tenant_strategy(TenantStrategy::SingleTenant)
+        .build()
+        .unwrap();
+
+    // Register resource types
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type(
+            "User",
+            user_handler,
+            vec![ScimOperation::Create, ScimOperation::List],
+        )
+        .unwrap();
+
+    let group_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+        .unwrap()
+        .clone();
+    let group_handler = create_group_resource_handler(group_schema);
+    server
+        .register_resource_type(
+            "Group",
+            group_handler,
+            vec![ScimOperation::Create, ScimOperation::List],
+        )
+        .unwrap();
+
+    let handler = ScimOperationHandler::new(server);
+
+    // Create test data
+    let user_request = ScimOperationRequest::create(
+        "User",
+        json!({
+            "userName": "listuser@test.com",
+            "name": { "givenName": "List", "familyName": "User" }
+        }),
+    );
+    let user_response = handler.handle_operation(user_request).await;
+    let user_id = user_response.metadata.resource_id.unwrap();
+
+    let group_request = ScimOperationRequest::create(
+        "Group",
+        json!({
+            "displayName": "List Test Group",
+            "members": [{
+                "value": user_id,
+                "type": "User",
+                "display": "List User"
+            }]
+        }),
+    );
+    let _group_response = handler.handle_operation(group_request).await;
+
+    // List groups - should include $ref fields
+    let list_request = ScimOperationRequest::list("Group");
+    let list_response = handler.handle_operation(list_request).await;
+
+    assert!(list_response.success, "List operation should succeed");
+    assert!(list_response.data.is_some(), "List should return data");
+
+    let list_data = list_response.data.unwrap();
+    let groups = list_data.as_array().unwrap();
+    assert!(!groups.is_empty(), "Should have at least one group");
+
+    let group = &groups[0];
+    let members = group["members"].as_array().unwrap();
+    let member = &members[0];
+
+    // List operations should also include $ref fields
+    assert!(
+        member["$ref"].is_string(),
+        "List operation should include $ref fields"
+    );
+
+    let ref_url = member["$ref"].as_str().unwrap();
+    let expected_url = format!("https://list.test.com/v2/Users/{}", user_id);
+    assert_eq!(
+        ref_url, expected_url,
+        "List operation $ref should be correct"
     );
 }

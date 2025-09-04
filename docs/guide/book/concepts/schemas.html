@@ -695,7 +695,7 @@ Content-Type: application/scim+json
 </ul>
 <h3 id="etag-and-schema-versioning"><a class="header" href="#etag-and-schema-versioning">ETag and Schema Versioning</a></h3>
 <p>The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a <code>meta.version</code> field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (<code>If-Match</code>, <code>If-None-Match</code>) with these ETags to ensure they're operating on the expected version of a resource.</p>
-<p>For implementation details and practical usage patterns, see the <a href="./etag-concurrency.html">ETag Concurrency Control</a> chapter and <a href="./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
+<p>For implementation details and practical usage patterns, see the <a href="./concurrency.html">Concurrency Control in SCIM Operations</a> chapter and <a href="./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
 <h2 id="schema-extensibility-patterns"><a class="header" href="#schema-extensibility-patterns">Schema Extensibility Patterns</a></h2>
 <p>The SCIM Server supports several patterns for extending schemas while maintaining interoperability:</p>
 <h3 id="additive-extensions"><a class="header" href="#additive-extensions">Additive Extensions</a></h3>

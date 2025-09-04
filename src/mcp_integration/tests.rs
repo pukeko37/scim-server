@@ -7,8 +7,10 @@
 mod mcp_tests {
     use super::super::core::{McpServerInfo, ScimMcpServer};
     use crate::{
-        multi_tenant::ScimOperation, providers::StandardResourceProvider,
-        resource_handlers::create_user_resource_handler, scim_server::ScimServer,
+        multi_tenant::ScimOperation,
+        providers::StandardResourceProvider,
+        resource_handlers::{create_group_resource_handler, create_user_resource_handler},
+        scim_server::{ScimServerBuilder, TenantStrategy},
         storage::InMemoryStorage,
     };
     use serde_json::{Value, json};
@@ -17,7 +19,11 @@ mod mcp_tests {
     async fn create_test_mcp_server() -> ScimMcpServer<StandardResourceProvider<InMemoryStorage>> {
         let storage = InMemoryStorage::new();
         let provider = StandardResourceProvider::new(storage);
-        let mut scim_server = ScimServer::new(provider).expect("Failed to create SCIM server");
+        let mut scim_server = ScimServerBuilder::new(provider)
+            .with_base_url("mcp://scim".to_string())
+            .with_tenant_strategy(TenantStrategy::SingleTenant)
+            .build()
+            .expect("Failed to build SCIM server");
 
         // Register User resource type
         let user_schema = scim_server
@@ -40,6 +46,27 @@ mod mcp_tests {
             )
             .expect("Failed to register User resource type");
 
+        // Register Group resource type
+        let group_schema = scim_server
+            .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")
+            .expect("Failed to get group schema")
+            .clone();
+        let group_handler = create_group_resource_handler(group_schema);
+
+        scim_server
+            .register_resource_type(
+                "Group",
+                group_handler,
+                vec![
+                    ScimOperation::Create,
+                    ScimOperation::Read,
+                    ScimOperation::Update,
+                    ScimOperation::Delete,
+                    ScimOperation::Search,
+                ],
+            )
+            .expect("Failed to register Group resource type");
+
         ScimMcpServer::new(scim_server)
     }
 
@@ -48,15 +75,16 @@ mod mcp_tests {
         let mcp_server = create_test_mcp_server().await;
         let tools = mcp_server.get_tools();
 
-        assert_eq!(tools.len(), 9, "Should have 9 tools available");
+        assert_eq!(tools.len(), 16, "Should have 16 tools available");
 
         // Verify expected tool names are present
         let tool_names: Vec<&str> = tools
             .iter()
-            .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
+            .map(|tool| tool.get("name").and_then(|n| n.as_str()).unwrap_or(""))
             .collect();
 
         let expected_tools = vec![
+            // User operations
             "scim_create_user",
             "scim_get_user",
             "scim_update_user",
@@ -64,6 +92,15 @@ mod mcp_tests {
             "scim_list_users",
             "scim_search_users",
             "scim_user_exists",
+            // Group operations
+            "scim_create_group",
+            "scim_get_group",
+            "scim_update_group",
+            "scim_delete_group",
+            "scim_list_groups",
+            "scim_search_groups",
+            "scim_group_exists",
+            // System operations
             "scim_get_schemas",
             "scim_server_info",
         ];
@@ -71,7 +108,7 @@ mod mcp_tests {
         for expected_tool in expected_tools {
             assert!(
                 tool_names.contains(&expected_tool),
-                "Should contain tool: {}",
+                "Tool '{}' should be available",
                 expected_tool
             );
         }
@@ -225,7 +262,7 @@ mod mcp_tests {
                 "tools/list" => {
                     // Should return tools list
                     let tools = mcp_server.get_tools();
-                    assert_eq!(tools.len(), 9);
+                    assert_eq!(tools.len(), 16);
                 }
                 "tools/call" => {
                     // Should execute tool
@@ -398,7 +435,7 @@ mod mcp_tests {
 
         let tools_result = tools_resp.result.unwrap();
         let tools_array = tools_result["tools"].as_array().unwrap();
-        assert_eq!(tools_array.len(), 9);
+        assert_eq!(tools_array.len(), 16);
 
         // Verify expected tools are present
         let tool_names: Vec<String> = tools_array
@@ -594,7 +631,7 @@ mod mcp_tests {
 
     /// Test raw version handling in MCP operations
     #[tokio::test]
-    async fn test_mcp_raw_version_handling() {
+    async fn test_mcp_etag_version_handling() {
         let mcp_server = create_test_mcp_server().await;
 
         // 1. Create user and get version
@@ -613,20 +650,20 @@ mod mcp_tests {
 
         assert!(create_result.success, "User creation should succeed");
         let user_id = create_result.content.get("id").unwrap().as_str().unwrap();
-        let initial_version = create_result.metadata
-            .as_ref()
-            .unwrap()["version"]
+        let initial_version = create_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
 
-        // Verify version is embedded in content as _version
-        let embedded_version = create_result.content["_version"].as_str().unwrap();
-        assert_eq!(initial_version, embedded_version);
+        // Version should only be available in metadata, not embedded in content
+        assert!(
+            create_result.content.get("_version").is_none(),
+            "Content should not contain _version field"
+        );
 
         println!("✅ Created user with version: {}", initial_version);
 
-        // 2. Test conditional update with raw version (should succeed)
+        // 2. Test conditional update with ETag version (should succeed)
         let conditional_update_result = mcp_server
             .execute_tool(
                 "scim_update_user",
@@ -637,21 +674,28 @@ mod mcp_tests {
                         "userName": "version.updated@example.com",
                         "active": false
                     },
-                    "expected_version": initial_version  // Raw version format
+                    "expected_version": initial_version  // ETag version format
                 }),
             )
             .await;
 
-        assert!(conditional_update_result.success, "Conditional update with raw version should succeed");
-        let new_version = conditional_update_result.metadata
-            .as_ref()
-            .unwrap()["version"]
+        assert!(
+            conditional_update_result.success,
+            "Conditional update with ETag version should succeed"
+        );
+        let new_version = conditional_update_result.metadata.as_ref().unwrap()["version"]
             .as_str()
             .unwrap()
             .to_string();
 
-        assert_ne!(initial_version, new_version, "Version should change after update");
-        println!("✅ Conditional update succeeded with raw version. New version: {}", new_version);
+        assert_ne!(
+            initial_version, new_version,
+            "Version should change after update"
+        );
+        println!(
+            "✅ Conditional update succeeded with ETag version. New version: {}",
+            new_version
+        );
 
         // 3. Test conditional update with stale version (should fail)
         let stale_update_result = mcp_server
@@ -669,26 +713,32 @@ mod mcp_tests {
             )
             .await;
 
-        assert!(!stale_update_result.success, "Conditional update with stale version should fail");
+        assert!(
+            !stale_update_result.success,
+            "Conditional update with stale version should fail"
+        );
         assert_eq!(
             stale_update_result.content["error_code"],
             "VERSION_MISMATCH"
         );
         println!("✅ Conditional update correctly failed with stale version");
 
-        // 4. Test conditional delete with raw version (should succeed)
+        // 4. Test conditional delete with ETag version (should succeed)
         let conditional_delete_result = mcp_server
             .execute_tool(
                 "scim_delete_user",
                 json!({
                     "user_id": user_id,
-                    "expected_version": new_version  // Current version
+                    "expected_version": new_version  // Use updated ETag version
                 }),
             )
             .await;
 
-        assert!(conditional_delete_result.success, "Conditional delete with raw version should succeed");
-        println!("✅ Conditional delete succeeded with raw version");
+        assert!(
+            conditional_delete_result.success,
+            "Conditional delete with ETag version should succeed"
+        );
+        println!("✅ Conditional delete succeeded with ETag version");
 
         // 5. Test invalid version format
         let invalid_version_result = mcp_server
@@ -713,5 +763,179 @@ mod mcp_tests {
         println!("✅ Empty version correctly rejected");
 
         println!("✅ Complete raw version handling test passed!");
+    }
+
+    /// Test that MCP interface returns SCIM 2.0 compliant $ref fields in group members and user groups
+    #[tokio::test]
+    async fn test_mcp_ref_field_compliance() {
+        println!("🧪 Testing MCP $ref field compliance...");
+
+        let server = create_test_mcp_server().await;
+
+        // Step 1: Create a user via MCP
+        let user_create_request = json!({
+            "user_data": {
+                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                "userName": "ref.test@example.com",
+                "name": {
+                    "givenName": "RefField",
+                    "familyName": "Test"
+                },
+                "emails": [{
+                    "value": "ref.test@example.com",
+                    "type": "work",
+                    "primary": true
+                }]
+            }
+        });
+
+        let user_result = server
+            .execute_tool("scim_create_user", user_create_request)
+            .await;
+
+        assert!(user_result.success, "User creation should succeed");
+        let user_data = &user_result.content;
+        let user_id = user_data["id"].as_str().expect("User should have ID");
+        println!("✅ Created user: {}", user_id);
+
+        // Step 2: Create a group with the user as a member
+        let group_create_request = json!({
+            "group_data": {
+                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+                "displayName": "Ref Test Group",
+                "externalId": "ref-test-group",
+                "members": [{
+                    "value": user_id,
+                    "$ref": format!("https://example.com/v2/Users/{}", user_id),
+                    "type": "User",
+                    "display": "RefField Test"
+                }]
+            }
+        });
+
+        let group_result = server
+            .execute_tool("scim_create_group", group_create_request)
+            .await;
+
+        if !group_result.success {
+            println!("❌ Group creation failed: {:?}", group_result.content);
+        }
+        assert!(group_result.success, "Group creation should succeed");
+        let group_data = &group_result.content;
+        let group_id = group_data["id"].as_str().expect("Group should have ID");
+        println!("✅ Created group: {}", group_id);
+
+        // Step 3: Verify Group.members array has proper $ref fields
+        let group_members = group_data["members"]
+            .as_array()
+            .expect("Group should have members array");
+
+        assert_eq!(
+            group_members.len(),
+            1,
+            "Group should have exactly one member"
+        );
+        let member = &group_members[0];
+
+        // CRITICAL ASSERTIONS: These will currently fail and need to be fixed
+        assert_eq!(member["value"], user_id, "Member value should be user ID");
+        assert_eq!(member["type"], "User", "Member type should be User");
+        assert_eq!(
+            member["display"], "RefField Test",
+            "Member display should be set"
+        );
+
+        // This is the key test that should pass but currently fails
+        assert!(
+            member["$ref"].is_string(),
+            "Group member must have $ref field - currently missing!"
+        );
+        assert_eq!(
+            member["$ref"].as_str().unwrap(),
+            format!("mcp://scim/v2/Users/{}", user_id),
+            "$ref should contain proper URI to user resource"
+        );
+        println!("✅ Group member has proper $ref field");
+
+        // Step 4: Client updates user to include group reference (maintaining referential integrity)
+        let user_update_request = json!({
+            "user_id": user_id,
+            "user_data": {
+                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                "userName": "ref.test@example.com",
+                "name": {
+                    "givenName": "RefField",
+                    "familyName": "Test"
+                },
+                "emails": [{
+                    "value": "ref.test@example.com",
+                    "type": "work",
+                    "primary": true
+                }],
+                "groups": [{
+                    "value": group_id,
+                    "type": "direct",
+                    "display": "Ref Test Group"
+                }]
+            }
+        });
+
+        let updated_user = server
+            .execute_tool("scim_update_user", user_update_request)
+            .await;
+
+        if !updated_user.success {
+            println!("❌ User update failed: {:?}", updated_user.content);
+        }
+        assert!(updated_user.success, "User update should succeed");
+        let updated_user_data = &updated_user.content;
+
+        // Step 5: Verify User.groups array has proper $ref fields
+        assert!(
+            updated_user_data["groups"].is_array(),
+            "User must have groups array after client update"
+        );
+
+        let user_groups = updated_user_data["groups"]
+            .as_array()
+            .expect("User should have groups array");
+
+        assert_eq!(
+            user_groups.len(),
+            1,
+            "User should be member of exactly one group"
+        );
+        let group_ref = &user_groups[0];
+
+        assert_eq!(
+            group_ref["value"], group_id,
+            "Group reference value should be group ID"
+        );
+        assert_eq!(
+            group_ref["type"], "direct",
+            "Group reference type should be direct"
+        );
+        assert_eq!(
+            group_ref["display"], "Ref Test Group",
+            "Group reference display should be group name"
+        );
+
+        // This is the key test for bidirectional $ref compliance
+        assert!(
+            group_ref["$ref"].is_string(),
+            "User group reference must have $ref field - currently missing!"
+        );
+        assert_eq!(
+            group_ref["$ref"].as_str().unwrap(),
+            format!("mcp://scim/v2/Groups/{}", group_id),
+            "User group $ref should contain proper URI to group resource"
+        );
+        println!("✅ User group reference has proper $ref field");
+
+        println!("✅ Complete MCP $ref field compliance test passed!");
+
+        // Note: Update operations to test $ref preservation are omitted to avoid
+        // version mismatch complexity in this core functionality test. The key
+        // $ref generation and bidirectional reference functionality is verified.
     }
 }

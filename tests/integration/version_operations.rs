@@ -7,8 +7,14 @@
 //! - Cross-provider compatibility
 //! - Concurrency scenarios
 
-use scim_server::resource::version::{
-    ConditionalResult, ScimVersion, VersionConflict, VersionError,
+use scim_server::{
+    ScimOperationHandler, ScimServer, create_user_resource_handler,
+    operation_handler::ScimOperationRequest,
+    providers::StandardResourceProvider,
+    resource::version::{
+        ConditionalResult, HttpVersion, RawVersion, VersionConflict, VersionError,
+    },
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -20,19 +26,19 @@ use tokio::sync::Mutex;
 async fn test_version_creation_methods() {
     // Content-based versioning
     let content = br#"{"id":"123","userName":"john.doe","active":true}"#;
-    let content_version = ScimVersion::from_content(content);
+    let content_version = RawVersion::from_content(content);
 
     // Hash should be deterministic
-    let content_version2 = ScimVersion::from_content(content);
+    let content_version2 = RawVersion::from_content(content);
     assert_eq!(content_version, content_version2);
 
     // Different content should produce different versions
     let different_content = br#"{"id":"123","userName":"jane.doe","active":true}"#;
-    let different_version = ScimVersion::from_content(different_content);
+    let different_version = RawVersion::from_content(different_content);
     assert_ne!(content_version, different_version);
 
     // Pre-computed hash versioning
-    let hash_version = ScimVersion::from_hash("abc123def456");
+    let hash_version = RawVersion::from_hash("abc123def456");
     assert_eq!(hash_version.as_str(), "abc123def456");
 }
 
@@ -50,15 +56,11 @@ async fn test_etag_http_integration() {
     ];
 
     for (etag_header, expected_opaque) in test_cases {
-        let version = ScimVersion::parse_http_header(etag_header)
+        let version: HttpVersion = etag_header
+            .parse()
             .expect(&format!("Failed to parse: {}", etag_header));
 
         assert_eq!(version.as_str(), expected_opaque);
-
-        // Round-trip test: version -> etag -> version
-        let generated_etag = version.to_http_header();
-        let round_trip = ScimVersion::parse_http_header(&generated_etag).unwrap();
-        assert_eq!(version, round_trip);
     }
 }
 
@@ -77,7 +79,7 @@ async fn test_invalid_etag_formats() {
     ];
 
     for invalid_etag in invalid_etags {
-        let result = ScimVersion::parse_http_header(invalid_etag);
+        let result: Result<HttpVersion, _> = invalid_etag.parse();
         assert!(
             result.is_err(),
             "Should reject invalid ETag: {}",
@@ -97,26 +99,289 @@ async fn test_invalid_etag_formats() {
 #[tokio::test]
 async fn test_version_matching() {
     // Identical hash versions should match
-    let v1 = ScimVersion::from_hash("version-123");
-    let v2 = ScimVersion::from_hash("version-123");
-    assert!(v1.matches(&v2));
-    assert!(v2.matches(&v1));
+    let v1 = RawVersion::from_hash("version-123");
+    let v2 = RawVersion::from_hash("version-123");
+    assert!(v1 == v2);
+    assert!(v2 == v1);
 
     // Different hash versions should not match
-    let v3 = ScimVersion::from_hash("version-456");
-    assert!(!v1.matches(&v3));
-    assert!(!v3.matches(&v1));
+    let v3 = RawVersion::from_hash("version-456");
+    assert!(v1 != v3);
+    assert!(v3 != v1);
 
     // Content-based versions with same content should match
     let content = b"same content";
-    let h1 = ScimVersion::from_content(content);
-    let h2 = ScimVersion::from_content(content);
-    assert!(h1.matches(&h2));
+    let h1 = RawVersion::from_content(content);
+    let h2 = RawVersion::from_content(content);
+    assert!(h1 == h2);
 
     // Mixed version types with same opaque value should match
-    let hash_v = ScimVersion::from_hash("test-123");
-    let etag_v = ScimVersion::parse_http_header("\"test-123\"").unwrap();
-    assert!(hash_v.matches(&etag_v));
+    let hash_v = RawVersion::from_hash("test-123");
+    let etag_v: HttpVersion = "\"test-123\"".parse().unwrap();
+    assert!(hash_v == etag_v);
+}
+
+/// Test HTTP interface conversion between ETag headers and internal raw versions
+#[tokio::test]
+async fn test_http_interface_version_conversion() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider).unwrap();
+
+    // Register User resource type
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type(
+            "User",
+            user_handler,
+            vec![
+                scim_server::multi_tenant::ScimOperation::Create,
+                scim_server::multi_tenant::ScimOperation::Read,
+                scim_server::multi_tenant::ScimOperation::Update,
+            ],
+        )
+        .unwrap();
+
+    let operation_handler = ScimOperationHandler::new(server);
+
+    // Test 1: Create user and verify raw version is returned in response
+    let create_request = ScimOperationRequest::create(
+        "User".to_string(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "http.test@example.com",
+            "active": true
+        }),
+    );
+
+    let create_response = operation_handler.handle_operation(create_request).await;
+    assert!(create_response.success, "Create should succeed");
+
+    let created_user = create_response.data.unwrap();
+    let user_id = created_user["id"].as_str().unwrap();
+    let raw_version = created_user["meta"]["version"].as_str().unwrap();
+
+    // Verify version is in raw format (no W/" wrapper)
+    assert!(
+        !raw_version.starts_with("W/\""),
+        "Response should contain raw version, not ETag format"
+    );
+    assert!(
+        !raw_version.starts_with("\""),
+        "Response should contain raw version, not quoted format"
+    );
+
+    // Test 2: Simulate HTTP client sending ETag header for conditional update
+    // HTTP client would extract version from response and send as ETag header
+    let etag_header = format!("W/\"{}\"", raw_version);
+
+    // Parse the ETag header (simulating HTTP interface layer)
+    let parsed_version = etag_header
+        .parse::<HttpVersion>()
+        .expect("Should parse valid ETag header");
+
+    // Verify the parsed version matches the original raw version
+    assert_eq!(
+        parsed_version.as_str(),
+        raw_version,
+        "ETag parsing should extract correct raw version"
+    );
+
+    // Test 3: Use parsed version for conditional update
+    let update_request = ScimOperationRequest::update(
+        "User".to_string(),
+        user_id.to_string(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "http.updated@example.com",
+            "active": true
+        }),
+    )
+    .with_expected_version(parsed_version);
+
+    let update_response = operation_handler.handle_operation(update_request).await;
+    assert!(
+        update_response.success,
+        "Conditional update with correct ETag should succeed"
+    );
+
+    let updated_user = update_response.data.unwrap();
+    let new_raw_version = updated_user["meta"]["version"].as_str().unwrap();
+
+    // Verify new version is different but still in raw format
+    assert_ne!(
+        new_raw_version, raw_version,
+        "Version should change after update"
+    );
+    assert!(
+        !new_raw_version.starts_with("W/\""),
+        "Updated response should contain raw version"
+    );
+
+    // Test 4: Test conversion from raw to ETag for HTTP response
+    let new_version_obj: RawVersion = new_raw_version.parse().unwrap();
+    let response_etag = HttpVersion::from(new_version_obj.clone()).to_string();
+
+    // Verify ETag generation for HTTP response
+    assert!(
+        response_etag.starts_with("W/\""),
+        "Generated ETag should have weak format"
+    );
+    assert!(
+        response_etag.ends_with("\""),
+        "Generated ETag should be properly quoted"
+    );
+    assert!(
+        response_etag.contains(new_raw_version),
+        "Generated ETag should contain raw version"
+    );
+
+    // Test 5: Round-trip conversion should be stable
+    let round_trip_version: HttpVersion = response_etag.parse().unwrap();
+    assert_eq!(
+        round_trip_version.as_str(),
+        new_raw_version,
+        "Round-trip conversion should preserve version"
+    );
+}
+
+/// Test that stale ETag headers are properly rejected
+#[tokio::test]
+async fn test_http_stale_etag_rejection() {
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider).unwrap();
+
+    // Register User resource type
+    let user_schema = server
+        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
+        .unwrap()
+        .clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server
+        .register_resource_type(
+            "User",
+            user_handler,
+            vec![
+                scim_server::multi_tenant::ScimOperation::Create,
+                scim_server::multi_tenant::ScimOperation::Update,
+            ],
+        )
+        .unwrap();
+
+    let operation_handler = ScimOperationHandler::new(server);
+
+    // Create user
+    let create_request = ScimOperationRequest::create(
+        "User".to_string(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "stale.test@example.com",
+            "active": true
+        }),
+    );
+
+    let create_response = operation_handler.handle_operation(create_request).await;
+    let created_user = create_response.data.unwrap();
+    let user_id = created_user["id"].as_str().unwrap();
+    let original_version = created_user["meta"]["version"].as_str().unwrap();
+
+    // First update to change the version
+    let first_update = ScimOperationRequest::update(
+        "User".to_string(),
+        user_id.to_string(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "first.update@example.com",
+            "active": true
+        }),
+    );
+
+    let first_response = operation_handler.handle_operation(first_update).await;
+    assert!(first_response.success);
+
+    // Now try to use the original (stale) version in ETag format
+    let stale_etag = format!("W/\"{}\"", original_version);
+    let stale_version: HttpVersion = stale_etag.parse().unwrap();
+
+    let stale_update = ScimOperationRequest::update(
+        "User".to_string(),
+        user_id.to_string(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "should.fail@example.com",
+            "active": false
+        }),
+    )
+    .with_expected_version(stale_version);
+
+    let stale_response = operation_handler.handle_operation(stale_update).await;
+
+    // Should fail due to version mismatch
+    assert!(
+        !stale_response.success,
+        "Update with stale ETag should fail"
+    );
+    assert!(
+        stale_response
+            .error
+            .unwrap()
+            .contains("modified by another client"),
+        "Should indicate version conflict"
+    );
+}
+
+/// Test various ETag formats that HTTP clients might send
+#[tokio::test]
+async fn test_http_etag_format_compatibility() {
+    let test_cases = vec![
+        // Standard weak ETags
+        ("W/\"abc123\"", "abc123"),
+        ("W/\"version-1.0\"", "version-1.0"),
+        ("W/\"2023-01-01T00:00:00Z\"", "2023-01-01T00:00:00Z"),
+        // Strong ETags (should be handled the same)
+        ("\"strong-etag\"", "strong-etag"),
+        ("\"base64+encoded/value=\"", "base64+encoded/value="),
+        // Base64-style versions (common in SCIM)
+        ("W/\"dGVzdC12ZXJzaW9u\"", "dGVzdC12ZXJzaW9u"),
+        ("W/\"SGVsbG8gV29ybGQ=\"", "SGVsbG8gV29ybGQ="),
+    ];
+
+    for (etag_header, expected_raw) in test_cases {
+        // Test ETag parsing
+        let version: HttpVersion = etag_header
+            .parse()
+            .expect(&format!("Should parse ETag: {}", etag_header));
+
+        assert_eq!(
+            version.as_str(),
+            expected_raw,
+            "ETag {} should extract raw version {}",
+            etag_header,
+            expected_raw
+        );
+
+        // Test round-trip: raw -> ETag -> raw
+        let raw_version: RawVersion = expected_raw.parse().unwrap();
+        let generated_etag = HttpVersion::from(raw_version.clone()).to_string();
+        let round_trip: HttpVersion = generated_etag.parse().unwrap();
+
+        assert_eq!(
+            round_trip.as_str(),
+            expected_raw,
+            "Round-trip should preserve raw version for {}",
+            etag_header
+        );
+        assert!(
+            version == round_trip,
+            "Original and round-trip versions should match for {}",
+            etag_header
+        );
+    }
 }
 
 /// Test ConditionalResult operations
@@ -133,8 +398,8 @@ async fn test_conditional_result_operations() {
     assert_eq!(success.clone().into_success(), Some(success_data));
 
     // Version mismatch case
-    let expected_v = ScimVersion::from_hash("version1");
-    let current_v = ScimVersion::from_hash("version2");
+    let expected_v = RawVersion::from_hash("version1");
+    let current_v = RawVersion::from_hash("version2");
     let conflict = VersionConflict::standard_message(expected_v.clone(), current_v.clone());
     let mismatch: ConditionalResult<serde_json::Value> =
         ConditionalResult::VersionMismatch(conflict.clone());
@@ -161,8 +426,8 @@ async fn test_conditional_result_mapping() {
 
     // Map preserves non-success variants
     let conflict = ConditionalResult::<i32>::VersionMismatch(VersionConflict::new(
-        ScimVersion::from_hash("version1"),
-        ScimVersion::from_hash("version2"),
+        RawVersion::from_hash("version1"),
+        RawVersion::from_hash("version2"),
         "test conflict",
     ));
     let mapped_conflict = conflict.map(|x| x.to_string());
@@ -176,8 +441,8 @@ async fn test_conditional_result_mapping() {
 /// Test VersionConflict creation and formatting
 #[tokio::test]
 async fn test_version_conflict() {
-    let expected = ScimVersion::from_hash("old-version");
-    let current = ScimVersion::from_hash("new-version");
+    let expected = RawVersion::from_hash("old-version");
+    let current = RawVersion::from_hash("current-version");
 
     // Custom conflict message
     let custom_conflict =
@@ -195,7 +460,7 @@ async fn test_version_conflict() {
     // Display formatting
     let display_output = format!("{}", custom_conflict);
     assert!(display_output.contains("old-version"));
-    assert!(display_output.contains("new-version"));
+    assert!(display_output.contains("current-version"));
     assert!(display_output.contains("Custom conflict message"));
 }
 
@@ -203,17 +468,17 @@ async fn test_version_conflict() {
 #[tokio::test]
 async fn test_version_serialization() {
     let content = br#"{"id":"123","test":"serialization"}"#;
-    let original_version = ScimVersion::from_content(content);
+    let original_version = RawVersion::from_content(content);
 
     // JSON serialization
     let json = serde_json::to_string(&original_version).unwrap();
-    let deserialized: ScimVersion = serde_json::from_str(&json).unwrap();
+    let deserialized: RawVersion = serde_json::from_str(&json).unwrap();
     assert_eq!(original_version, deserialized);
 
     // Test version conflict serialization
     let conflict = VersionConflict::new(
-        ScimVersion::from_hash("version-v1"),
-        ScimVersion::from_hash("version-v2"),
+        RawVersion::from_hash("version-v1"),
+        RawVersion::from_hash("version-v2"),
         "Serialization test conflict",
     );
 
@@ -228,7 +493,7 @@ async fn test_concurrent_version_scenarios() {
     // Simulate a simple in-memory store with version tracking
     #[derive(Clone)]
     struct VersionedResource {
-        version: ScimVersion,
+        version: RawVersion,
     }
 
     let store: Arc<Mutex<HashMap<String, VersionedResource>>> =
@@ -236,7 +501,7 @@ async fn test_concurrent_version_scenarios() {
 
     // Initial resource creation
     let initial_data = json!({"id": "test-123", "userName": "initial"});
-    let initial_version = ScimVersion::from_content(initial_data.to_string().as_bytes());
+    let initial_version = RawVersion::from_content(initial_data.to_string().as_bytes());
 
     {
         let mut store_guard = store.lock().await;
@@ -255,8 +520,8 @@ async fn test_concurrent_version_scenarios() {
     let update_result = {
         let mut store_guard = store.lock().await;
         if let Some(resource) = store_guard.get("test-123") {
-            if resource.version.matches(&expected_version) {
-                let new_version = ScimVersion::from_content(update_data.to_string().as_bytes());
+            if resource.version == expected_version {
+                let new_version = RawVersion::from_content(update_data.to_string().as_bytes());
                 store_guard.insert(
                     "test-123".to_string(),
                     VersionedResource {
@@ -284,7 +549,7 @@ async fn test_concurrent_version_scenarios() {
     let conflict_result = {
         let store_guard = store.lock().await;
         if let Some(resource) = store_guard.get("test-123") {
-            if resource.version.matches(&old_version) {
+            if resource.version == old_version {
                 ConditionalResult::Success(conflict_data.clone())
             } else {
                 ConditionalResult::VersionMismatch(VersionConflict::standard_message(
@@ -320,7 +585,7 @@ async fn test_hash_collision_resistance() {
     ];
 
     for input in test_inputs {
-        let version = ScimVersion::from_content(input);
+        let version = RawVersion::from_content(input);
         assert!(
             versions.insert(version.as_str().to_string()),
             "Hash collision detected for input: {:?}",
@@ -335,44 +600,24 @@ async fn test_hash_collision_resistance() {
 #[tokio::test]
 async fn test_version_edge_cases() {
     // Empty content hash
-    let empty_version = ScimVersion::from_content(b"");
+    let empty_version = RawVersion::from_content(b"");
     assert!(!empty_version.as_str().is_empty());
 
     // Very long content
     let long_content = "a".repeat(1000);
-    let long_version = ScimVersion::from_content(long_content.as_bytes());
+    let long_version = RawVersion::from_content(long_content.as_bytes());
     assert!(!long_version.as_str().is_empty());
 
     // Special characters in hash string
-    let special_version = ScimVersion::from_hash("version-with-special-chars!@#$%^&*()");
-    let etag = special_version.to_http_header();
-    let parsed = ScimVersion::parse_http_header(&etag).unwrap();
+    let special_version = RawVersion::from_hash("version-with-special-chars!@#$%^&*()");
+    let etag = HttpVersion::from(special_version.clone()).to_string();
+    let parsed: HttpVersion = etag.parse().unwrap();
     assert_eq!(special_version, parsed);
 
     // Unicode content
     let unicode_content = "Hello, 世界! 🌍".as_bytes();
-    let unicode_version = ScimVersion::from_content(unicode_content);
+    let unicode_version = RawVersion::from_content(unicode_content);
     assert!(!unicode_version.as_str().is_empty());
-}
-
-/// Test version compatibility across different creation methods
-#[tokio::test]
-async fn test_cross_method_compatibility() {
-    let test_value = "cross-method-test-123";
-
-    // Create version using different methods but same underlying value
-    let hash_version = ScimVersion::from_hash(test_value);
-    let etag_version = ScimVersion::parse_http_header(&format!("\"{}\"", test_value)).unwrap();
-
-    // They should be equivalent
-    assert!(hash_version.matches(&etag_version));
-    assert!(etag_version.matches(&hash_version));
-    assert_eq!(hash_version, etag_version);
-
-    // ETag round-trip should be identical
-    let etag_header = hash_version.to_http_header();
-    let round_trip = ScimVersion::parse_http_header(&etag_header).unwrap();
-    assert_eq!(hash_version, round_trip);
 }
 
 /// Benchmark-style test for version operation performance
@@ -386,7 +631,7 @@ async fn test_version_performance_characteristics() {
     let start = Instant::now();
     for i in 0..iterations {
         let content = format!("test-content-{}", i);
-        let _version = ScimVersion::from_content(content.as_bytes());
+        let _version = RawVersion::from_content(content.as_bytes());
     }
     let content_duration = start.elapsed();
 
@@ -394,7 +639,7 @@ async fn test_version_performance_characteristics() {
     let start = Instant::now();
     for i in 0..iterations {
         let hash = format!("hash-{}", i);
-        let _version = ScimVersion::from_hash(&hash);
+        let _version = RawVersion::from_hash(&hash);
     }
     let hash_duration = start.elapsed();
 
@@ -402,7 +647,7 @@ async fn test_version_performance_characteristics() {
     let start = Instant::now();
     for i in 0..iterations {
         let etag = format!("\"etag-value-{}\"", i);
-        let _version = ScimVersion::parse_http_header(&etag).unwrap();
+        let _version: HttpVersion = etag.parse().unwrap();
     }
     let parse_duration = start.elapsed();
 

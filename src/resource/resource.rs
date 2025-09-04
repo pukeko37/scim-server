@@ -9,7 +9,7 @@ use crate::resource::value_objects::{
     Address, EmailAddress, ExternalId, GroupMembers, Meta, MultiValuedAddresses, MultiValuedEmails,
     MultiValuedPhoneNumbers, Name, PhoneNumber, ResourceId, SchemaUri, UserName,
 };
-use crate::resource::version::ScimVersion;
+use crate::resource::version::RawVersion;
 
 use serde_json::{Map, Value};
 
@@ -559,8 +559,8 @@ impl Resource {
         let version = if self.id.is_some() {
             let resource_json = self.to_json().unwrap_or_default();
             let content_bytes = resource_json.to_string().as_bytes().to_vec();
-            let scim_version = ScimVersion::from_content(&content_bytes);
-            Some(scim_version.to_http_header())
+            let scim_version = RawVersion::from_content(&content_bytes);
+            Some(scim_version.as_str().to_string())
         } else {
             None
         };

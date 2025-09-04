@@ -46,12 +46,11 @@ use crate::providers::in_memory::{InMemoryError, InMemoryStats};
 use crate::resource::{
     ListQuery, RequestContext, Resource, ResourceProvider,
     conditional_provider::VersionedResource,
-    version::{ConditionalResult, ScimVersion},
+    version::{ConditionalResult, RawVersion},
 };
 use crate::storage::{StorageKey, StorageProvider};
 use log::{debug, info, trace, warn};
 use serde_json::{Value, json};
-
 
 /// Standard resource provider with pluggable storage backend.
 ///
@@ -126,8 +125,8 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
             // Generate version from resource content
             let resource_json = resource.to_json().unwrap_or_default();
             let content_bytes = resource_json.to_string().as_bytes().to_vec();
-            let scim_version = ScimVersion::from_content(&content_bytes);
-            let version = scim_version.to_http_header();
+            let scim_version = RawVersion::from_content(&content_bytes);
+            let version = scim_version.as_str().to_string();
 
             if let Ok(meta_with_version) = meta.with_version(version) {
                 resource.set_meta(meta_with_version);
@@ -220,7 +219,11 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
     pub async fn get_stats(&self) -> InMemoryStats {
         // Dynamically discover all tenants and resource types from storage
         let tenants = self.storage.list_tenants().await.unwrap_or_default();
-        let resource_types = self.storage.list_all_resource_types().await.unwrap_or_default();
+        let resource_types = self
+            .storage
+            .list_all_resource_types()
+            .await
+            .unwrap_or_default();
 
         let mut total_resources = 0;
 
@@ -720,22 +723,32 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
                 match self.storage.get(key).await {
                     Ok(Some(current_data)) => {
                         // Parse current resource to get version
-                        let current_resource = Resource::from_json(resource_type.to_string(), current_data)
-                            .map_err(|e| InMemoryError::InvalidData {
-                                message: format!("Failed to deserialize current resource: {}", e),
-                            })?;
+                        let current_resource = Resource::from_json(
+                            resource_type.to_string(),
+                            current_data,
+                        )
+                        .map_err(|e| InMemoryError::InvalidData {
+                            message: format!("Failed to deserialize current resource: {}", e),
+                        })?;
 
                         // Get current resource version for comparison
-                        if let Some(current_version) = current_resource.get_meta().and_then(|m| m.version.as_ref()) {
+                        if let Some(current_version) =
+                            current_resource.get_meta().and_then(|m| m.version.as_ref())
+                        {
                             let current_etag = current_version.as_str();
                             // Compare the provided ETag with current version
                             // Remove W/ prefix if present for comparison
-                            let normalized_current = current_etag.trim_start_matches("W/").trim_matches('"');
-                            let normalized_provided = etag_str.trim_start_matches("W/").trim_matches('"');
+                            let normalized_current =
+                                current_etag.trim_start_matches("W/").trim_matches('"');
+                            let normalized_provided =
+                                etag_str.trim_start_matches("W/").trim_matches('"');
 
                             if normalized_current != normalized_provided {
                                 return Err(InMemoryError::PreconditionFailed {
-                                    message: format!("ETag mismatch. Expected '{}', got '{}'", normalized_current, normalized_provided),
+                                    message: format!(
+                                        "ETag mismatch. Expected '{}', got '{}'",
+                                        normalized_current, normalized_provided
+                                    ),
                                 });
                             }
                         }
@@ -782,7 +795,7 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
                 }
 
                 // Update version
-                let new_version = ScimVersion::from_content(
+                let new_version = RawVersion::from_content(
                     serde_json::to_string(&current_data).unwrap().as_bytes(),
                 );
                 if let Some(obj) = current_data.as_object_mut() {
@@ -850,7 +863,6 @@ impl<S: StorageProvider> ResourceProvider for StandardResourceProvider<S> {
             }),
         }
     }
-
 }
 
 impl<S: StorageProvider> StandardResourceProvider<S> {
@@ -864,7 +876,13 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
             "meta.location" => true,
             "id" => true,
             // Complex attribute readonly subattributes
-            path if path.starts_with("meta.") && (path.ends_with(".created") || path.ends_with(".resourcetype") || path.ends_with(".location")) => true,
+            path if path.starts_with("meta.")
+                && (path.ends_with(".created")
+                    || path.ends_with(".resourcetype")
+                    || path.ends_with(".location")) =>
+            {
+                true
+            }
             _ => false,
         }
     }
@@ -1102,7 +1120,9 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
                 }
                 // Check for malformed filter syntax - must have closing bracket
                 let remaining = &actual_path[bracket_start..];
-                if !remaining.ends_with(']') || remaining.matches('[').count() != remaining.matches(']').count() {
+                if !remaining.ends_with(']')
+                    || remaining.matches('[').count() != remaining.matches(']').count()
+                {
                     return false;
                 }
                 return true;
@@ -1121,10 +1141,21 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         if parts.len() > 1 {
             // For now, allow common sub-attributes for known complex types
             if parts[0] == "name" {
-                return matches!(parts[1], "formatted" | "familyName" | "givenName" | "middleName" | "honorificPrefix" | "honorificSuffix");
+                return matches!(
+                    parts[1],
+                    "formatted"
+                        | "familyName"
+                        | "givenName"
+                        | "middleName"
+                        | "honorificPrefix"
+                        | "honorificSuffix"
+                );
             }
             if parts[0] == "meta" {
-                return matches!(parts[1], "resourceType" | "created" | "lastModified" | "location" | "version");
+                return matches!(
+                    parts[1],
+                    "resourceType" | "created" | "lastModified" | "location" | "version"
+                );
             }
             // For other complex attributes, we'll be permissive for now
             // In a full implementation, this would check against schema definitions
@@ -1137,26 +1168,47 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
     fn is_valid_simple_path(&self, attribute: &str) -> bool {
         // Standard SCIM User attributes
         let user_attributes = [
-            "id", "externalId", "userName", "name", "displayName", "nickName", "profileUrl",
-            "title", "userType", "preferredLanguage", "locale", "timezone", "active",
-            "password", "emails", "phoneNumbers", "addresses", "groups", "entitlements",
-            "roles", "x509Certificates", "meta"
+            "id",
+            "externalId",
+            "userName",
+            "name",
+            "displayName",
+            "nickName",
+            "profileUrl",
+            "title",
+            "userType",
+            "preferredLanguage",
+            "locale",
+            "timezone",
+            "active",
+            "password",
+            "emails",
+            "phoneNumbers",
+            "addresses",
+            "groups",
+            "entitlements",
+            "roles",
+            "x509Certificates",
+            "meta",
         ];
 
         // Standard SCIM Group attributes
-        let group_attributes = [
-            "id", "externalId", "displayName", "members", "meta"
-        ];
+        let group_attributes = ["id", "externalId", "displayName", "members", "meta"];
 
         // Enterprise extension attributes
         let enterprise_attributes = [
-            "employeeNumber", "costCenter", "organization", "division", "department", "manager"
+            "employeeNumber",
+            "costCenter",
+            "organization",
+            "division",
+            "department",
+            "manager",
         ];
 
         // Check against known attributes
-        user_attributes.contains(&attribute) ||
-        group_attributes.contains(&attribute) ||
-        enterprise_attributes.contains(&attribute)
+        user_attributes.contains(&attribute)
+            || group_attributes.contains(&attribute)
+            || enterprise_attributes.contains(&attribute)
     }
 }
 
@@ -1167,7 +1219,7 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         resource_type: &str,
         id: &str,
         data: Value,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> Result<ConditionalResult<VersionedResource>, InMemoryError> {
         let tenant_id = self.effective_tenant_id(context);
@@ -1188,6 +1240,7 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
                 let current_version = VersionedResource::new(current_resource.clone())
                     .version()
                     .clone();
+
                 if &current_version != expected_version {
                     use crate::resource::version::VersionConflict;
                     return Ok(ConditionalResult::VersionMismatch(VersionConflict::new(
@@ -1245,7 +1298,7 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         &self,
         resource_type: &str,
         id: &str,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> Result<ConditionalResult<()>, InMemoryError> {
         let tenant_id = self.effective_tenant_id(context);
@@ -1298,7 +1351,7 @@ impl<S: StorageProvider> StandardResourceProvider<S> {
         resource_type: &str,
         id: &str,
         patch_request: &Value,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> Result<ConditionalResult<VersionedResource>, InMemoryError> {
         let tenant_id = self.effective_tenant_id(context);

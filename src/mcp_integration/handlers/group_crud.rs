@@ -1,8 +1,8 @@
-//! User CRUD operation handlers for MCP integration
+//! Group CRUD operation handlers for MCP integration
 //!
-//! This module contains the implementation of all user Create, Read, Update, Delete
+//! This module contains the implementation of all group Create, Read, Update, Delete
 //! operations exposed through the MCP protocol. These handlers provide the business
-//! logic for user lifecycle management with proper error handling, tenant isolation,
+//! logic for group lifecycle management with proper error handling, tenant isolation,
 //! and version-based concurrency control.
 
 use crate::{
@@ -15,29 +15,29 @@ use crate::{
 };
 use serde_json::{Value, json};
 
-/// Handle user creation through MCP
+/// Handle group creation through MCP
 ///
-/// Creates a new user resource with tenant isolation and versioning support.
-/// Returns the created user with version metadata for subsequent operations.
+/// Creates a new group resource with tenant isolation and versioning support.
+/// Returns the created group with version metadata for subsequent operations.
 ///
 /// # Errors
 ///
 /// Returns error result if:
-/// - Required user_data parameter is missing
-/// - User data fails SCIM schema validation
-/// - userName already exists (duplicate user)
+/// - Required group_data parameter is missing
+/// - Group data fails SCIM schema validation
+/// - displayName already exists (duplicate group)
 /// - Tenant permissions are insufficient
 /// - Internal server error during creation
-pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
+pub async fn handle_create_group<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
 ) -> ScimToolResult {
-    let user_data = match arguments.get("user_data") {
+    let group_data = match arguments.get("group_data") {
         Some(data) => data.clone(),
         None => {
             return ScimToolResult {
                 success: false,
-                content: json!({"error": "Missing user_data parameter"}),
+                content: json!({"error": "Missing group_data parameter"}),
                 metadata: None,
             };
         }
@@ -48,7 +48,7 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
         .and_then(|t| t.as_str())
         .map(|id| TenantContext::new(id.to_string(), "mcp-client".to_string()));
 
-    let mut request = ScimOperationRequest::create("User".to_string(), user_data);
+    let mut request = ScimOperationRequest::create("Group".to_string(), group_data);
     if let Some(tenant) = tenant_context {
         request = request.with_tenant(tenant);
     }
@@ -62,8 +62,8 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
 
         // Include version information in response for AI agent to use in subsequent operations
         let mut metadata = json!({
-            "operation": "create_user",
-            "resource_type": "User",
+            "operation": "create_group",
+            "resource_type": "Group",
             "resource_id": response.metadata.resource_id
         });
 
@@ -83,35 +83,35 @@ pub async fn handle_create_user<P: ResourceProvider + Send + Sync + 'static>(
             success: false,
             content: json!({
                 "error": response.error.unwrap_or_else(|| "Create failed".to_string()),
-                "error_code": "CREATE_USER_FAILED"
+                "error_code": "CREATE_GROUP_FAILED"
             }),
             metadata: None,
         }
     }
 }
 
-/// Handle user retrieval through MCP
+/// Handle group retrieval through MCP
 ///
-/// Retrieves a user by ID with tenant isolation and includes version information
+/// Retrieves a group by ID with tenant isolation and includes version information
 /// for subsequent conditional operations.
 ///
 /// # Errors
 ///
 /// Returns error result if:
-/// - Required user_id parameter is missing
-/// - User with specified ID does not exist
+/// - Required group_id parameter is missing
+/// - Group with specified ID does not exist
 /// - Tenant permissions are insufficient
 /// - Internal server error during retrieval
-pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
+pub async fn handle_get_group<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
 ) -> ScimToolResult {
-    let user_id = match arguments.get("user_id").and_then(|id| id.as_str()) {
+    let group_id = match arguments.get("group_id").and_then(|id| id.as_str()) {
         Some(id) => id,
         None => {
             return ScimToolResult {
                 success: false,
-                content: json!({"error": "Missing user_id parameter"}),
+                content: json!({"error": "Missing group_id parameter"}),
                 metadata: None,
             };
         }
@@ -122,7 +122,7 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
         .and_then(|t| t.as_str())
         .map(|id| TenantContext::new(id.to_string(), "mcp-client".to_string()));
 
-    let mut request = ScimOperationRequest::get("User".to_string(), user_id.to_string());
+    let mut request = ScimOperationRequest::get("Group".to_string(), group_id.to_string());
     if let Some(tenant) = tenant_context {
         request = request.with_tenant(tenant);
     }
@@ -135,9 +135,9 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
             .unwrap_or_else(|| json!({"status": "retrieved"}));
 
         let mut metadata = json!({
-            "operation": "get_user",
-            "resource_type": "User",
-            "resource_id": user_id
+            "operation": "get_group",
+            "resource_type": "Group",
+            "resource_id": group_id
         });
 
         // Include version information for AI to use in conditional operations
@@ -155,56 +155,56 @@ pub async fn handle_get_user<P: ResourceProvider + Send + Sync + 'static>(
     } else {
         let error_msg = response
             .error
-            .unwrap_or_else(|| "User not found".to_string());
+            .unwrap_or_else(|| "Group not found".to_string());
         ScimToolResult {
             success: false,
             content: json!({
                 "error": error_msg,
-                "error_code": if error_msg.contains("not found") { "USER_NOT_FOUND" } else { "GET_USER_FAILED" },
-                "user_id": user_id
+                "error_code": if error_msg.contains("not found") { "GROUP_NOT_FOUND" } else { "GET_GROUP_FAILED" },
+                "group_id": group_id
             }),
             metadata: Some(json!({
-                "operation": "get_user",
-                "resource_id": user_id
+                "operation": "get_group",
+                "resource_id": group_id
             })),
         }
     }
 }
 
-/// Handle user update through MCP
+/// Handle group update through MCP
 ///
-/// Updates an existing user with optional version-based conditional update.
+/// Updates an existing group with optional version-based conditional update.
 /// Supports optimistic concurrency control to prevent lost updates.
 ///
 /// # Errors
 ///
 /// Returns error result if:
-/// - Required user_id or user_data parameters are missing
-/// - User with specified ID does not exist
+/// - Required group_id or group_data parameters are missing
+/// - Group with specified ID does not exist
 /// - Version conflict (if expected_version provided)
-/// - User data fails SCIM schema validation
+/// - Group data fails SCIM schema validation
 /// - Tenant permissions are insufficient
-pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
+pub async fn handle_update_group<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
 ) -> ScimToolResult {
-    let user_id = match arguments.get("user_id").and_then(|id| id.as_str()) {
+    let group_id = match arguments.get("group_id").and_then(|id| id.as_str()) {
         Some(id) => id,
         None => {
             return ScimToolResult {
                 success: false,
-                content: json!({"error": "Missing user_id parameter"}),
+                content: json!({"error": "Missing group_id parameter"}),
                 metadata: None,
             };
         }
     };
 
-    let user_data = match arguments.get("user_data") {
+    let group_data = match arguments.get("group_data") {
         Some(data) => data.clone(),
         None => {
             return ScimToolResult {
                 success: false,
-                content: json!({"error": "Missing user_data parameter"}),
+                content: json!({"error": "Missing group_data parameter"}),
                 metadata: None,
             };
         }
@@ -216,7 +216,7 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
         .map(|id| TenantContext::new(id.to_string(), "mcp-client".to_string()));
 
     let mut request =
-        ScimOperationRequest::update("User".to_string(), user_id.to_string(), user_data);
+        ScimOperationRequest::update("Group".to_string(), group_id.to_string(), group_data);
     if let Some(tenant) = tenant_context {
         request = request.with_tenant(tenant);
     }
@@ -252,9 +252,9 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
             .unwrap_or_else(|| json!({"status": "updated"}));
 
         let mut metadata = json!({
-            "operation": "update_user",
-            "resource_type": "User",
-            "resource_id": user_id
+            "operation": "update_group",
+            "resource_type": "Group",
+            "resource_id": group_id
         });
 
         // Include updated version information
@@ -278,9 +278,9 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
         {
             "VERSION_MISMATCH"
         } else if error_msg.contains("not found") {
-            "USER_NOT_FOUND"
+            "GROUP_NOT_FOUND"
         } else {
-            "UPDATE_USER_FAILED"
+            "UPDATE_GROUP_FAILED"
         };
 
         ScimToolResult {
@@ -288,40 +288,40 @@ pub async fn handle_update_user<P: ResourceProvider + Send + Sync + 'static>(
             content: json!({
                 "error": error_msg,
                 "error_code": error_code,
-                "user_id": user_id
+                "group_id": group_id
             }),
             metadata: Some(json!({
-                "operation": "update_user",
-                "resource_id": user_id,
+                "operation": "update_group",
+                "resource_id": group_id,
                 "conditional_update": arguments.get("expected_version").is_some()
             })),
         }
     }
 }
 
-/// Handle user deletion through MCP
+/// Handle group deletion through MCP
 ///
-/// Deletes a user with optional version-based conditional delete.
+/// Deletes a group with optional version-based conditional delete.
 /// Supports optimistic concurrency control to prevent accidental deletion of modified resources.
 ///
 /// # Errors
 ///
 /// Returns error result if:
-/// - Required user_id parameter is missing
-/// - User with specified ID does not exist
+/// - Required group_id parameter is missing
+/// - Group with specified ID does not exist
 /// - Version conflict (if expected_version provided)
 /// - Tenant permissions are insufficient
 /// - Internal server error during deletion
-pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
+pub async fn handle_delete_group<P: ResourceProvider + Send + Sync + 'static>(
     server: &ScimMcpServer<P>,
     arguments: Value,
 ) -> ScimToolResult {
-    let user_id = match arguments.get("user_id").and_then(|id| id.as_str()) {
+    let group_id = match arguments.get("group_id").and_then(|id| id.as_str()) {
         Some(id) => id,
         None => {
             return ScimToolResult {
                 success: false,
-                content: json!({"error": "Missing user_id parameter"}),
+                content: json!({"error": "Missing group_id parameter"}),
                 metadata: None,
             };
         }
@@ -332,7 +332,7 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
         .and_then(|t| t.as_str())
         .map(|id| TenantContext::new(id.to_string(), "mcp-client".to_string()));
 
-    let mut request = ScimOperationRequest::delete("User".to_string(), user_id.to_string());
+    let mut request = ScimOperationRequest::delete("Group".to_string(), group_id.to_string());
     if let Some(tenant) = tenant_context {
         request = request.with_tenant(tenant);
     }
@@ -365,11 +365,11 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
     if response.success {
         ScimToolResult {
             success: true,
-            content: json!({"status": "deleted", "user_id": user_id}),
+            content: json!({"status": "deleted", "group_id": group_id}),
             metadata: Some(json!({
-                "operation": "delete_user",
-                "resource_type": "User",
-                "resource_id": user_id,
+                "operation": "delete_group",
+                "resource_type": "Group",
+                "resource_id": group_id,
                 "conditional_delete": arguments.get("expected_version").is_some()
             })),
         }
@@ -382,9 +382,9 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
         {
             "VERSION_MISMATCH"
         } else if error_msg.contains("not found") {
-            "USER_NOT_FOUND"
+            "GROUP_NOT_FOUND"
         } else {
-            "DELETE_USER_FAILED"
+            "DELETE_GROUP_FAILED"
         };
 
         ScimToolResult {
@@ -392,11 +392,11 @@ pub async fn handle_delete_user<P: ResourceProvider + Send + Sync + 'static>(
             content: json!({
                 "error": error_msg,
                 "error_code": error_code,
-                "user_id": user_id
+                "group_id": group_id
             }),
             metadata: Some(json!({
-                "operation": "delete_user",
-                "resource_id": user_id,
+                "operation": "delete_group",
+                "resource_id": group_id,
                 "conditional_delete": arguments.get("expected_version").is_some()
             })),
         }

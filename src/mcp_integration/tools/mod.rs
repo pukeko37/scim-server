@@ -8,6 +8,7 @@
 //!
 //! Tool schemas are organized by functional area:
 //! - [`user_schemas`] - User lifecycle and query operations
+//! - [`group_schemas`] - Group lifecycle and query operations
 //! - [`system_schemas`] - Server introspection and metadata operations
 //!
 //! Each schema defines:
@@ -23,9 +24,11 @@
 //! when the MCP server initializes and provide the foundation for AI agent
 //! tool discovery and execution.
 
+pub mod group_schemas;
 pub mod system_schemas;
 pub mod user_schemas;
 
 // Re-export commonly used schema functions for convenience
+pub use group_schemas::*;
 pub use system_schemas::*;
 pub use user_schemas::*;

@@ -283,7 +283,7 @@ cargo --version
 <h2 id="adding-the-dependency"><a class="header" href="#adding-the-dependency">Adding the Dependency</a></h2>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "=0.3.11"
+scim-server = "=0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
@@ -339,34 +339,44 @@ cd my-scim-server
 </code></pre>
 <h3 id="2-add-dependencies"><a class="header" href="#2-add-dependencies">2. Add Dependencies</a></h3>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.3.11"
+scim-server = "0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
-<h3 id="3-basic-server-15-lines"><a class="header" href="#3-basic-server-15-lines">3. Basic Server (15 lines)</a></h3>
+<h3 id="3-basic-server-20-lines"><a class="header" href="#3-basic-server-20-lines">3. Basic Server (20 lines)</a></h3>
 <pre><pre class="playground"><code class="language-rust">use scim_server::{
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::create_user_resource_handler,
+    multi_tenant::ScimOperation,
     RequestContext,
 };
 use serde_json::json;
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create storage and provider - the foundation of your SCIM server
-    let storage = InMemoryStorage::new();  // Simple storage for development
-    let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
+    // Create storage, provider, and SCIM server
+    let storage = InMemoryStorage::new();
+    let provider = StandardResourceProvider::new(storage);
+    let mut server = ScimServer::new(provider)?;
 
-    // Create a single-tenant request context - tracks this operation for logging
+    // Register User resource type with schema validation
+    let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+    let user_handler = create_user_resource_handler(user_schema);
+    server.register_resource_type("User", user_handler, vec![ScimOperation::Create])?;
+
+    // Create request context and user data
     let context = RequestContext::new("demo".to_string());
     let user_data = json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "userName": "john.doe",
         "emails": [{"value": "john@example.com", "primary": true}],
         "active": true
     });
 
-    let user = provider.create_resource("User", user_data, &amp;context).await?;
-    println!("Created user: {}", user.get_username().unwrap());
+    let user_json = server.create_resource_with_refs("User", user_data, &amp;context).await?;
+    println!("Created user: {}", user_json["userName"]);
 
     Ok(())
 }</code></pre></pre>
@@ -376,29 +386,45 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </code></pre>
 <h2 id="core-operations"><a class="header" href="#core-operations">Core Operations</a></h2>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
-<p>For the following examples, we'll use this provider and context setup:</p>
+<p>For the following examples, we'll use this server and context setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use scim_server::{
+    ScimServer,
     providers::StandardResourceProvider,
     storage::InMemoryStorage,
+    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
+    multi_tenant::ScimOperation,
     RequestContext,
 };
 use serde_json::json;
 
-// Create storage and provider - the foundation of your SCIM server
-let storage = InMemoryStorage::new();  // Simple storage for development
-let provider = StandardResourceProvider::new(storage);  // Main SCIM interface
+// Create storage, provider, and SCIM server
+let storage = InMemoryStorage::new();
+let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServer::new(provider)?;
+
+// Register User and Group resource types with schema validation
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+let user_handler = create_user_resource_handler(user_schema);
+server.register_resource_type("User", user_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update, ScimOperation::Delete])?;
+
+let group_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")?.clone();
+let group_handler = create_group_resource_handler(group_schema);
+server.register_resource_type("Group", group_handler,
+    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update, ScimOperation::Delete])?;
 
 // Single-tenant RequestContext tracks each operation for logging
 let context = RequestContext::new("demo".to_string());
 <span class="boring">}</span></code></pre></pre>
-<p>All the following examples will use these <code>provider</code> and <code>context</code> variables.</p>
+<p>All the following examples will use these <code>server</code> and <code>context</code> variables.</p>
 <h3 id="creating-resources"><a class="header" href="#creating-resources">Creating Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Use JSON to define user attributes following SCIM 2.0 schema
 let user_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "userName": "alice.smith",
     "name": {
         "givenName": "Alice",
@@ -408,30 +434,29 @@ let user_data = json!({
     "active": true
 });
 
-// Create the user - provider handles validation and storage
-let user = provider.create_resource("User", user_data, &amp;context).await?;
-let user_id = user.get_id().unwrap();  // Get the auto-generated unique ID
+// Create the user - server handles validation, $ref fields, and metadata
+let user_json = server.create_resource_with_refs("User", user_data, &amp;context).await?;
+let user_id = user_json["id"].as_str().unwrap();  // Get the auto-generated unique ID
 <span class="boring">}</span></code></pre></pre>
 <h3 id="reading-resources"><a class="header" href="#reading-resources">Reading Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Get user by ID - returns Option&lt;Resource&gt; (None if not found)
-let retrieved_user = provider.get_resource("User", &amp;user_id, &amp;context).await?;
-
-if let Some(user) = retrieved_user {
-    println!("Found: {}", user.get_username().unwrap());
-}
+</span>// Get user by ID - returns SCIM-compliant JSON with proper $ref fields
+let retrieved_user = server.get_resource("User", &amp;user_id, &amp;context).await?;
+println!("Found: {}", retrieved_user["userName"]);
 
 // Search by specific attribute value - useful for username lookups
-let found_user = provider
-    .find_resource_by_attribute("User", "userName", &amp;json!("alice.smith"), &amp;context)
-    .await?;
+let search_results = server.search_resources("User", "userName", &amp;json!("alice.smith"), &amp;context).await?;
+if !search_results.is_empty() {
+    println!("Search found: {}", search_results[0]["userName"]);
+}
 <span class="boring">}</span></code></pre></pre>
 <h3 id="updating-resources"><a class="header" href="#updating-resources">Updating Resources</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Updates require the full resource data, including the ID
+</span>// Updates require the full resource data, including the ID and schemas
 let update_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "id": user_id,
     "userName": "alice.smith",
     "name": {
@@ -442,34 +467,33 @@ let update_data = json!({
     "active": false  // Deactivated
 });
 
-// Update replaces the entire resource with new data
-let updated_user = provider
-    .update_resource("User", &amp;user_id, update_data, &amp;context)
-    .await?;
+// Update replaces the entire resource with new data, maintains SCIM compliance
+let updated_user = server.update_resource("User", &amp;user_id, update_data, &amp;context).await?;
 <span class="boring">}</span></code></pre></pre>
 <h3 id="listing-and-searching"><a class="header" href="#listing-and-searching">Listing and Searching</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// List all users - None means no pagination/filtering
-let all_users = provider.list_resources("User", None, &amp;context).await?;
+</span>// List all users with proper SCIM compliance
+let all_users = server.list_resources("User", &amp;context).await?;
 println!("Total users: {}", all_users.len());
 
-// Efficiently check existence without retrieving full data
-let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+// Check existence
+let exists = server.resource_exists("User", &amp;user_id, &amp;context).await?;
 println!("User exists: {}", exists);
 <span class="boring">}</span></code></pre></pre>
 <h3 id="validation-and-error-handling"><a class="header" href="#validation-and-error-handling">Validation and Error Handling</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// The provider automatically validates data against SCIM schemas
+</span>// The server automatically validates data against SCIM schemas
 let invalid_user = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
     "userName": "",  // Empty username - violates SCIM requirements
     "emails": [{"value": "not-an-email"}],  // Invalid email format
 });
 
 // Always handle validation errors gracefully
-match provider.create_resource("User", invalid_user, &amp;context).await {
-    Ok(user) =&gt; println!("User created: {}", user.get_id().unwrap()),
+match server.create_resource_with_refs("User", invalid_user, &amp;context).await {
+    Ok(user_json) =&gt; println!("User created: {}", user_json["id"]),
     Err(e) =&gt; println!("Validation failed: {}", e),  // Detailed error message
 }
 <span class="boring">}</span></code></pre></pre>
@@ -477,10 +501,10 @@ match provider.create_resource("User", invalid_user, &amp;context).await {
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Delete a resource by ID
-provider.delete_resource("User", &amp;user_id, &amp;context).await?;
+server.delete_resource("User", &amp;user_id, &amp;context).await?;
 
 // Verify deletion
-let exists = provider.resource_exists("User", &amp;user_id, &amp;context).await?;
+let exists = server.resource_exists("User", &amp;user_id, &amp;context).await?;
 println!("User still exists: {}", exists); // Should be false
 <span class="boring">}</span></code></pre></pre>
 <h2 id="working-with-groups"><a class="header" href="#working-with-groups">Working with Groups</a></h2>
@@ -489,31 +513,41 @@ println!("User still exists: {}", exists); // Should be false
 </span>// Groups can contain users as members - useful for access control
 // Create a group (assuming you have a user_id from previous examples)
 let group_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
     "displayName": "Engineering Team",  // Required: human-readable name
     "members": [  // Optional: list of member references
         {
             "value": user_id,  // Reference to the user's ID
-            "$ref": format!("https://example.com/v2/Users/{}", user_id),  // Full URI
             "type": "User"  // Type of the referenced resource
+            // Note: $ref field will be automatically generated by the server
         }
     ]
 });
 
-// Using the context and user_id from previous examples
-// Create group just like users - same provider interface
-let group = provider.create_resource("Group", group_data, &amp;context).await?;
-println!("Created group: {}", group.get_attribute("displayName").unwrap());
+// Create group with full SCIM compliance - server will inject proper $ref fields
+let group_json = server.create_resource_with_refs("Group", group_data, &amp;context).await?;
+println!("Created group: {}", group_json["displayName"]);
+println!("Member $ref: {}", group_json["members"][0]["$ref"]);  // Auto-generated!
 <span class="boring">}</span></code></pre></pre>
 <h2 id="multi-tenant-support"><a class="header" href="#multi-tenant-support">Multi-Tenant Support</a></h2>
 <p>For multi-tenant scenarios, you create explicit tenant contexts instead of using the default single-tenant setup:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Import TenantContext for multi-tenant operations
-use scim_server::resource::TenantContext;
+use scim_server::{ScimServerBuilder, TenantStrategy, multi_tenant::TenantContext};
 
-// Create the same provider as before
+// Create multi-tenant server with proper configuration
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
+let mut server = ScimServerBuilder::new(provider)
+    .with_base_url("https://api.company.com")
+    .with_tenant_strategy(TenantStrategy::PathBased)
+    .build()?;
+
+// Register resource types (same as before)
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+let user_handler = create_user_resource_handler(user_schema);
+server.register_resource_type("User", user_handler, vec![ScimOperation::Create])?;
 
 // Multi-tenant contexts - each gets isolated data space
 let tenant_a = TenantContext::new("company-a".to_string(), "client-123".to_string());
@@ -522,13 +556,18 @@ let tenant_a_context = RequestContext::with_tenant("req-a".to_string(), tenant_a
 let tenant_b = TenantContext::new("company-b".to_string(), "client-456".to_string());
 let tenant_b_context = RequestContext::with_tenant("req-b".to_string(), tenant_b);
 
-// Same provider, different tenants - data is completely isolated
-provider.create_resource("User", user_data.clone(), &amp;tenant_a_context).await?;
-provider.create_resource("User", user_data, &amp;tenant_b_context).await?;
+// Same server, different tenants - data is completely isolated
+let user_data = json!({
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john.doe",
+    "emails": [{"value": "john@company.com", "primary": true}]
+});
+server.create_resource_with_refs("User", user_data.clone(), &amp;tenant_a_context).await?;
+server.create_resource_with_refs("User", user_data, &amp;tenant_b_context).await?;
 
 // Each tenant sees only their own data
-let tenant_a_users = provider.list_resources("User", None, &amp;tenant_a_context).await?;
-let tenant_b_users = provider.list_resources("User", None, &amp;tenant_b_context).await?;
+let tenant_a_users = server.list_resources("User", &amp;tenant_a_context).await?;
+let tenant_b_users = server.list_resources("User", &amp;tenant_b_context).await?;
 
 println!("Company A users: {}", tenant_a_users.len());
 println!("Company B users: {}", tenant_b_users.len());
@@ -536,11 +575,11 @@ println!("Company B users: {}", tenant_b_users.len());
 <h2 id="provider-statistics"><a class="header" href="#provider-statistics">Provider Statistics</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Useful for monitoring and debugging your SCIM server
-let stats = provider.get_stats().await;
-println!("Total tenants: {}", stats.tenant_count);  // Number of active tenants
-println!("Total resources: {}", stats.total_resources);  // Users + Groups + etc.
-println!("Resource types: {:?}", stats.resource_types);  // ["User", "Group", ...]
+</span>// Get server information and capabilities
+let server_info = server.get_server_info();
+println!("Supported resource types: {:?}", server_info.supported_resource_types);
+println!("SCIM version: {}", server_info.scim_version);
+println!("Server capabilities: {:?}", server_info.capabilities);
 <span class="boring">}</span></code></pre></pre>
 <h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
 <ul>
@@ -563,13 +602,16 @@ cargo run --example group_example
 </code></pre>
 <h2 id="key-concepts"><a class="header" href="#key-concepts">Key Concepts</a></h2>
 <ul>
-<li><strong><code>StandardResourceProvider</code></strong> - Main interface for SCIM operations</li>
+<li><strong><code>ScimServer</code></strong> - Main interface providing full SCIM 2.0 compliance</li>
+<li><strong><code>StandardResourceProvider</code></strong> - Storage abstraction layer</li>
 <li><strong><code>InMemoryStorage</code></strong> - Simple storage backend for development</li>
 <li><strong><code>RequestContext</code></strong> - Request tracking and tenant isolation</li>
-<li><strong>Resource Types</strong> - "User", "Group", or custom types</li>
+<li><strong>Resource Handlers</strong> - Schema validation and business logic</li>
+<li><strong>Resource Types</strong> - "User", "Group", or custom types registered with schemas</li>
 <li><strong>JSON Data</strong> - All resource data uses <code>serde_json::Value</code></li>
+<li><strong>Auto-generated Fields</strong> - Server automatically adds <code>$ref</code>, <code>meta.location</code>, and other SCIM compliance fields</li>
 </ul>
-<p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for most SCIM implementations.</p>
+<p>You now have a working SCIM server! The examples above demonstrate all core functionality needed for SCIM 2.0 compliant implementations.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="setting-up-your-mcp-server"><a class="header" href="#setting-up-your-mcp-server">Setting Up Your MCP Server</a></h1>
 <p>This guide shows you how to set up a working Model Context Protocol (MCP) server that exposes your SCIM operations as discoverable tools for AI agents.</p>
 <h2 id="what-is-mcp-integration"><a class="header" href="#what-is-mcp-integration">What is MCP Integration?</a></h2>
@@ -585,7 +627,7 @@ cargo run --example group_example
 <h3 id="1-enable-the-mcp-feature"><a class="header" href="#1-enable-the-mcp-feature">1. Enable the MCP Feature</a></h3>
 <p>Add the MCP feature to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = { version = "0.3.11", features = ["mcp"] }
+scim-server = { version = "0.4.0", features = ["mcp"] }
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 env_logger = "0.10"  # For logging (recommended)
@@ -1567,7 +1609,7 @@ Content-Type: application/scim+json
 </ul>
 <h3 id="etag-and-schema-versioning"><a class="header" href="#etag-and-schema-versioning">ETag and Schema Versioning</a></h3>
 <p>The SCIM protocol uses ETags (entity tags) for optimistic concurrency control, preventing lost updates when multiple clients modify the same resource. Each SCIM resource includes a <code>meta.version</code> field containing an ETag value that changes whenever the resource is modified. Clients use HTTP conditional headers (<code>If-Match</code>, <code>If-None-Match</code>) with these ETags to ensure they're operating on the expected version of a resource.</p>
-<p>For implementation details and practical usage patterns, see the <a href="concepts/./etag-concurrency.html">ETag Concurrency Control</a> chapter and <a href="concepts/./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
+<p>For implementation details and practical usage patterns, see the <a href="concepts/./concurrency.html">Concurrency Control in SCIM Operations</a> chapter and <a href="concepts/./schema-mechanisms.html">Schema Mechanisms in SCIM Server</a>.</p>
 <h2 id="schema-extensibility-patterns"><a class="header" href="#schema-extensibility-patterns">Schema Extensibility Patterns</a></h2>
 <p>The SCIM Server supports several patterns for extending schemas while maintaining interoperability:</p>
 <h3 id="additive-extensions"><a class="header" href="#additive-extensions">Additive Extensions</a></h3>
@@ -1752,6 +1794,108 @@ Content-Type: application/scim+json
 <li><strong>API Reference</strong>: Consult <a href="https://docs.rs/scim-server">API Documentation</a> for detailed interfaces</li>
 </ol>
 <p>These conceptual mechanisms become practical tools through hands-on implementation and real-world usage patterns.</p>
+<p>For understanding how schema versioning enables concurrency control in multi-client scenarios, see <a href="concepts/./concurrency.html">Concurrency Control in SCIM Operations</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="concurrency-control-in-scim-operations"><a class="header" href="#concurrency-control-in-scim-operations">Concurrency Control in SCIM Operations</a></h1>
+<p>SCIM operations often involve multiple clients accessing and modifying the same identity resources simultaneously. Without proper concurrency control, this can lead to data corruption, lost updates, and inconsistent system state. This chapter explores how the SCIM Server library provides automatic concurrency protection through version-based optimistic locking.</p>
+<h2 id="the-concurrency-challenge"><a class="header" href="#the-concurrency-challenge">The Concurrency Challenge</a></h2>
+<p>Consider a common scenario: two HR administrators are simultaneously updating the same user record. Admin A is adding the user to a new department group, while Admin B is updating the user's job title. Without concurrency control, the last update wins—potentially causing one administrator's changes to be silently lost.</p>
+<p>This problem becomes more acute in modern distributed systems where identity data is managed across multiple applications, each making updates through SCIM APIs. Traditional database locking mechanisms are insufficient because SCIM operates over HTTP, where connections are short-lived and stateless.</p>
+<p><strong>The Lost Update Problem</strong>: When multiple clients read a resource, modify it, and write it back, the client that writes last unknowingly overwrites changes made by other clients. This is particularly dangerous for identity data where access rights, group memberships, and security attributes must remain consistent.</p>
+<h2 id="when-concurrency-control-matters"><a class="header" href="#when-concurrency-control-matters">When Concurrency Control Matters</a></h2>
+<p>Understanding when to enable concurrency protection is crucial for system design and performance.</p>
+<h3 id="multi-client-scenarios-concurrency-control-required"><a class="header" href="#multi-client-scenarios-concurrency-control-required">Multi-Client Scenarios (Concurrency Control Required)</a></h3>
+<p><strong>Enterprise Identity Management</strong>: Multiple identity providers (HR systems, Active Directory, Okta) synchronizing user data with your application. Each system may attempt to update user attributes simultaneously based on their internal schedules.</p>
+<p><strong>Administrative Interfaces</strong>: Multiple administrators managing users through web interfaces. Without concurrency control, one administrator can unknowingly overwrite changes made by another, leading to confusion and data loss.</p>
+<p><strong>Automated Provisioning</strong>: Identity lifecycle management systems that automatically create, update, and deactivate users based on business rules. These systems often operate concurrently and need protection against conflicting updates.</p>
+<p><strong>Integration Scenarios</strong>: Applications integrating with multiple identity sources (LDAP, Azure AD, Google Workspace) where changes from different sources may arrive simultaneously.</p>
+<h3 id="single-client-scenarios-concurrency-control-optional"><a class="header" href="#single-client-scenarios-concurrency-control-optional">Single-Client Scenarios (Concurrency Control Optional)</a></h3>
+<p><strong>Dedicated Integration</strong>: A single HR system that is the sole source of truth for user data. Since only one client makes updates, there's no risk of concurrent modification conflicts.</p>
+<p><strong>Batch Processing</strong>: Scheduled data synchronization where updates are processed sequentially by a single system during maintenance windows.</p>
+<p><strong>Development and Testing</strong>: Development environments where only one developer or test suite is making changes.</p>
+<p><strong>Read-Heavy Workloads</strong>: Applications that primarily read identity data with infrequent updates from a single source.</p>
+<h2 id="http-etag-vs-mcp-version-handling"><a class="header" href="#http-etag-vs-mcp-version-handling">HTTP ETag vs MCP Version Handling</a></h2>
+<p>The SCIM Server library supports two distinct version management approaches, each optimized for different integration patterns.</p>
+<h3 id="http-etag-integration"><a class="header" href="#http-etag-integration">HTTP ETag Integration</a></h3>
+<p><strong>Protocol Context</strong>: HTTP ETags are part of the HTTP 1.1 specification (RFC 7232) and provide standard web caching and conditional request mechanisms. They're familiar to web developers and integrate seamlessly with existing HTTP infrastructure.</p>
+<p><strong>Format</strong>: ETags appear as HTTP headers with quoted strings: <code>ETag: W/"abc123def"</code>. The <code>W/</code> prefix indicates a "weak" ETag, meaning it represents semantic equivalence rather than byte-for-byte identity.</p>
+<p><strong>Usage Pattern</strong>: Web applications and REST clients naturally work with ETags through standard HTTP headers:</p>
+<pre><code class="language-http">GET /Users/123
+Response: ETag: W/"v1.2.3"
+
+PUT /Users/123
+If-Match: W/"v1.2.3"
+</code></pre>
+<p><strong>Integration Benefits</strong>: Works automatically with HTTP caches, proxies, and standard web frameworks. No special client-side handling needed—just standard HTTP conditional request headers.</p>
+<h3 id="mcp-version-handling"><a class="header" href="#mcp-version-handling">MCP Version Handling</a></h3>
+<p><strong>Protocol Context</strong>: Model Context Protocol (MCP) operates over JSON-RPC rather than HTTP, making traditional ETags inappropriate. MCP versions use raw string identifiers that are more suitable for programmatic access.</p>
+<p><strong>Format</strong>: Raw version strings without HTTP formatting: <code>"abc123def"</code>. No quotes, no <code>W/</code> prefix, just the opaque version identifier.</p>
+<p><strong>Usage Pattern</strong>: JSON-RPC clients work directly with version strings in request/response payloads:</p>
+<pre><code class="language-json">{
+  "method": "scim_update_user",
+  "params": {
+    "user_data": {...},
+    "expected_version": "abc123def"
+  }
+}
+</code></pre>
+<p><strong>Integration Benefits</strong>: Cleaner for programmatic access, especially in AI agents and automated tools that work with JSON data structures rather than HTTP headers.</p>
+<h2 id="architecture-raw-types-with-format-safety"><a class="header" href="#architecture-raw-types-with-format-safety">Architecture: Raw Types with Format Safety</a></h2>
+<p>The SCIM Server library uses a sophisticated type system to prevent version format confusion while maintaining compatibility with both HTTP and MCP protocols.</p>
+<h3 id="internal-raw-representation"><a class="header" href="#internal-raw-representation">Internal Raw Representation</a></h3>
+<p><strong>Core Concept</strong>: All versions are stored internally as raw, opaque strings. This provides a canonical representation that's independent of the client protocol being used.</p>
+<p><strong>Benefits</strong>: Storage systems, databases, and internal processing logic work with a single, consistent version format. No protocol-specific encoding in your data layer.</p>
+<p><strong>Content-Based Generation</strong>: Versions can be generated from resource content using SHA-256 hashing, ensuring deterministic versioning across different systems and eliminating the need for centralized version counters.</p>
+<h3 id="type-safe-format-conversion"><a class="header" href="#type-safe-format-conversion">Type-Safe Format Conversion</a></h3>
+<p><strong>Phantom Types</strong>: The library uses Rust's phantom type system to distinguish between different version formats at compile time:</p>
+<ul>
+<li><code>RawVersion</code>: Internal canonical format ("abc123def")</li>
+<li><code>HttpVersion</code>: HTTP ETag format ("W/"abc123def"")</li>
+</ul>
+<p><strong>Compile-Time Safety</strong>: The type system prevents accidentally mixing formats. You cannot pass an HTTP ETag where a raw version is expected—the compiler catches these errors before deployment.</p>
+<p><strong>Automatic Conversions</strong>: Standard Rust traits handle conversions between formats:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let raw_version = RawVersion::from_hash("abc123");
+let http_version = HttpVersion::from(raw_version);  // Conversion
+let etag_header = http_version.to_string();        // "W/\"abc123\""
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Cross-Format Equality</strong>: Versions with the same underlying content are equal regardless of format, enabling seamless comparison between HTTP and MCP clients working on the same data.</p>
+<h2 id="implementation-patterns"><a class="header" href="#implementation-patterns">Implementation Patterns</a></h2>
+<h3 id="automatic-version-generation"><a class="header" href="#automatic-version-generation">Automatic Version Generation</a></h3>
+<p><strong>Content-Based Versioning</strong>: The library automatically generates versions from resource content, ensuring that any change to user data results in a new version. This eliminates the need for manual version management in your application code.</p>
+<p><strong>Provider Integration</strong>: Resource providers automatically handle version computation and comparison. Your storage layer works with raw versions, while the protocol handlers manage format conversion transparently.</p>
+<h3 id="conditional-operations"><a class="header" href="#conditional-operations">Conditional Operations</a></h3>
+<p><strong>Built-In Protection</strong>: All update and delete operations include conditional variants that check versions before making changes. This protection is automatic—no additional code required in your business logic.</p>
+<p><strong>Graceful Conflict Handling</strong>: When version mismatches occur, the library provides detailed conflict information including expected vs. current versions and human-readable error messages for client display.</p>
+<p><strong>Flexible Response</strong>: Your application can choose to retry with updated versions, merge changes intelligently, or present conflicts to users for manual resolution.</p>
+<h2 id="best-practices-for-concurrency-design"><a class="header" href="#best-practices-for-concurrency-design">Best Practices for Concurrency Design</a></h2>
+<h3 id="choose-based-on-client-count"><a class="header" href="#choose-based-on-client-count">Choose Based on Client Count</a></h3>
+<p><strong>Single Client</strong>: If your SCIM server serves only one client system, concurrency control adds overhead without benefits. Use simple operations without version checking.</p>
+<p><strong>Multiple Clients</strong>: Enable concurrency control when multiple systems update the same resources. The performance overhead is minimal compared to the data integrity benefits.</p>
+<h3 id="version-management-strategy"><a class="header" href="#version-management-strategy">Version Management Strategy</a></h3>
+<p><strong>Let the Library Handle It</strong>: Use automatic content-based versioning rather than implementing your own version schemes. The library's approach is proven, consistent, and integrates with both HTTP and MCP protocols.</p>
+<p><strong>Store Raw Versions</strong>: Keep the canonical raw version format in your database. Let the protocol handlers convert to appropriate formats (ETag headers or JSON fields) as needed.</p>
+<h3 id="error-handling-design"><a class="header" href="#error-handling-design">Error Handling Design</a></h3>
+<p><strong>Expect Version Conflicts</strong>: Design your client applications to handle version mismatch errors gracefully. Provide clear user feedback and options for conflict resolution.</p>
+<p><strong>Implement Retry Logic</strong>: For automated systems, implement exponential backoff retry with fresh version retrieval when conflicts occur.</p>
+<h2 id="integration-with-modern-identity-systems"><a class="header" href="#integration-with-modern-identity-systems">Integration with Modern Identity Systems</a></h2>
+<h3 id="cloud-identity-providers"><a class="header" href="#cloud-identity-providers">Cloud Identity Providers</a></h3>
+<p><strong>Multi-Provider Scenarios</strong>: Modern enterprises often integrate multiple identity providers (Azure AD, Okta, Google Workspace) with SCIM endpoints. Concurrency control prevents conflicts when these systems synchronize user data simultaneously.</p>
+<p><strong>Eventual Consistency</strong>: Concurrency control provides immediate consistency for SCIM operations while allowing eventual consistency patterns in your broader identity architecture.</p>
+<h3 id="ai-and-automation"><a class="header" href="#ai-and-automation">AI and Automation</a></h3>
+<p><strong>AI Agent Integration</strong>: AI systems making identity management decisions benefit from MCP version handling, which provides cleaner programmatic access compared to HTTP header parsing.</p>
+<p><strong>Automated Compliance</strong>: Compliance systems that automatically update user attributes based on policy changes need concurrency protection to avoid overwriting simultaneous manual administrative changes.</p>
+<h2 id="performance-considerations-1"><a class="header" href="#performance-considerations-1">Performance Considerations</a></h2>
+<h3 id="minimal-overhead"><a class="header" href="#minimal-overhead">Minimal Overhead</a></h3>
+<p><strong>Lightweight Versioning</strong>: Version computation uses SHA-256 hashing of JSON content, which is fast and deterministic. The performance impact is negligible compared to database operations.</p>
+<p><strong>No Database Locking</strong>: Optimistic concurrency control avoids database locks, maintaining high throughput for read operations and simple updates.</p>
+<h3 id="scalability-benefits"><a class="header" href="#scalability-benefits">Scalability Benefits</a></h3>
+<p><strong>Horizontal Scaling</strong>: Version-based concurrency control works across multiple server instances without coordination, enabling horizontal scaling of SCIM endpoints.</p>
+<p><strong>Caching Compatibility</strong>: HTTP ETag integration works seamlessly with web caches and CDNs, potentially reducing server load for read-heavy workloads.</p>
+<h2 id="conclusion-2"><a class="header" href="#conclusion-2">Conclusion</a></h2>
+<p>Concurrency control in SCIM operations provides essential data integrity protection for multi-client scenarios while remaining optional for simple single-client integrations. The SCIM Server library's version-based approach offers automatic protection with minimal performance overhead, type-safe format handling, and seamless integration with both HTTP and MCP protocols.</p>
+<p>By understanding when concurrency control is needed and how the library's type-safe architecture prevents common version handling errors, you can build robust identity management systems that maintain data consistency even under concurrent access patterns.</p>
+<p>The key insight is matching your concurrency strategy to your integration pattern: use the protection when you need it, skip it when you don't, and let the library handle the complex details of version management and format conversion automatically.</p>
 
                     </main>
 

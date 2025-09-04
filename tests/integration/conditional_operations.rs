@@ -73,7 +73,7 @@ async fn test_conditional_operations_prevent_data_loss() {
     );
 
     let new_version = updated_user.version().clone();
-    assert!(!new_version.matches(&initial_version)); // Version should have changed
+    assert!(new_version != initial_version); // Version should have changed
 
     // === Test: Admin B tries to update with stale version ===
     let result_b = provider
@@ -282,7 +282,7 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
     match delete_result {
         ConditionalResult::VersionMismatch(conflict) => {
             assert_eq!(conflict.expected, version_1);
-            assert!(conflict.current.matches(updated_user.version()));
+            assert!(conflict.current == *updated_user.version());
         }
         _ => panic!("Delete should have failed with version mismatch"),
     }

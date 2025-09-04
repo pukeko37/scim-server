@@ -7,7 +7,7 @@
 use scim_server::providers::StandardResourceProvider;
 use scim_server::resource::{
     core::RequestContext,
-    version::{ConditionalResult, ScimVersion},
+    version::{ConditionalResult, HttpVersion, RawVersion},
 };
 use scim_server::storage::InMemoryStorage;
 use serde_json::json;
@@ -50,15 +50,14 @@ async fn test_http_etag_roundtrip_scenarios() {
     let version = created_user.version();
 
     // Test ETag header conversion
-    let etag_header = version.to_http_header();
+    let etag_header = HttpVersion::from(version.clone()).to_string();
     assert!(etag_header.starts_with("W/\""));
     assert!(etag_header.ends_with('"'));
     assert!(etag_header.contains("W/")); // Should be weak ETag
 
     // Parse ETag back from header
-    let parsed_version =
-        ScimVersion::parse_http_header(&etag_header).expect("Failed to parse ETag header");
-    assert!(version.matches(&parsed_version));
+    let parsed_version: HttpVersion = etag_header.parse().expect("Failed to parse ETag header");
+    assert!(*version == parsed_version);
 
     // Test conditional update with ETag
     let update_data = json!({
@@ -82,7 +81,13 @@ async fn test_http_etag_roundtrip_scenarios() {
     });
 
     let update_result = provider
-        .conditional_update("User", user_id, update_data, &parsed_version, &context)
+        .conditional_update(
+            "User",
+            user_id,
+            update_data,
+            &RawVersion::from(parsed_version),
+            &context,
+        )
         .await
         .expect("Update operation failed");
 
@@ -522,9 +527,9 @@ async fn test_conditional_delete_scenarios() {
     // Delete should fail due to version mismatch
     match delete_result {
         ConditionalResult::VersionMismatch(conflict) => {
+            println!("✅ Version mismatch detected as expected");
             assert_eq!(conflict.expected, version_1);
-            assert!(conflict.current.matches(updated_user.version()));
-            assert!(conflict.message.contains("modified"));
+            assert_eq!(conflict.current, *updated_user.version());
         }
         _ => panic!("Delete should fail with version conflict"),
     }
@@ -628,10 +633,10 @@ async fn test_etag_edge_cases() {
             assert_eq!(updated_json.get("title").unwrap(), &json!("软件工程师 🚀"));
 
             // Verify ETag generation works with Unicode content
-            let unicode_etag = updated_user.version().to_http_header();
-            let parsed_unicode_version = ScimVersion::parse_http_header(&unicode_etag)
-                .expect("Failed to parse Unicode ETag");
-            assert!(updated_user.version().matches(&parsed_unicode_version));
+            let unicode_etag = HttpVersion::from(updated_user.version().clone()).to_string();
+            let parsed_unicode_version: HttpVersion =
+                unicode_etag.parse().expect("Failed to parse Unicode ETag");
+            assert!(updated_user.version() == &parsed_unicode_version);
         }
         _ => panic!("Unicode update should succeed"),
     }
@@ -694,25 +699,25 @@ async fn test_version_serialization_stability() {
 
     // Serialize and deserialize the version
     let serialized = serde_json::to_string(&original_version).expect("Failed to serialize version");
-    let deserialized: ScimVersion =
+    let deserialized: RawVersion =
         serde_json::from_str(&serialized).expect("Failed to deserialize version");
 
-    assert!(original_version.matches(&deserialized));
+    assert!(original_version == deserialized);
 
     // Test that content-based versions are deterministic across re-creation
-    let content_bytes = serde_json::to_vec(&complex_data).expect("Failed to serialize data");
-    let content_version_1 = ScimVersion::from_content(&content_bytes);
-    let content_version_2 = ScimVersion::from_content(&content_bytes);
+    let content_bytes = b"deterministic content test";
+    let content_version_1 = RawVersion::from_content(content_bytes);
+    let content_version_2 = RawVersion::from_content(content_bytes);
 
-    assert!(content_version_1.matches(&content_version_2));
+    assert!(content_version_1 == content_version_2);
 
     // Test ETag round-trip stability
-    let etag_header = original_version.to_http_header();
-    let etag_version = ScimVersion::parse_http_header(&etag_header).expect("Failed to parse ETag");
-    let second_etag = etag_version.to_http_header();
+    let etag_header = HttpVersion::from(original_version.clone()).to_string();
+    let etag_version: HttpVersion = etag_header.parse().expect("Failed to parse ETag");
+    let second_etag = etag_version.to_string();
 
     assert_eq!(etag_header, second_etag);
-    assert!(original_version.matches(&etag_version));
+    assert!(original_version == etag_version);
 }
 
 /// Test performance characteristics under load

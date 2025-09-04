@@ -16,7 +16,7 @@
 //! ```rust
 //! use scim_server::resource::{
 //!     enhanced_provider::{EnhancedResourceProvider, VersionedResource},
-//!     version::{ScimVersion, ConditionalResult},
+//!     version::{RawVersion, ConditionalResult},
 //!     core::RequestContext,
 //! };
 //! use serde_json::json;
@@ -67,74 +67,13 @@
 //! ```
 
 use super::{
+    conditional_provider::VersionedResource,
     core::{ListQuery, RequestContext, Resource},
-    version::{ConditionalResult, ScimVersion, VersionConflict},
+    version::{ConditionalResult, RawVersion, VersionConflict},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::future::Future;
-
-/// A resource with its associated version information.
-///
-/// This is the primary resource type returned by all provider operations.
-/// It combines a SCIM resource with its current version for concurrency control.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VersionedResource {
-    /// The SCIM resource data
-    resource: Resource,
-    /// The version computed from the resource content
-    version: ScimVersion,
-}
-
-impl VersionedResource {
-    /// Create a new versioned resource with auto-computed version.
-    pub fn new(resource: Resource) -> Self {
-        let version = Self::compute_version(&resource);
-        Self { resource, version }
-    }
-
-    /// Create a versioned resource with a specific version.
-    pub fn with_version(resource: Resource, version: ScimVersion) -> Self {
-        Self { resource, version }
-    }
-
-    /// Get the resource data.
-    pub fn resource(&self) -> &Resource {
-        &self.resource
-    }
-
-    /// Get the resource version.
-    pub fn version(&self) -> &ScimVersion {
-        &self.version
-    }
-
-    /// Convert into the underlying resource, discarding version information.
-    pub fn into_resource(self) -> Resource {
-        self.resource
-    }
-
-    /// Update the resource content and recompute the version.
-    pub fn update_resource(&mut self, new_resource: Resource) {
-        self.version = Self::compute_version(&new_resource);
-        self.resource = new_resource;
-    }
-
-    /// Check if this resource's version matches the expected version.
-    pub fn version_matches(&self, expected: &ScimVersion) -> bool {
-        self.version.matches(expected)
-    }
-
-    /// Refresh the version based on current resource content.
-    pub fn refresh_version(&mut self) {
-        self.version = Self::compute_version(&self.resource);
-    }
-
-    /// Compute version from resource content.
-    fn compute_version(resource: &Resource) -> ScimVersion {
-        let json_bytes = resource.to_json().unwrap().to_string().into_bytes();
-        ScimVersion::from_content(&json_bytes)
-    }
-}
 
 /// Enhanced resource provider with built-in version support.
 ///
@@ -209,7 +148,7 @@ pub trait EnhancedResourceProvider {
         resource_type: &str,
         id: &str,
         data: Value,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> impl Future<Output = Result<ConditionalResult<VersionedResource>, Self::Error>> + Send;
 
@@ -232,7 +171,7 @@ pub trait EnhancedResourceProvider {
         &self,
         resource_type: &str,
         id: &str,
-        expected_version: &ScimVersion,
+        expected_version: &RawVersion,
         context: &RequestContext,
     ) -> impl Future<Output = Result<ConditionalResult<()>, Self::Error>> + Send;
 
@@ -497,7 +436,7 @@ mod tests {
 
         let versioned = VersionedResource::new(resource);
         let version_copy = versioned.version().clone();
-        let different_version = ScimVersion::from_hash("different");
+        let different_version = RawVersion::from_hash("different");
 
         assert!(versioned.version_matches(&version_copy));
         assert!(!versioned.version_matches(&different_version));
