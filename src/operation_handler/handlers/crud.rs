@@ -12,11 +12,7 @@ use crate::{
         },
         create_version_conflict_response,
     },
-    resource::{
-        RequestContext,
-        conditional_provider::VersionedResource,
-        version::{ConditionalResult, HttpVersion},
-    },
+    resource::{RequestContext, version::HttpVersion, versioned::VersionedResource},
 };
 use std::collections::HashMap;
 
@@ -49,12 +45,36 @@ pub async fn handle_create<P: ResourceProvider + Sync>(
         ),
     );
 
+    // Update the resource's meta field with the new version
+    let mut updated_resource = resource.clone();
+    if let Some(meta) = updated_resource.get_meta() {
+        if let Ok(updated_meta) = meta
+            .clone()
+            .with_version(versioned_resource.version().as_str().to_string())
+        {
+            updated_resource.set_meta(updated_meta);
+        }
+    } else {
+        // Create meta field if it doesn't exist
+        use crate::resource::value_objects::Meta;
+        let now = chrono::Utc::now();
+        if let Ok(meta) = Meta::new(
+            updated_resource.resource_type.clone(),
+            now,
+            now,
+            None,
+            Some(versioned_resource.version().as_str().to_string()),
+        ) {
+            updated_resource.set_meta(meta);
+        }
+    }
+
     Ok(ScimOperationResponse {
         success: true,
         data: Some(
             handler
                 .server()
-                .serialize_resource_with_refs(&resource, context.tenant_id())?,
+                .serialize_resource_with_refs(&updated_resource, context.tenant_id())?,
         ),
         error: None,
         error_code: None,
@@ -162,17 +182,16 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
         match handler
             .server()
             .provider()
-            .conditional_update(
+            .update_resource(
                 &request.resource_type,
                 &resource_id,
                 data,
-                expected_version,
+                Some(expected_version),
                 context,
             )
             .await
-            .map_err(|e| ScimError::ProviderError(e.to_string()))?
         {
-            ConditionalResult::Success(versioned_resource) => {
+            Ok(versioned_resource) => {
                 let mut additional = HashMap::new();
                 additional.insert(
                     "version".to_string(),
@@ -185,12 +204,37 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
                     ),
                 );
 
+                // Update the resource's meta field with the new version
+                let mut updated_resource = versioned_resource.resource().clone();
+                if let Some(meta) = updated_resource.get_meta() {
+                    if let Ok(updated_meta) = meta
+                        .clone()
+                        .with_version(versioned_resource.version().as_str().to_string())
+                    {
+                        updated_resource.set_meta(updated_meta);
+                    }
+                } else {
+                    // Create meta field if it doesn't exist
+                    use crate::resource::value_objects::Meta;
+                    let now = chrono::Utc::now();
+                    if let Ok(meta) = Meta::new(
+                        updated_resource.resource_type.clone(),
+                        now,
+                        now,
+                        None,
+                        Some(versioned_resource.version().as_str().to_string()),
+                    ) {
+                        updated_resource.set_meta(meta);
+                    }
+                }
+
                 Ok(ScimOperationResponse {
                     success: true,
-                    data: Some(handler.server().serialize_resource_with_refs(
-                        versioned_resource.resource(),
-                        context.tenant_id(),
-                    )?),
+                    data: Some(
+                        handler
+                            .server()
+                            .serialize_resource_with_refs(&updated_resource, context.tenant_id())?,
+                    ),
                     error: None,
                     error_code: None,
                     metadata: OperationMetadata {
@@ -212,16 +256,42 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
                     },
                 })
             }
-            ConditionalResult::VersionMismatch(conflict) => Ok(create_version_conflict_response(
-                conflict,
-                context.request_id.clone(),
-                Some(request.resource_type),
-                Some(resource_id),
-            )),
-            ConditionalResult::NotFound => Err(ScimError::resource_not_found(
-                request.resource_type,
-                resource_id,
-            )),
+            Err(e) => match &e {
+                e if e.to_string().contains("Version conflict") => {
+                    // Extract VersionConflict from ProviderError::VersionConflict
+                    if let Some(conflict_start) = e.to_string().find("Version conflict: ") {
+                        let _conflict_msg =
+                            &e.to_string()[conflict_start + "Version conflict: ".len()..];
+                        Ok(create_version_conflict_response(
+                            crate::resource::version::VersionConflict::standard_message(
+                                crate::resource::version::RawVersion::from_hash("unknown"),
+                                crate::resource::version::RawVersion::from_hash("unknown"),
+                            ),
+                            context.request_id.clone(),
+                            Some(request.resource_type),
+                            Some(resource_id),
+                        ))
+                    } else {
+                        Err(ScimError::ProviderError(e.to_string()))
+                    }
+                }
+                e if e.to_string().contains("Precondition failed") => {
+                    Ok(create_version_conflict_response(
+                        crate::resource::version::VersionConflict::standard_message(
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                        ),
+                        context.request_id.clone(),
+                        Some(request.resource_type),
+                        Some(resource_id),
+                    ))
+                }
+                e if e.to_string().contains("not found") => Err(ScimError::resource_not_found(
+                    request.resource_type,
+                    resource_id,
+                )),
+                _ => Err(ScimError::ProviderError(e.to_string())),
+            },
         }
     } else {
         // Regular update
@@ -244,12 +314,36 @@ pub async fn handle_update<P: ResourceProvider + Sync>(
             ),
         );
 
+        // Update the resource's meta field with the new version
+        let mut updated_resource = resource.clone();
+        if let Some(meta) = updated_resource.get_meta() {
+            if let Ok(updated_meta) = meta
+                .clone()
+                .with_version(versioned_resource.version().as_str().to_string())
+            {
+                updated_resource.set_meta(updated_meta);
+            }
+        } else {
+            // Create meta field if it doesn't exist
+            use crate::resource::value_objects::Meta;
+            let now = chrono::Utc::now();
+            if let Ok(meta) = Meta::new(
+                updated_resource.resource_type.clone(),
+                now,
+                now,
+                None,
+                Some(versioned_resource.version().as_str().to_string()),
+            ) {
+                updated_resource.set_meta(meta);
+            }
+        }
+
         Ok(ScimOperationResponse {
             success: true,
             data: Some(
                 handler
                     .server()
-                    .serialize_resource_with_refs(&resource, context.tenant_id())?,
+                    .serialize_resource_with_refs(&updated_resource, context.tenant_id())?,
             ),
             error: None,
             error_code: None,
@@ -289,16 +383,15 @@ pub async fn handle_delete<P: ResourceProvider + Sync>(
         match handler
             .server()
             .provider()
-            .conditional_delete(
+            .delete_resource(
                 &request.resource_type,
                 &resource_id,
-                expected_version,
+                Some(expected_version),
                 context,
             )
             .await
-            .map_err(|e| ScimError::ProviderError(e.to_string()))?
         {
-            ConditionalResult::Success(_) => Ok(ScimOperationResponse {
+            Ok(_) => Ok(ScimOperationResponse {
                 success: true,
                 data: None,
                 error: None,
@@ -314,16 +407,35 @@ pub async fn handle_delete<P: ResourceProvider + Sync>(
                     additional: HashMap::new(),
                 },
             }),
-            ConditionalResult::VersionMismatch(conflict) => Ok(create_version_conflict_response(
-                conflict,
-                context.request_id.clone(),
-                Some(request.resource_type),
-                Some(resource_id),
-            )),
-            ConditionalResult::NotFound => Err(ScimError::resource_not_found(
-                request.resource_type,
-                resource_id,
-            )),
+            Err(e) => match &e {
+                e if e.to_string().contains("Version conflict") => {
+                    Ok(create_version_conflict_response(
+                        crate::resource::version::VersionConflict::standard_message(
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                        ),
+                        context.request_id.clone(),
+                        Some(request.resource_type),
+                        Some(resource_id),
+                    ))
+                }
+                e if e.to_string().contains("Precondition failed") => {
+                    Ok(create_version_conflict_response(
+                        crate::resource::version::VersionConflict::standard_message(
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                            crate::resource::version::RawVersion::from_hash("unknown"),
+                        ),
+                        context.request_id.clone(),
+                        Some(request.resource_type),
+                        Some(resource_id),
+                    ))
+                }
+                e if e.to_string().contains("not found") => Err(ScimError::resource_not_found(
+                    request.resource_type,
+                    resource_id,
+                )),
+                _ => Err(ScimError::ProviderError(e.to_string())),
+            },
         }
     } else {
         // Regular delete
@@ -384,12 +496,36 @@ pub async fn handle_patch<P: ResourceProvider + Sync>(
         ),
     );
 
+    // Update the resource's meta field with the new version
+    let mut updated_resource = resource.clone();
+    if let Some(meta) = updated_resource.get_meta() {
+        if let Ok(updated_meta) = meta
+            .clone()
+            .with_version(versioned_resource.version().as_str().to_string())
+        {
+            updated_resource.set_meta(updated_meta);
+        }
+    } else {
+        // Create meta field if it doesn't exist
+        use crate::resource::value_objects::Meta;
+        let now = chrono::Utc::now();
+        if let Ok(meta) = Meta::new(
+            updated_resource.resource_type.clone(),
+            now,
+            now,
+            None,
+            Some(versioned_resource.version().as_str().to_string()),
+        ) {
+            updated_resource.set_meta(meta);
+        }
+    }
+
     Ok(ScimOperationResponse {
         success: true,
         data: Some(
             handler
                 .server()
-                .serialize_resource_with_refs(&resource, context.tenant_id())?,
+                .serialize_resource_with_refs(&updated_resource, context.tenant_id())?,
         ),
         error: None,
         error_code: None,

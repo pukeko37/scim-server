@@ -283,7 +283,7 @@ cargo --version
 <h2 id="adding-the-dependency"><a class="header" href="#adding-the-dependency">Adding the Dependency</a></h2>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = "=0.4.0"
+scim-server = "=0.4.2"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
@@ -339,7 +339,7 @@ cd my-scim-server
 </code></pre>
 <h3 id="2-add-dependencies"><a class="header" href="#2-add-dependencies">2. Add Dependencies</a></h3>
 <pre><code class="language-toml">[dependencies]
-scim-server = "0.4.0"
+scim-server = "0.4.2"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 </code></pre>
@@ -627,7 +627,7 @@ cargo run --example group_example
 <h3 id="1-enable-the-mcp-feature"><a class="header" href="#1-enable-the-mcp-feature">1. Enable the MCP Feature</a></h3>
 <p>Add the MCP feature to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-scim-server = { version = "0.4.0", features = ["mcp"] }
+scim-server = { version = "0.4.2", features = ["mcp"] }
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 env_logger = "0.10"  # For logging (recommended)
@@ -1843,7 +1843,7 @@ If-Match: W/"v1.2.3"
 <p>The SCIM Server library uses a sophisticated type system to prevent version format confusion while maintaining compatibility with both HTTP and MCP protocols.</p>
 <h3 id="internal-raw-representation"><a class="header" href="#internal-raw-representation">Internal Raw Representation</a></h3>
 <p><strong>Core Concept</strong>: All versions are stored internally as raw, opaque strings. This provides a canonical representation that's independent of the client protocol being used.</p>
-<p><strong>Benefits</strong>: Storage systems, databases, and internal processing logic work with a single, consistent version format. No protocol-specific encoding in your data layer.</p>
+<p><strong>Benefits</strong>: Storage systems, databases, and internal processing logic work with a single, consistent version format. No protocol-specific encoding in your data layer. With content-based versioning, your storage layer doesn't need to store versions at all—they can be computed on-demand from resource content.</p>
 <p><strong>Content-Based Generation</strong>: Versions can be generated from resource content using SHA-256 hashing, ensuring deterministic versioning across different systems and eliminating the need for centralized version counters.</p>
 <h3 id="type-safe-format-conversion"><a class="header" href="#type-safe-format-conversion">Type-Safe Format Conversion</a></h3>
 <p><strong>Phantom Types</strong>: The library uses Rust's phantom type system to distinguish between different version formats at compile time:</p>
@@ -1863,7 +1863,12 @@ let etag_header = http_version.to_string();        // "W/\"abc123\""
 <h2 id="implementation-patterns"><a class="header" href="#implementation-patterns">Implementation Patterns</a></h2>
 <h3 id="automatic-version-generation"><a class="header" href="#automatic-version-generation">Automatic Version Generation</a></h3>
 <p><strong>Content-Based Versioning</strong>: The library automatically generates versions from resource content, ensuring that any change to user data results in a new version. This eliminates the need for manual version management in your application code.</p>
-<p><strong>Provider Integration</strong>: Resource providers automatically handle version computation and comparison. Your storage layer works with raw versions, while the protocol handlers manage format conversion transparently.</p>
+<p><strong>Provider Integration</strong>: Resource providers automatically handle version computation and comparison. Your storage layer can optionally store versions for performance, or rely on pure content-based computation, while protocol handlers manage format conversion transparently.</p>
+<h3 id="version-storage-trade-offs"><a class="header" href="#version-storage-trade-offs">Version Storage Trade-offs</a></h3>
+<p><strong>Pure Content-Based Versioning</strong>: Your storage layer doesn't need to store versions at all. Versions are computed on-demand from resource content using SHA-256 hashing. This approach eliminates version storage complexity entirely and ensures versions are always accurate, even if resources are modified outside the SCIM API.</p>
+<p><strong>Hybrid Approach with Meta Storage</strong>: Versions can be cached in the resource's meta field for performance optimization. The system first checks for a stored version, then falls back to content-based computation if none exists. This provides the best of both worlds—performance when versions are cached, accuracy when they're not.</p>
+<p><strong>Storage Benefits</strong>: For high-throughput scenarios with frequent version checks, storing versions in the meta field avoids repeated SHA-256 computation. The version is updated automatically whenever the resource changes.</p>
+<p><strong>Stateless Benefits</strong>: Pure content-based versioning works well for scenarios where resources might be modified by external systems, batch processes, or direct database operations. The version always reflects the current resource state without requiring version synchronization.</p>
 <h3 id="conditional-operations"><a class="header" href="#conditional-operations">Conditional Operations</a></h3>
 <p><strong>Built-In Protection</strong>: All update and delete operations include conditional variants that check versions before making changes. This protection is automatic—no additional code required in your business logic.</p>
 <p><strong>Graceful Conflict Handling</strong>: When version mismatches occur, the library provides detailed conflict information including expected vs. current versions and human-readable error messages for client display.</p>
@@ -1874,7 +1879,7 @@ let etag_header = http_version.to_string();        // "W/\"abc123\""
 <p><strong>Multiple Clients</strong>: Enable concurrency control when multiple systems update the same resources. The performance overhead is minimal compared to the data integrity benefits.</p>
 <h3 id="version-management-strategy"><a class="header" href="#version-management-strategy">Version Management Strategy</a></h3>
 <p><strong>Let the Library Handle It</strong>: Use automatic content-based versioning rather than implementing your own version schemes. The library's approach is proven, consistent, and integrates with both HTTP and MCP protocols.</p>
-<p><strong>Store Raw Versions</strong>: Keep the canonical raw version format in your database. Let the protocol handlers convert to appropriate formats (ETag headers or JSON fields) as needed.</p>
+<p><strong>Version Storage Options</strong>: You can either store versions in your database for performance, or use pure content-based versioning where versions are computed on-demand from resource content. For high-throughput scenarios, storing versions avoids repeated computation. For simple deployments, content-based computation eliminates version storage complexity entirely.</p>
 <h3 id="error-handling-design"><a class="header" href="#error-handling-design">Error Handling Design</a></h3>
 <p><strong>Expect Version Conflicts</strong>: Design your client applications to handle version mismatch errors gracefully. Provide clear user feedback and options for conflict resolution.</p>
 <p><strong>Implement Retry Logic</strong>: For automated systems, implement exponential backoff retry with fresh version retrieval when conflicts occur.</p>
@@ -1887,7 +1892,7 @@ let etag_header = http_version.to_string();        // "W/\"abc123\""
 <p><strong>Automated Compliance</strong>: Compliance systems that automatically update user attributes based on policy changes need concurrency protection to avoid overwriting simultaneous manual administrative changes.</p>
 <h2 id="performance-considerations-1"><a class="header" href="#performance-considerations-1">Performance Considerations</a></h2>
 <h3 id="minimal-overhead"><a class="header" href="#minimal-overhead">Minimal Overhead</a></h3>
-<p><strong>Lightweight Versioning</strong>: Version computation uses SHA-256 hashing of JSON content, which is fast and deterministic. The performance impact is negligible compared to database operations.</p>
+<p><strong>Lightweight Versioning</strong>: Version computation uses SHA-256 hashing of JSON content, which is fast and deterministic. For content-based versioning, the computational overhead is minimal compared to database operations. You can eliminate version storage entirely and compute versions on-demand, or cache versions in the resource meta field for optimal performance.</p>
 <p><strong>No Database Locking</strong>: Optimistic concurrency control avoids database locks, maintaining high throughput for read operations and simple updates.</p>
 <h3 id="scalability-benefits"><a class="header" href="#scalability-benefits">Scalability Benefits</a></h3>
 <p><strong>Horizontal Scaling</strong>: Version-based concurrency control works across multiple server instances without coordination, enabling horizontal scaling of SCIM endpoints.</p>

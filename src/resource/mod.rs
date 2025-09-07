@@ -1,49 +1,54 @@
-//! Resource model and provider trait for SCIM resources.
+//! SCIM resource model with type-safe value objects and clean architecture.
 //!
-//! This module defines the core resource abstractions that users implement
-//! to provide data access for SCIM operations. The design emphasizes
-//! type safety and async patterns while keeping the interface simple.
+//! This module provides the core resource abstractions for SCIM operations,
+//! emphasizing type safety, immutable value objects, and clean separation
+//! of concerns between protocol logic and storage.
 //!
-//! # Module Organization
+//! # Architecture
 //!
-//! * [`core`] - Core types like `Resource`, `RequestContext`, `ScimOperation`, and `ListQuery`
-//! * [`types`] - Domain-specific data structures like `EmailAddress`
-//! * [`mapper`] - Schema mapping functionality for converting between formats
-//! * [`handlers`] - Dynamic handler infrastructure for runtime resource operations
-//! * [`provider`] - The main `ResourceProvider` trait for data access
+//! The resource module follows a hybrid approach:
+//! - **Core attributes** as validated value objects (ResourceId, UserName, etc.)
+//! - **Extension attributes** as flexible JSON for extensibility
+//! - **Schema handlers** for resource type definitions
+//! - **Version control** for optimistic concurrency
+//!
+//! # Key Components
+//!
+//! * [`Resource`] - Core SCIM resource with type-safe attributes
+//! * [`ResourceHandler`] - Schema-based resource type definitions
+//! * [`RequestContext`] - Request tracking with optional tenant context
+//! * [`VersionedResource`] - Resources with automatic version control
+//! * [`value_objects`] - Validated domain primitives (ResourceId, UserName, etc.)
+//! * [`mapper`] - Schema mapping infrastructure (for future storage-level mapping)
 
 pub mod builder;
-pub mod conditional_provider;
 pub mod context;
-pub mod core;
 pub mod handlers;
 pub mod mapper;
-pub mod provider;
+pub mod versioned;
+
 pub mod resource;
 pub mod serialization;
 pub mod tenant;
-pub mod types;
+
 pub mod value_objects;
 pub mod version;
 
 // Re-export all public types to maintain API compatibility
-pub use builder::ResourceBuilder;
 pub use context::{ListQuery, RequestContext};
 pub use resource::Resource;
 pub use tenant::{IsolationLevel, TenantContext, TenantPermissions};
 // Re-export ScimOperation from multi_tenant module for backward compatibility
 pub use crate::multi_tenant::ScimOperation;
-pub use handlers::{AttributeHandler, DynamicResource, ResourceHandler, SchemaResourceBuilder};
+pub use handlers::{ResourceHandler, SchemaResourceBuilder};
 pub use mapper::{DatabaseMapper, SchemaMapper};
-pub use provider::{ResourceProvider, ResourceProviderExt};
-pub use types::EmailAddress;
 pub use value_objects::{
-    Address, EmailAddress as EmailAddressValue, ExternalId, Meta, Name, PhoneNumber, ResourceId,
-    SchemaUri, UserName,
+    Address, EmailAddress, ExternalId, Meta, Name, PhoneNumber, ResourceId, SchemaUri, UserName,
 };
 pub use version::{
     ConditionalResult, HttpVersion, RawVersion, ScimVersion, VersionConflict, VersionError,
 };
+pub use versioned::VersionedResource;
 
 #[cfg(test)]
 mod tests {
@@ -462,6 +467,7 @@ mod tests {
 
     #[test]
     fn test_resource_builder_basic() {
+        use crate::resource::builder::ResourceBuilder;
         use crate::resource::value_objects::{ResourceId, UserName};
 
         let resource = ResourceBuilder::new("User".to_string())
@@ -500,6 +506,8 @@ mod tests {
         .unwrap();
         let phone = PhoneNumber::new_work("tel:+1-555-555-5555".to_string()).unwrap();
 
+        use crate::resource::builder::ResourceBuilder;
+
         let resource = ResourceBuilder::new("User".to_string())
             .with_name(name)
             .add_address(address)
@@ -522,6 +530,8 @@ mod tests {
     fn test_resource_builder_with_meta() {
         use crate::resource::value_objects::ResourceId;
 
+        use crate::resource::builder::ResourceBuilder;
+
         let resource = ResourceBuilder::new("User".to_string())
             .with_id(ResourceId::new("123".to_string()).unwrap())
             .build_with_meta("https://example.com")
@@ -536,6 +546,8 @@ mod tests {
     #[test]
     fn test_resource_builder_validation() {
         // Test that builder validates required fields
+        use crate::resource::builder::ResourceBuilder;
+
         let builder = ResourceBuilder::new("User".to_string());
         // Remove default schema to test validation
         let builder_no_schema = builder.with_schemas(vec![]);

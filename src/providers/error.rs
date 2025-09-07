@@ -1,16 +1,15 @@
-//! Error types and statistics for in-memory resource provider implementations.
+//! Error types for resource provider implementations.
 //!
-//! This module provides error types and statistics structures that are shared
-//! between different in-memory resource provider implementations.
+//! This module provides error types that are shared across different resource
+//! provider implementations, independent of the underlying storage backend.
 //!
 //! # Key Types
 //!
-//! - [`InMemoryError`] - Provider-specific error types for in-memory operations
-//! - [`InMemoryStats`] - Resource statistics and performance metrics
+//! - [`ProviderError`] - Generic provider error type for resource operations
 //!
 //! # Usage
 //!
-//! These types are used with `StandardResourceProvider<InMemoryStorage>`:
+//! This error type is used with `StandardResourceProvider<T>` regardless of storage backend:
 //!
 //! ```rust
 //! use scim_server::providers::StandardResourceProvider;
@@ -22,12 +21,12 @@
 
 use thiserror::Error;
 
-/// Errors that can occur during in-memory provider operations.
+/// Errors that can occur during resource provider operations.
 ///
-/// This error type is used by in-memory resource providers to represent
-/// various failure conditions during SCIM operations.
+/// This error type is used by resource providers to represent various failure
+/// conditions during SCIM operations, independent of the underlying storage backend.
 #[derive(Debug, Clone, Error)]
-pub enum InMemoryError {
+pub enum ProviderError {
     #[error("Resource not found: {resource_type} with id '{id}' in tenant '{tenant_id}'")]
     ResourceNotFound {
         /// The type of resource that was not found
@@ -38,7 +37,9 @@ pub enum InMemoryError {
         tenant_id: String,
     },
 
-    #[error("Duplicate attribute '{attribute}' with value '{value}' for {resource_type} in tenant '{tenant_id}'")]
+    #[error(
+        "Duplicate attribute '{attribute}' with value '{value}' for {resource_type} in tenant '{tenant_id}'"
+    )]
     DuplicateAttribute {
         /// The type of resource with duplicate attribute
         resource_type: String,
@@ -59,6 +60,12 @@ pub enum InMemoryError {
     #[error("Query error: {message}")]
     QueryError {
         /// Description of the query error
+        message: String,
+    },
+
+    #[error("Storage error: {message}")]
+    Storage {
+        /// Description of the storage error
         message: String,
     },
 
@@ -88,7 +95,9 @@ pub enum InMemoryError {
         message: String,
     },
 
-    #[error("Duplicate resource: {resource_type} with userName '{username}' already exists in tenant '{tenant_id}'")]
+    #[error(
+        "Duplicate resource: {resource_type} with userName '{username}' already exists in tenant '{tenant_id}'"
+    )]
     DuplicateUserName {
         /// The resource type that had the duplicate
         resource_type: String,
@@ -112,43 +121,8 @@ pub enum InMemoryError {
     },
 }
 
-
-
-/// Statistics about the in-memory provider state.
-///
-/// Provides metrics about resource counts, tenants, and resource types
-/// for monitoring and debugging purposes.
-#[derive(Debug, Clone)]
-pub struct InMemoryStats {
-    /// Number of active tenants in the provider
-    pub tenant_count: usize,
-    /// Total number of resources across all tenants
-    pub total_resources: usize,
-    /// Number of distinct resource types
-    pub resource_type_count: usize,
-    /// List of resource type names
-    pub resource_types: Vec<String>,
-}
-
-impl InMemoryStats {
-    /// Create new empty statistics.
-    pub fn new() -> Self {
-        Self {
-            tenant_count: 0,
-            total_resources: 0,
-            resource_type_count: 0,
-            resource_types: Vec::new(),
-        }
-    }
-
-    /// Check if the provider is empty (no resources).
-    pub fn is_empty(&self) -> bool {
-        self.total_resources == 0
-    }
-}
-
-impl Default for InMemoryStats {
-    fn default() -> Self {
-        Self::new()
+impl From<String> for ProviderError {
+    fn from(message: String) -> Self {
+        ProviderError::Internal { message }
     }
 }

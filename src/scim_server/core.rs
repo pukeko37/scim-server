@@ -8,7 +8,8 @@ use crate::error::ScimError;
 use crate::provider_capabilities::{
     CapabilityDiscovery, CapabilityIntrospectable, ProviderCapabilities,
 };
-use crate::resource::{ResourceHandler, ResourceProvider, ScimOperation};
+use crate::providers::ResourceProvider;
+use crate::resource::{ResourceHandler, ScimOperation};
 use crate::schema::SchemaRegistry;
 use crate::schema_discovery::ServiceProviderConfig;
 use crate::scim_server::builder::ScimServerConfig;

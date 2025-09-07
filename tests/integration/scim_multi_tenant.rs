@@ -8,6 +8,7 @@
 use scim_server::{
     ListQuery, RequestContext, Resource, ResourceProvider, ScimTenantConfiguration,
     StaticTenantResolver, TenantContext, TenantResolver,
+    resource::{version::RawVersion, versioned::VersionedResource},
 };
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -54,7 +55,7 @@ impl ResourceProvider for TestScimProvider {
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
 
         // Check SCIM configuration for rate limiting
@@ -79,7 +80,7 @@ impl ResourceProvider for TestScimProvider {
             tenant_store.insert(id.to_string(), resource.clone());
         }
 
-        Ok(resource)
+        Ok(VersionedResource::new(resource))
     }
 
     async fn get_resource(
@@ -87,12 +88,14 @@ impl ResourceProvider for TestScimProvider {
         _resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Option<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
 
         let resources = self.tenant_resources.read().await;
         if let Some(tenant_store) = resources.get(tenant_id) {
-            Ok(tenant_store.get(id).cloned())
+            Ok(tenant_store
+                .get(id)
+                .map(|resource| VersionedResource::new(resource.clone())))
         } else {
             Ok(None)
         }
@@ -103,8 +106,9 @@ impl ResourceProvider for TestScimProvider {
         resource_type: &str,
         _id: &str,
         data: Value,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
 
         // Check SCIM configuration for update permissions
@@ -125,13 +129,14 @@ impl ResourceProvider for TestScimProvider {
             }
         }
 
-        Ok(resource)
+        Ok(VersionedResource::new(resource))
     }
 
     async fn delete_resource(
         &self,
         _resource_type: &str,
         id: &str,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
     ) -> Result<(), Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
@@ -148,37 +153,55 @@ impl ResourceProvider for TestScimProvider {
         _resource_type: &str,
         _query: Option<&ListQuery>,
         context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
 
         let resources = self.tenant_resources.read().await;
         if let Some(tenant_store) = resources.get(tenant_id) {
-            Ok(tenant_store.values().cloned().collect())
+            Ok(tenant_store
+                .values()
+                .map(|resource| VersionedResource::new(resource.clone()))
+                .collect())
         } else {
             Ok(vec![])
         }
     }
 
-    async fn find_resource_by_attribute(
+    async fn find_resources_by_attribute(
         &self,
         _resource_type: &str,
         attribute: &str,
-        value: &Value,
+        value: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
 
         let resources = self.tenant_resources.read().await;
+        let mut results = Vec::new();
         if let Some(tenant_store) = resources.get(tenant_id) {
             for resource in tenant_store.values() {
                 if let Some(attr_value) = resource.get_attribute(attribute) {
-                    if attr_value == value {
-                        return Ok(Some(resource.clone()));
+                    if attr_value.as_str() == Some(value) {
+                        results.push(VersionedResource::new(resource.clone()));
                     }
                 }
             }
         }
-        Ok(None)
+        Ok(results)
+    }
+
+    async fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        _patch_request: &Value,
+        _expected_version: Option<&RawVersion>,
+        context: &RequestContext,
+    ) -> Result<VersionedResource, Self::Error> {
+        // Simple implementation: just return the existing resource
+        self.get_resource(resource_type, id, context)
+            .await?
+            .ok_or(TestProviderError)
     }
 
     async fn resource_exists(
@@ -188,13 +211,11 @@ impl ResourceProvider for TestScimProvider {
         context: &RequestContext,
     ) -> Result<bool, Self::Error> {
         let tenant_id = context.tenant_id().ok_or(TestProviderError)?;
-
         let resources = self.tenant_resources.read().await;
-        if let Some(tenant_store) = resources.get(tenant_id) {
-            Ok(tenant_store.contains_key(id))
-        } else {
-            Ok(false)
-        }
+        Ok(resources
+            .get(tenant_id)
+            .map(|tenant_store| tenant_store.contains_key(id))
+            .unwrap_or(false))
     }
 }
 
@@ -294,7 +315,7 @@ async fn test_scim_multi_tenant_resource_operations() {
         .expect("Should create user in tenant B");
 
     // Verify tenant isolation - tenant A cannot access tenant B's resources
-    let user_b_id = user_b.get_id().expect("User B should have ID");
+    let user_b_id = user_b.resource().get_id().expect("User B should have ID");
     let tenant_a_cannot_access_b = provider
         .get_resource("User", user_b_id, &context_a)
         .await
@@ -305,7 +326,7 @@ async fn test_scim_multi_tenant_resource_operations() {
     );
 
     // Verify tenant isolation - tenant B cannot access tenant A's resources
-    let user_a_id = user_a.get_id().expect("User A should have ID");
+    let user_a_id = user_a.resource().get_id().expect("User A should have ID");
     let tenant_b_cannot_access_a = provider
         .get_resource("User", user_a_id, &context_b)
         .await
@@ -321,14 +342,20 @@ async fn test_scim_multi_tenant_resource_operations() {
         .await
         .expect("Should not error")
         .expect("Should find user in tenant A");
-    assert_eq!(tenant_a_user.get_id(), user_a.get_id());
+    assert_eq!(
+        tenant_a_user.resource().get_id(),
+        user_a.resource().get_id()
+    );
 
     let tenant_b_user = provider
         .get_resource("User", user_b_id, &context_b)
         .await
         .expect("Should not error")
         .expect("Should find user in tenant B");
-    assert_eq!(tenant_b_user.get_id(), user_b.get_id());
+    assert_eq!(
+        tenant_b_user.resource().get_id(),
+        user_b.resource().get_id()
+    );
 }
 
 /// Test SCIM client authentication and authorization per tenant

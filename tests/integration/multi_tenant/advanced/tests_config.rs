@@ -7,8 +7,8 @@ use super::{
     config::{AdvancedTenantConfig, ComplianceLevel},
     integration::TestAdvancedProvider,
 };
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, TenantContext};
 use serde_json::json;
 
 #[cfg(test)]
@@ -61,7 +61,10 @@ mod config_tests {
         assert!(result.is_ok());
         let created_user = result.unwrap();
         assert_eq!(
-            created_user.get_attribute("employeeNumber").unwrap(),
+            created_user
+                .resource()
+                .get_attribute("employeeNumber")
+                .unwrap(),
             &json!("EMP001")
         );
     }

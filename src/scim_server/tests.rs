@@ -6,9 +6,10 @@
 #[cfg(test)]
 use super::core::ScimServer;
 #[cfg(test)]
-use crate::resource::{
-    ListQuery, RequestContext, Resource, ResourceProvider, SchemaResourceBuilder, ScimOperation,
-};
+use crate::providers::ResourceProvider;
+use crate::resource::version::RawVersion;
+use crate::resource::versioned::VersionedResource;
+use crate::resource::{ListQuery, RequestContext, Resource, SchemaResourceBuilder, ScimOperation};
 #[cfg(test)]
 use crate::schema::{Schema, SchemaRegistry};
 
@@ -33,7 +34,7 @@ pub enum TestError {
 #[cfg(test)]
 #[derive(Debug)]
 pub struct TestProvider {
-    resources: Arc<Mutex<HashMap<String, HashMap<String, Resource>>>>,
+    resources: Arc<Mutex<HashMap<String, Vec<Resource>>>>,
 }
 
 #[cfg(test)]
@@ -54,7 +55,7 @@ impl ResourceProvider for TestProvider {
         resource_type: &str,
         mut data: Value,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let resources = Arc::clone(&self.resources);
         async move {
@@ -69,10 +70,10 @@ impl ResourceProvider for TestProvider {
             let mut resources = resources.lock().unwrap();
             resources
                 .entry(resource_type)
-                .or_insert_with(HashMap::new)
-                .insert(id, resource.clone());
+                .or_insert_with(Vec::new)
+                .push(resource.clone());
 
-            Ok(resource)
+            Ok(VersionedResource::new(resource))
         }
     }
 
@@ -81,16 +82,18 @@ impl ResourceProvider for TestProvider {
         resource_type: &str,
         id: &str,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Option<VersionedResource>, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let id = id.to_string();
         let resources = Arc::clone(&self.resources);
         async move {
             let resources = resources.lock().unwrap();
-            Ok(resources
-                .get(&resource_type)
-                .and_then(|type_resources| type_resources.get(&id))
-                .cloned())
+            Ok(resources.get(&resource_type).and_then(|type_resources| {
+                type_resources
+                    .iter()
+                    .find(|resource| resource.get_id() == Some(&id))
+                    .map(|resource| VersionedResource::new(resource.clone()))
+            }))
         }
     }
 
@@ -99,8 +102,9 @@ impl ResourceProvider for TestProvider {
         resource_type: &str,
         id: &str,
         mut data: Value,
+        _expected_version: Option<&RawVersion>,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let id = id.to_string();
         let resources = Arc::clone(&self.resources);
@@ -113,12 +117,16 @@ impl ResourceProvider for TestProvider {
                 .map_err(|e| TestError::ValidationError(e.to_string()))?;
 
             let mut resources = resources.lock().unwrap();
-            resources
-                .entry(resource_type)
-                .or_insert_with(HashMap::new)
-                .insert(id, resource.clone());
+            let type_resources = resources.entry(resource_type).or_insert_with(Vec::new);
 
-            Ok(resource)
+            // Find and update existing resource, or add new one
+            if let Some(existing) = type_resources.iter_mut().find(|r| r.get_id() == Some(&id)) {
+                *existing = resource.clone();
+            } else {
+                type_resources.push(resource.clone());
+            }
+
+            Ok(VersionedResource::new(resource))
         }
     }
 
@@ -126,6 +134,7 @@ impl ResourceProvider for TestProvider {
         &self,
         resource_type: &str,
         id: &str,
+        _expected_version: Option<&RawVersion>,
         _context: &RequestContext,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         let resource_type = resource_type.to_string();
@@ -134,7 +143,7 @@ impl ResourceProvider for TestProvider {
         async move {
             let mut resources = resources.lock().unwrap();
             if let Some(type_resources) = resources.get_mut(&resource_type) {
-                type_resources.remove(&id);
+                type_resources.retain(|resource| resource.get_id() != Some(&id));
             }
             Ok(())
         }
@@ -145,39 +154,69 @@ impl ResourceProvider for TestProvider {
         resource_type: &str,
         _query: Option<&ListQuery>,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let resources = Arc::clone(&self.resources);
         async move {
             let resources = resources.lock().unwrap();
             Ok(resources
                 .get(&resource_type)
-                .map(|type_resources| type_resources.values().cloned().collect())
+                .map(|type_resources| {
+                    type_resources
+                        .iter()
+                        .map(|resource| VersionedResource::new(resource.clone()))
+                        .collect()
+                })
                 .unwrap_or_default())
         }
     }
 
-    fn find_resource_by_attribute(
+    fn find_resources_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &Value,
+        value: &str,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let attribute = attribute.to_string();
-        let value = value.clone();
+        let value = Value::String(value.to_string());
         let resources = Arc::clone(&self.resources);
         async move {
             let resources = resources.lock().unwrap();
             Ok(resources
                 .get(&resource_type)
-                .and_then(|type_resources| {
+                .map(|type_resources| {
                     type_resources
-                        .values()
-                        .find(|resource| resource.get_attribute(&attribute) == Some(&value))
+                        .iter()
+                        .filter(|resource| resource.get_attribute(&attribute) == Some(&value))
+                        .map(|resource| VersionedResource::new(resource.clone()))
+                        .collect()
                 })
-                .cloned())
+                .unwrap_or_default())
+        }
+    }
+
+    fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        _patch_request: &Value,
+        _expected_version: Option<&RawVersion>,
+        _context: &RequestContext,
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
+        let resource_type = resource_type.to_string();
+        let id = id.to_string();
+        let resources = Arc::clone(&self.resources);
+        async move {
+            // Simple patch implementation - just return the existing resource
+            let resources = resources.lock().unwrap();
+            if let Some(type_resources) = resources.get(&resource_type) {
+                if let Some(resource) = type_resources.iter().find(|r| r.get_id() == Some(&id)) {
+                    return Ok(VersionedResource::new(resource.clone()));
+                }
+            }
+            Err(TestError::ValidationError("Resource not found".to_string()))
         }
     }
 
@@ -194,7 +233,7 @@ impl ResourceProvider for TestProvider {
             let resources = resources.lock().unwrap();
             Ok(resources
                 .get(&resource_type)
-                .map(|type_resources| type_resources.contains_key(&id))
+                .map(|type_resources| type_resources.iter().any(|r| r.get_id() == Some(&id)))
                 .unwrap_or(false))
         }
     }

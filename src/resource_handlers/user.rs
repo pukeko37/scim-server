@@ -1,294 +1,32 @@
-//! User resource handler implementation using the dynamic schema approach.
+//! User resource handler implementation.
 //!
 //! This module provides a factory function for creating User resource handlers
-//! that replace the hard-coded User methods with dynamic, schema-driven operations.
-//! The handler includes comprehensive attribute management, custom methods, and
-//! database mapping capabilities.
+//! that contain schema information for User resources.
 
 use crate::resource::SchemaResourceBuilder;
 use crate::schema::Schema;
-use serde_json::{Value, json};
-use std::collections::HashMap;
 
-/// Create a User resource handler with all the functionality of the original hard-coded implementation
+/// Create a User resource handler with the provided schema.
+///
+/// This handler contains the schema definition for User resources,
+/// which can be used for validation and other schema-driven operations.
 pub fn create_user_resource_handler(user_schema: Schema) -> crate::resource::ResourceHandler {
-    SchemaResourceBuilder::new(user_schema)
-        // ID attribute handling
-        .with_getter("id", |data| {
-            data.get("id")?.as_str().map(|s| Value::String(s.to_string()))
-        })
-        .with_setter("id", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("id".to_string(), value);
-            }
-            Ok(())
-        })
+    SchemaResourceBuilder::new(user_schema).build()
+}
 
-        // userName attribute handling
-        .with_getter("userName", |data| {
-            data.get("userName")?.as_str().map(|s| Value::String(s.to_string()))
-        })
-        .with_setter("userName", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("userName".to_string(), value);
-            }
-            Ok(())
-        })
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::registry::SchemaRegistry;
 
-        // displayName attribute handling
-        .with_getter("displayName", |data| {
-            data.get("displayName")?.as_str().map(|s| Value::String(s.to_string()))
-        })
-        .with_setter("displayName", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("displayName".to_string(), value);
-            }
-            Ok(())
-        })
+    #[test]
+    fn test_user_handler_creation() {
+        let registry = SchemaRegistry::new().expect("Failed to create schema registry");
+        let user_schema = registry.get_user_schema();
 
-        // active attribute with default behavior
-        .with_getter("active", |data| {
-            Some(Value::Bool(
-                data.get("active")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(true)
-            ))
-        })
-        .with_setter("active", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("active".to_string(), value);
-            }
-            Ok(())
-        })
+        let handler = create_user_resource_handler(user_schema.clone());
 
-        // emails complex attribute handling
-        .with_getter("emails", |data| {
-            data.get("emails").cloned()
-        })
-        .with_setter("emails", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("emails".to_string(), value);
-            }
-            Ok(())
-        })
-
-        // emails transformer for structured access
-        .with_transformer("emails", |data, operation| {
-            match operation {
-                "get_structured" => {
-                    data.get("emails")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            let emails: Vec<Value> = arr.iter()
-                                .filter_map(|email| {
-                                    let value = email.get("value")?.as_str()?;
-                                    Some(json!({
-                                        "value": value,
-                                        "type": email.get("type").and_then(|t| t.as_str()).unwrap_or(""),
-                                        "primary": email.get("primary").and_then(|p| p.as_bool()).unwrap_or(false),
-                                        "display": email.get("display").and_then(|d| d.as_str()).unwrap_or("")
-                                    }))
-                                })
-                                .collect();
-                            Value::Array(emails)
-                        })
-                }
-                "get_primary" => {
-                    data.get("emails")
-                        .and_then(|v| v.as_array())
-                        .and_then(|arr| {
-                            arr.iter().find(|email| {
-                                email.get("primary").and_then(|p| p.as_bool()).unwrap_or(false)
-                            })
-                        })
-                        .and_then(|email| email.get("value"))
-                        .cloned()
-                }
-                _ => None
-            }
-        })
-
-        // name complex attribute handling
-        .with_getter("name", |data| {
-            data.get("name").cloned()
-        })
-        .with_setter("name", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("name".to_string(), value);
-            }
-            Ok(())
-        })
-
-        // name transformer for structured access
-        .with_transformer("name", |data, operation| {
-            match operation {
-                "get_formatted" => {
-                    data.get("name")
-                        .and_then(|name| name.get("formatted"))
-                        .cloned()
-                }
-                "get_family_name" => {
-                    data.get("name")
-                        .and_then(|name| name.get("familyName"))
-                        .cloned()
-                }
-                "get_given_name" => {
-                    data.get("name")
-                        .and_then(|name| name.get("givenName"))
-                        .cloned()
-                }
-                _ => None
-            }
-        })
-
-        // schemas attribute handling
-        .with_getter("schemas", |data| {
-            data.get("schemas").cloned().or_else(|| {
-                // Default to User schema if not present
-                Some(Value::Array(vec![
-                    Value::String("urn:ietf:params:scim:schemas:core:2.0:User".to_string())
-                ]))
-            })
-        })
-        .with_setter("schemas", |data, value| {
-            if let Some(obj) = data.as_object_mut() {
-                obj.insert("schemas".to_string(), value);
-            }
-            Ok(())
-        })
-
-        // Custom methods that replace the old hard-coded methods
-        .with_custom_method("get_username", |resource| {
-            Ok(resource.get_attribute_dynamic("userName")
-                .unwrap_or(Value::Null))
-        })
-
-        .with_custom_method("get_id", |resource| {
-            Ok(resource.get_attribute_dynamic("id")
-                .unwrap_or(Value::Null))
-        })
-
-        .with_custom_method("is_active", |resource| {
-            Ok(resource.get_attribute_dynamic("active")
-                .unwrap_or(Value::Bool(true)))
-        })
-
-        .with_custom_method("get_emails", |resource| {
-            Ok(resource.get_attribute_dynamic("emails")
-                .unwrap_or(Value::Array(vec![])))
-        })
-
-        .with_custom_method("get_primary_email", |resource| {
-            let emails = resource.get_attribute_dynamic("emails")
-                .and_then(|v| v.as_array().cloned())
-                .unwrap_or_default();
-
-            for email in emails {
-                if email.get("primary").and_then(|p| p.as_bool()).unwrap_or(false) {
-                    if let Some(value) = email.get("value") {
-                        return Ok(value.clone());
-                    }
-                }
-            }
-            Ok(Value::Null)
-        })
-
-        .with_custom_method("get_display_name", |resource| {
-            Ok(resource.get_attribute_dynamic("displayName")
-                .unwrap_or(Value::Null))
-        })
-
-        .with_custom_method("get_formatted_name", |resource| {
-            if let Some(name) = resource.get_attribute_dynamic("name") {
-                if let Some(formatted) = name.get("formatted") {
-                    return Ok(formatted.clone());
-                }
-            }
-            Ok(Value::Null)
-        })
-
-        .with_custom_method("get_schemas", |resource| {
-            Ok(resource.get_attribute_dynamic("schemas")
-                .unwrap_or_else(|| Value::Array(vec![
-                    Value::String("urn:ietf:params:scim:schemas:core:2.0:User".to_string())
-                ])))
-        })
-
-        .with_custom_method("add_metadata", |resource| {
-            // This would typically receive parameters from context
-            let base_url = "https://example.com/scim"; // Would come from server config
-            let now = chrono::Utc::now().to_rfc3339();
-
-            let meta = json!({
-                "resourceType": resource.resource_type,
-                "created": now,
-                "lastModified": now,
-                "location": format!("{}/{}s/{}",
-                    base_url,
-                    resource.resource_type,
-                    resource.get_attribute_dynamic("id")
-                        .and_then(|v| v.as_str().map(|s| s.to_string()))
-                        .unwrap_or_else(|| "".to_string())
-                ),
-                "version": format!("W/\"{}-{}\"",
-                    resource.get_attribute_dynamic("id")
-                        .and_then(|v| v.as_str().map(|s| s.to_string()))
-                        .unwrap_or_else(|| "".to_string()),
-                    now
-                )
-            });
-
-            Ok(meta)
-        })
-
-        .with_custom_method("validate_email_format", |resource| {
-            let emails = resource.get_attribute_dynamic("emails")
-                .and_then(|v| v.as_array().cloned())
-                .unwrap_or_default();
-
-            for email in &emails {
-                if let Some(email_value) = email.get("value").and_then(|v| v.as_str()) {
-                    if !email_value.contains('@') {
-                        return Ok(Value::Bool(false));
-                    }
-                }
-            }
-            Ok(Value::Bool(true))
-        })
-
-        .with_custom_method("get_work_email", |resource| {
-            let emails = resource.get_attribute_dynamic("emails")
-                .and_then(|v| v.as_array().cloned())
-                .unwrap_or_default();
-
-            for email in emails {
-                if email.get("type").and_then(|t| t.as_str()) == Some("work") {
-                    if let Some(value) = email.get("value") {
-                        return Ok(value.clone());
-                    }
-                }
-            }
-            Ok(Value::Null)
-        })
-
-        .with_custom_method("set_primary_email", |_resource| {
-            // This is a demonstration of how you might implement a setter method
-            // In practice, this would need additional parameters
-            Ok(Value::Bool(true)) // Placeholder return
-        })
-
-        // Database mapping for converting between SCIM and database schemas
-        .with_database_mapping("users", {
-            let mut mappings = HashMap::new();
-            mappings.insert("userName".to_string(), "username".to_string());
-            mappings.insert("displayName".to_string(), "full_name".to_string());
-            mappings.insert("active".to_string(), "is_active".to_string());
-            mappings.insert("emails".to_string(), "email_addresses".to_string());
-            mappings.insert("id".to_string(), "user_id".to_string());
-            mappings.insert("name".to_string(), "name_data".to_string());
-            mappings.insert("schemas".to_string(), "scim_schemas".to_string());
-            mappings
-        })
-
-        .build()
+        assert_eq!(handler.schema.id, user_schema.id);
+        assert_eq!(handler.schema.name, user_schema.name);
+    }
 }

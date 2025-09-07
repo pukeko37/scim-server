@@ -8,8 +8,8 @@ use super::{
     config::{AdvancedTenantConfig, ComplianceLevel},
     integration::{AdvancedMultiTenantProvider, TestAdvancedProvider},
 };
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, TenantContext};
 use serde_json::json;
 
 #[cfg(test)]
@@ -42,7 +42,7 @@ mod compliance_tests {
             .await
             .unwrap();
 
-        let user_id = user.get_id().unwrap();
+        let user_id = user.resource().get_id().unwrap();
 
         let _retrieved = provider
             .get_resource("User", &user_id, &context)
@@ -59,13 +59,14 @@ mod compliance_tests {
                     "displayName": "Updated Audit User",
                     "active": true
                 }),
+                None,
                 &context,
             )
             .await
             .unwrap();
 
         provider
-            .delete_resource("User", &user_id, &context)
+            .delete_resource("User", &user_id, None, &context)
             .await
             .unwrap();
 
@@ -279,7 +280,7 @@ mod compliance_tests {
         assert_eq!(create_entry.resource_type, "User");
         assert_eq!(
             create_entry.resource_id,
-            user.get_id().as_deref().map(|s| s.to_string())
+            user.resource().get_id().map(|s| s.to_string())
         );
     }
 
@@ -309,7 +310,7 @@ mod compliance_tests {
 
         // In a real implementation, this would trigger retention policy checks
         // For now, just verify the user was created and config is correct
-        assert!(user.get_id().is_some());
+        assert!(user.resource().get_id().is_some());
     }
 
     #[tokio::test]

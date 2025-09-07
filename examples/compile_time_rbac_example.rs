@@ -7,9 +7,10 @@
 //! Run with: cargo run --example compile_time_rbac_example
 
 use scim_server::{
+    ResourceProvider,
     auth::{AuthenticatedRequestContext, AuthenticationValidator, LinearCredential},
-    providers::{InMemoryError, StandardResourceProvider},
-    resource::{IsolationLevel, Resource, ResourceProvider, TenantContext, TenantPermissions},
+    providers::{ProviderError, StandardResourceProvider},
+    resource::{IsolationLevel, Resource, TenantContext, TenantPermissions},
     storage::InMemoryStorage,
 };
 use serde_json::json;
@@ -294,7 +295,7 @@ trait SecureRbacProvider {
 
 /// Implementation showing compile-time RBAC enforcement
 impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
-    type Error = InMemoryError;
+    type Error = ProviderError;
 
     async fn secure_create_user(
         &self,
@@ -304,6 +305,7 @@ impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
         // The type system guarantees this user has create authority
         self.create_resource("User", user_data, authority.context().request_context())
             .await
+            .map(|versioned| versioned.into_resource())
     }
 
     async fn secure_delete_user(
@@ -312,7 +314,7 @@ impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
         authority: &operations::DeleteUserAuthority,
     ) -> Result<(), Self::Error> {
         // The type system guarantees this user has delete authority
-        self.delete_resource("User", user_id, authority.context().request_context())
+        self.delete_resource("User", user_id, None, authority.context().request_context())
             .await?;
         Ok(())
     }
@@ -328,7 +330,7 @@ impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
             let user = self
                 .create_resource("User", user_data, authority.context().request_context())
                 .await?;
-            results.push(user);
+            results.push(user.into_resource());
         }
         Ok(results)
     }
@@ -340,6 +342,12 @@ impl SecureRbacProvider for StandardResourceProvider<InMemoryStorage> {
         // Any authenticated user can read
         self.list_resources("User", None, context.request_context())
             .await
+            .map(|versioned_vec| {
+                versioned_vec
+                    .into_iter()
+                    .map(|v| v.into_resource())
+                    .collect()
+            })
     }
 }
 

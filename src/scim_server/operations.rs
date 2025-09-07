@@ -6,7 +6,8 @@
 
 use super::core::ScimServer;
 use crate::error::ScimResult;
-use crate::resource::{RequestContext, Resource, ResourceProvider, ScimOperation};
+use crate::providers::ResourceProvider;
+use crate::resource::{RequestContext, Resource, ScimOperation};
 use log::{debug, info, warn};
 use serde_json::Value;
 
@@ -37,6 +38,7 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
             .provider
             .create_resource(resource_type, data, context)
             .await
+            .map(|versioned_resource| versioned_resource.into_resource())
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
 
         match &result {
@@ -116,7 +118,7 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
             }
         }
 
-        result
+        result.map(|opt| opt.map(|vr| vr.into_resource()))
     }
 
     /// Generic update operation
@@ -143,8 +145,9 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
 
         let result = self
             .provider
-            .update_resource(resource_type, id, data, context)
+            .update_resource(resource_type, id, data, None, context)
             .await
+            .map(|versioned_resource| versioned_resource.into_resource())
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
 
         match &result {
@@ -182,7 +185,7 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
 
         let result = self
             .provider
-            .delete_resource(resource_type, id, context)
+            .delete_resource(resource_type, id, None, context)
             .await
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
 
@@ -222,6 +225,12 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
             .provider
             .list_resources(resource_type, None, context)
             .await
+            .map(|versioned_resources| {
+                versioned_resources
+                    .into_iter()
+                    .map(|vr| vr.into_resource())
+                    .collect::<Vec<_>>()
+            })
             .map_err(|e| crate::error::ScimError::internal(format!("Provider error: {}", e)));
 
         match &result {
@@ -260,10 +269,25 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
         // Check if resource type is supported
         self.ensure_operation_supported(resource_type, &ScimOperation::Search)?;
 
+        let value_str = match value {
+            serde_json::Value::String(s) => s.as_str(),
+            _ => {
+                return Err(crate::error::ScimError::InvalidRequest {
+                    message: "Attribute value must be a string".to_string(),
+                });
+            }
+        };
+
         let result = self
             .provider
-            .find_resource_by_attribute(resource_type, attribute, value, context)
+            .find_resources_by_attribute(resource_type, attribute, value_str, context)
             .await
+            .map(|versioned_resources| {
+                versioned_resources
+                    .into_iter()
+                    .map(|vr| vr.into_resource())
+                    .next() // Take first match for this API
+            })
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
 
         match &result {
@@ -326,27 +350,34 @@ impl<P: ResourceProvider + Sync> ScimServer<P> {
         self.ensure_operation_supported(resource_type, &ScimOperation::Patch)?;
 
         // Validate patch request structure
-        if !patch_request
+        let operations = patch_request
             .get("Operations")
             .and_then(|ops| ops.as_array())
-            .is_some()
-        {
+            .ok_or_else(|| {
+                crate::error::ScimError::invalid_request(
+                    "PATCH request must contain Operations array".to_string(),
+                )
+            })?;
+
+        // Validate that operations array is not empty
+        if operations.is_empty() {
             return Err(crate::error::ScimError::invalid_request(
-                "PATCH request must contain Operations array".to_string(),
+                "Invalid Operations array: cannot be empty".to_string(),
             ));
         }
 
         // Delegate to provider
         let result = self
             .provider
-            .patch_resource(resource_type, id, patch_request, context)
+            .patch_resource(resource_type, id, &patch_request, None, context)
             .await
+            .map(|versioned_resource| versioned_resource.into_resource())
             .map_err(|e| crate::error::ScimError::ProviderError(e.to_string()));
 
         match &result {
             Ok(resource) => {
                 info!(
-                    "SCIM patch {} operation completed successfully: ID '{}' (request: '{}')",
+                    "SCIM patch {} operation completed successfully for ID '{}' (request: '{}')",
                     resource_type,
                     resource.get_id().unwrap_or("unknown"),
                     context.request_id

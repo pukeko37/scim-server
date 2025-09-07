@@ -24,12 +24,19 @@
 //! let provider = StandardResourceProvider::new(storage);
 //! ```
 
-pub mod in_memory;
+pub mod error;
+pub mod helpers;
+pub mod provider;
 pub mod standard;
 
 // Re-export the recommended types
-pub use crate::storage::{InMemoryStorage, StorageProvider};
+pub use crate::storage::{InMemoryStorage, ProviderStats, StorageProvider};
+pub use error::ProviderError;
+pub use provider::ResourceProvider;
 pub use standard::StandardResourceProvider;
 
-// Legacy deprecated exports - will be removed in future version
-pub use in_memory::{InMemoryError, InMemoryStats};
+// Re-export helper traits for composable provider development
+pub use helpers::{
+    ConditionalOperations, MultiTenantProvider, ScimMetadataManager, ScimPatchOperations,
+    ScimValidator,
+};

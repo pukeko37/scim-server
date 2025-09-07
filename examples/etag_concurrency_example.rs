@@ -5,13 +5,12 @@
 //! to prevent lost updates and handle version conflicts.
 
 use scim_server::{
-    ScimServer,
+    ResourceProvider, ScimServer,
     multi_tenant::ScimOperation,
     operation_handler::{ScimOperationHandler, ScimOperationRequest},
-    providers::StandardResourceProvider,
+    providers::{StandardResourceProvider, helpers::conditional::ConditionalOperations},
     resource::{
-        RequestContext, ResourceProvider,
-        conditional_provider::VersionedResource,
+        RequestContext,
         version::{ConditionalResult, HttpVersion, RawVersion},
     },
     resource_handlers::create_user_resource_handler,
@@ -242,12 +241,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider_user_id = created_resource.get_id().unwrap();
 
     // Get current resource
-    let current_resource = provider
+    let versioned_current = provider
         .get_resource("User", &provider_user_id, &provider_context)
         .await?
         .expect("User should exist");
-
-    let versioned_current = VersionedResource::new(current_resource);
     println!(
         "✅ Current resource ETag (weak): {}",
         HttpVersion::from(versioned_current.version().clone()).to_string()
@@ -267,7 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             &provider_user_id,
             update_data,
@@ -300,7 +297,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             &provider_user_id,
             failing_update_data,
@@ -335,7 +332,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .expect("User should exist");
 
-    let versioned_for_delete = VersionedResource::new(current_resource);
+    let versioned_for_delete = current_resource;
     println!(
         "✅ Resource ETag for delete (weak): {}",
         HttpVersion::from(versioned_for_delete.version().clone()).to_string()
@@ -345,7 +342,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wrong_delete_version = RawVersion::from_hash("wrong-delete-version");
 
     match provider
-        .conditional_delete(
+        .conditional_delete_resource(
             "User",
             &provider_user_id,
             &wrong_delete_version,
@@ -367,7 +364,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Now delete with correct version
     match provider
-        .conditional_delete(
+        .conditional_delete_resource(
             "User",
             &provider_user_id,
             versioned_for_delete.version(),

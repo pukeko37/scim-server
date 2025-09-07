@@ -1,131 +1,38 @@
 //! Versioned resource types for SCIM resource versioning.
 //!
-//! This module provides types for handling versioned SCIM resources that support
-//! conditional operations with version control. As of Phase 3, conditional operations
-//! are mandatory and built into the core ResourceProvider trait, ensuring all providers
-//! support ETag-based concurrency control.
+//! This module provides the `VersionedResource` type for handling SCIM resources
+//! with version control. It enables conditional operations with ETag-based
+//! concurrency control for preventing lost updates.
 //!
-//! # Mandatory Conditional Operations Architecture
-//!
-//! The SCIM server library now requires all ResourceProvider implementations to support
-//! conditional operations. This design decision provides:
-//!
-//! - **Universal Concurrency Control**: All resources automatically support ETag versioning
-//! - **Simplified Architecture**: Single code path with consistent behavior
-//! - **Type Safety**: Compile-time guarantees for version-aware operations
-//! - **Production Readiness**: Built-in protection against lost updates
-//!
-//! # Core Types
+//! # Core Type
 //!
 //! * [`VersionedResource`] - Resource wrapper that includes automatic version computation
 //!
-//! # Usage with Mandatory Conditional Operations
+//! # Usage
 //!
-//! ```rust,no_run
+//! ```rust
 //! use scim_server::resource::{
-//!     provider::ResourceProvider,
-//!     conditional_provider::VersionedResource,
-//!     version::{ScimVersion, ConditionalResult},
-//!     core::{Resource, RequestContext},
+//!     versioned::VersionedResource,
+//!     Resource,
 //! };
-//! use serde_json::Value;
-//! use std::collections::HashMap;
-//! use std::sync::Arc;
-//! use tokio::sync::RwLock;
+//! use scim_server::resource::version::HttpVersion;
+//! use serde_json::json;
 //!
-//! #[derive(Debug)]
-//! struct MyError(String);
-//! impl std::fmt::Display for MyError {
-//!     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//!         write!(f, "{}", self.0)
-//!     }
-//! }
-//! impl std::error::Error for MyError {}
+//! let resource = Resource::from_json("User".to_string(), json!({
+//!     "id": "123",
+//!     "userName": "john.doe",
+//!     "active": true
+//! })).unwrap();
 //!
-//! #[derive(Clone)]
-//! struct MyProvider {
-//!     data: Arc<RwLock<HashMap<String, VersionedResource>>>,
-//! }
-//!
-//! impl ResourceProvider for MyProvider {
-//!     type Error = MyError;
-//!
-//!     // All providers must implement these core CRUD methods
-//!     async fn create_resource(&self, resource_type: &str, data: Value, context: &RequestContext) -> Result<Resource, Self::Error> {
-//!         let resource = Resource::from_json(resource_type.to_string(), data)
-//!             .map_err(|e| MyError(e.to_string()))?;
-//!         let mut store = self.data.write().await;
-//!         let id = resource.get_id().unwrap_or("generated-id").to_string();
-//!         let versioned = VersionedResource::new(resource.clone());
-//!         store.insert(id, versioned);
-//!         Ok(resource)
-//!     }
-//!
-//!     async fn get_resource(&self, _resource_type: &str, id: &str, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-//!         let store = self.data.read().await;
-//!         Ok(store.get(id).map(|v| v.resource().clone()))
-//!     }
-//!
-//!     // ... implement other required methods ...
-//!     # async fn update_resource(&self, _resource_type: &str, _id: &str, _data: Value, _context: &RequestContext) -> Result<Resource, Self::Error> {
-//!     #     todo!("Implement your update logic here")
-//!     # }
-//!     # async fn delete_resource(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<(), Self::Error> {
-//!     #     todo!("Implement your delete logic here")
-//!     # }
-//!     # async fn list_resources(&self, _resource_type: &str, _query: Option<&scim_server::resource::core::ListQuery>, _context: &RequestContext) -> Result<Vec<Resource>, Self::Error> {
-//!     #     todo!("Implement your list logic here")
-//!     # }
-//!     # async fn find_resource_by_attribute(&self, _resource_type: &str, _attribute: &str, _value: &Value, _context: &RequestContext) -> Result<Option<Resource>, Self::Error> {
-//!     #     todo!("Implement your find logic here")
-//!     # }
-//!     # async fn resource_exists(&self, _resource_type: &str, _id: &str, _context: &RequestContext) -> Result<bool, Self::Error> {
-//!     #     todo!("Implement your exists logic here")
-//!     # }
-//!
-//!     // Conditional operations are MANDATORY - provided by default with automatic implementation
-//!     // Override these methods for optimized conditional operations at the storage layer:
-//!
-//!     // async fn conditional_update(&self, resource_type: &str, id: &str, data: Value,
-//!     //                           expected_version: &ScimVersion, context: &RequestContext)
-//!     //                           -> Result<ConditionalResult<VersionedResource>, Self::Error> {
-//!     //     // Your database-level conditional update with version checking
-//!     // }
-//!     //
-//!     // async fn conditional_delete(&self, resource_type: &str, id: &str,
-//!     //                           expected_version: &ScimVersion, context: &RequestContext)
-//!     //                           -> Result<ConditionalResult<()>, Self::Error> {
-//!     //     // Your database-level conditional delete with version checking
-//!     // }
-//! }
+//! let versioned = VersionedResource::new(resource);
+//! println!(
+//!     "Resource version: {}",
+//!     HttpVersion::from(versioned.version().clone())
+//! );
 //! ```
-//!
-//! # Architectural Benefits
-//!
-//! Making conditional operations mandatory provides several advantages:
-//!
-//! ## Simplified Codebase
-//! - Single code path for all operations
-//! - No optional/conditional provider detection
-//! - Consistent behavior across all implementations
-//!
-//! ## Enhanced Type Safety
-//! - Compile-time guarantees for version support
-//! - No runtime checks for capability detection
-//! - Clear API contracts for all providers
-//!
-//! ## Production Readiness
-//! - Built-in concurrency control for all resources
-//! - Automatic protection against lost updates
-//! - Enterprise-grade data integrity guarantees
-//!
-//! ## Developer Experience
-//! - Consistent APIs across all providers
-//! - Clear documentation and examples
-//! - Better IDE support and tooling
 
 use super::{
-    core::Resource,
+    resource::Resource,
     version::{RawVersion, ScimVersion},
 };
 use serde::{Deserialize, Serialize};
@@ -140,9 +47,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// ```rust
 /// use scim_server::resource::{
-///     conditional_provider::VersionedResource,
-///     core::Resource,
+///     versioned::VersionedResource,
+///     Resource,
 /// };
+/// use scim_server::resource::version::HttpVersion;
 /// use serde_json::json;
 ///
 /// let resource = Resource::from_json("User".to_string(), json!({
@@ -152,7 +60,10 @@ use serde::{Deserialize, Serialize};
 /// })).unwrap();
 ///
 /// let versioned = VersionedResource::new(resource);
-/// println!("Resource version: {}", versioned.version().to_http_header());
+/// println!(
+///     "Resource version: {}",
+///     HttpVersion::from(versioned.version().clone())
+/// );
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionedResource {
@@ -175,8 +86,8 @@ impl VersionedResource {
     /// # Examples
     /// ```rust
     /// use scim_server::resource::{
-    ///     conditional_provider::VersionedResource,
-    ///     core::Resource,
+    ///     versioned::VersionedResource,
+    ///     Resource,
     /// };
     /// use serde_json::json;
     ///
@@ -204,14 +115,14 @@ impl VersionedResource {
     /// # Examples
     /// ```rust
     /// use scim_server::resource::{
-    ///     conditional_provider::VersionedResource,
-    ///     core::Resource,
-    ///     version::ScimVersion,
+    ///     versioned::VersionedResource,
+    ///     Resource,
+    ///     version::RawVersion,
     /// };
     /// use serde_json::json;
     ///
     /// let resource = Resource::from_json("User".to_string(), json!({"id": "123"})).unwrap();
-    /// let version = ScimVersion::from_hash("custom-version");
+    /// let version = RawVersion::from_hash("custom-version");
     /// let versioned = VersionedResource::with_version(resource, version);
     /// ```
     pub fn with_version(resource: Resource, version: RawVersion) -> Self {
@@ -233,6 +144,49 @@ impl VersionedResource {
         self.resource
     }
 
+    /// Get the unique identifier of this resource.
+    ///
+    /// Delegates to the inner resource's `get_id()` method.
+    pub fn get_id(&self) -> Option<&str> {
+        self.resource.get_id()
+    }
+
+    /// Get the userName field for User resources.
+    ///
+    /// Delegates to the inner resource's `get_username()` method.
+    pub fn get_username(&self) -> Option<&str> {
+        self.resource.get_username()
+    }
+
+    /// Get the external id if present.
+    ///
+    /// Delegates to the inner resource's `get_external_id()` method.
+    pub fn get_external_id(&self) -> Option<&str> {
+        self.resource.get_external_id()
+    }
+
+    /// Get the meta attributes if present.
+    ///
+    /// Delegates to the inner resource's `get_meta()` method.
+    pub fn get_meta(&self) -> Option<&crate::resource::value_objects::Meta> {
+        self.resource.get_meta()
+    }
+
+    /// Get an attribute value from the resource.
+    ///
+    /// Delegates to the inner resource's `get()` method.
+    pub fn get(&self, key: &str) -> Option<&serde_json::Value> {
+        self.resource.get(key)
+    }
+
+    /// Get an attribute value from the resource.
+    ///
+    /// Delegates to the inner resource's `get_attribute()` method.
+    /// This is an alias for `get()` for consistency with Resource API.
+    pub fn get_attribute(&self, attribute_name: &str) -> Option<&serde_json::Value> {
+        self.resource.get_attribute(attribute_name)
+    }
+
     /// Update the resource content and recompute the version.
     ///
     /// This ensures the version always reflects the current resource state.
@@ -243,8 +197,8 @@ impl VersionedResource {
     /// # Examples
     /// ```rust
     /// use scim_server::resource::{
-    ///     conditional_provider::VersionedResource,
-    ///     core::Resource,
+    ///     versioned::VersionedResource,
+    ///     Resource,
     /// };
     /// use serde_json::json;
     ///
@@ -255,7 +209,7 @@ impl VersionedResource {
     /// let old_version = versioned.version().clone();
     /// versioned.update_resource(updated);
     ///
-    /// assert!(!versioned.version().matches(&old_version));
+    /// assert!(versioned.version() != &old_version);
     /// ```
     pub fn update_resource(&mut self, new_resource: Resource) {
         self.version = Self::compute_version(&new_resource);
@@ -311,29 +265,6 @@ impl VersionedResource {
     }
 }
 
-/// Historical note: Extension trait for conditional operations (Phase 1-2).
-///
-/// This trait was used during the development phases when conditional operations
-/// were optional. As of Phase 3, all conditional operations are mandatory and
-/// built into the core ResourceProvider trait.
-///
-/// # Migration to Mandatory Architecture
-///
-/// The library has evolved from optional conditional operations to mandatory ones:
-///
-/// - **Phase 1-2**: Conditional operations were optional via this extension trait
-/// - **Phase 3**: Conditional operations moved to core ResourceProvider trait
-/// - **Current**: All providers automatically support conditional operations
-///
-/// This change ensures:
-/// - Universal concurrency control for all SCIM resources
-/// - Simplified integration with automatic ETag support
-/// - Consistent behavior across different provider implementations
-/// - Production-ready concurrency control out of the box
-///
-/// All new code should use the conditional methods directly on ResourceProvider
-/// rather than this historical extension trait.
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,7 +283,7 @@ mod tests {
         .unwrap();
 
         let versioned = VersionedResource::new(resource.clone());
-        assert_eq!(versioned.resource().get_id(), resource.get_id());
+        assert_eq!(versioned.get_id(), resource.get_id());
         assert!(!versioned.version().as_str().is_empty());
     }
 
@@ -414,7 +345,7 @@ mod tests {
 
         // Version should change after update
         assert!(versioned.version() != &old_version);
-        assert_eq!(versioned.resource().get_id(), Some("123"));
+        assert_eq!(versioned.get_id(), Some("123"));
     }
 
     #[test]
@@ -443,7 +374,7 @@ mod tests {
 
         let versioned = VersionedResource::with_version(resource.clone(), custom_version.clone());
 
-        assert_eq!(versioned.resource().get_id(), resource.get_id());
+        assert_eq!(versioned.get_id(), resource.get_id());
         assert_eq!(versioned.version(), &custom_version);
     }
 
@@ -478,10 +409,7 @@ mod tests {
         let json = serde_json::to_string(&versioned).unwrap();
         let deserialized: VersionedResource = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(
-            versioned.resource().get_id(),
-            deserialized.resource().get_id()
-        );
+        assert_eq!(versioned.get_id(), deserialized.get_id());
         assert!(versioned.version() == deserialized.version());
     }
 }

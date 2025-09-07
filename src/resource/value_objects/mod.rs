@@ -49,7 +49,7 @@ pub use composite_validation::{
 pub use email_address::EmailAddress;
 pub use extension::{ExtensionAttributeValue, ExtensionCollection};
 pub use external_id::ExternalId;
-pub use factory::{GenericMultiValuedAttribute, ValueObjectFactory};
+pub use factory::GenericMultiValuedAttribute;
 pub use group_member::{
     GroupMember, GroupMembers, MultiValuedAddresses, MultiValuedEmails, MultiValuedPhoneNumbers,
 };

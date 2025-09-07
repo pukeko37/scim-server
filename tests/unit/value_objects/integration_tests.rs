@@ -3,7 +3,7 @@
 //! This module tests the Phase 2 clean break implementation where value objects are
 //! core members of the Resource struct and validation happens during Resource construction.
 
-use scim_server::resource::core::Resource;
+use scim_server::resource::Resource;
 use scim_server::schema::registry::SchemaRegistry;
 use serde_json::json;
 

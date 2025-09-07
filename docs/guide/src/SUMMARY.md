@@ -12,8 +12,11 @@
 
 - [Architecture Overview](./architecture.md)
 
-# SCIM Concepts
+# Concepts
 
+- [Resources](./concepts/resources.md)
+- [Resource Providers](./concepts/resource-providers.md)
+- [Storage Providers](./concepts/storage-providers.md)
 - [Understanding SCIM Schemas](./concepts/schemas.md)
 - [Schema Mechanisms in SCIM Server](./concepts/schema-mechanisms.md)
 - [Concurrency Control in SCIM Operations](./concepts/concurrency.md)

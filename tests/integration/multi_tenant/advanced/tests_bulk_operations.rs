@@ -10,8 +10,8 @@ use super::{
     },
     integration::{AdvancedMultiTenantProvider, TestAdvancedProvider},
 };
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, TenantContext};
 use serde_json::json;
 
 #[cfg(test)]
@@ -331,7 +331,10 @@ mod bulk_operations_tests {
             .unwrap();
 
         assert_eq!(
-            updated_user1.get_attribute("displayName").unwrap(),
+            updated_user1
+                .resource()
+                .get_attribute("displayName")
+                .unwrap(),
             &json!("Updated User 1")
         );
         assert_eq!(
@@ -373,7 +376,7 @@ mod bulk_operations_tests {
                 BulkOperation {
                     operation_type: BulkOperationType::Delete,
                     resource_type: "User".to_string(),
-                    resource_id: Some(user2.get_id().unwrap().to_string()),
+                    resource_id: Some(user2.resource().get_id().unwrap().to_string()),
                     data: None,
                 },
             ],
@@ -397,8 +400,8 @@ mod bulk_operations_tests {
 
         assert_eq!(remaining_users.len(), 1);
         assert_eq!(
-            remaining_users[0].get_id().unwrap(),
-            user3.get_id().unwrap()
+            remaining_users[0].resource().get_id().unwrap(),
+            user3.resource().get_id().unwrap()
         );
     }
 
@@ -428,7 +431,7 @@ mod bulk_operations_tests {
                 BulkOperation {
                     operation_type: BulkOperationType::Update,
                     resource_type: "User".to_string(),
-                    resource_id: Some(existing_user.get_id().unwrap().to_string()),
+                    resource_id: Some(existing_user.resource().get_id().unwrap().to_string()),
                     data: Some(json!({
                         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
                         "userName": "existing_user",
@@ -466,10 +469,13 @@ mod bulk_operations_tests {
 
         let updated_user = users
             .iter()
-            .find(|u| u.get_username().unwrap() == "existing_user")
+            .find(|u| u.resource().get_username().unwrap() == "existing_user")
             .unwrap();
         assert_eq!(
-            updated_user.get_attribute("displayName").unwrap(),
+            updated_user
+                .resource()
+                .get_attribute("displayName")
+                .unwrap(),
             &json!("Updated Existing User")
         );
     }

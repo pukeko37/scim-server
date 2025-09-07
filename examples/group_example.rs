@@ -9,7 +9,7 @@
 //! Run with: cargo run --example group_example
 
 use scim_server::{
-    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
+    RequestContext, ResourceProvider, providers::StandardResourceProvider,
     resource_handlers::create_group_resource_handler, schema::SchemaRegistry,
     scim_server::ScimServer, storage::InMemoryStorage,
 };
@@ -217,24 +217,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 10. Demonstrate Group search by display name
     println!("\n🔍 Searching Groups by display name...");
 
-    let found_group = server
+    let found_groups = server
         .provider()
-        .find_resource_by_attribute("Group", "displayName", &json!("Marketing Team"), &context)
+        .find_resources_by_attribute("Group", "displayName", "Marketing Team", &context)
         .await?;
 
-    match found_group {
-        Some(group) => {
-            let display_name = group
-                .get_attribute("displayName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-            let id = group.get_id().unwrap_or("unknown");
-            println!(
-                "✅ Found group by display name: {} (ID: {})",
-                display_name, id
-            );
-        }
-        None => println!("❌ Group not found by display name"),
+    if !found_groups.is_empty() {
+        let group = &found_groups[0];
+        let display_name = group
+            .get_attribute("displayName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        let id = group.get_id().unwrap_or("unknown");
+        println!(
+            "✅ Found group by display name: {} (ID: {})",
+            display_name, id
+        );
+    } else {
+        println!("❌ Group not found by display name");
     }
 
     // 11. Demonstrate Group validation

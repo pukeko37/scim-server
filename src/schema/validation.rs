@@ -8,9 +8,9 @@
 use super::registry::SchemaRegistry;
 use super::types::{AttributeDefinition, AttributeType, Uniqueness};
 use crate::error::{ValidationError, ValidationResult};
-use crate::resource::core::{RequestContext, Resource};
-use crate::resource::provider::ResourceProvider;
+use crate::providers::ResourceProvider;
 use crate::resource::value_objects::SchemaUri;
+use crate::resource::{RequestContext, Resource};
 use serde_json::{Map, Value};
 
 /// Operation context for SCIM resource validation.
@@ -104,11 +104,23 @@ impl SchemaRegistry {
                     };
 
                     // Check if this value already exists
+                    let value_str = match value {
+                        serde_json::Value::String(s) => s.as_str(),
+                        _ => {
+                            return Err(ValidationError::Custom {
+                                message: format!(
+                                    "Attribute '{}' must be a string for uniqueness validation",
+                                    attr.name
+                                ),
+                            });
+                        }
+                    };
+
                     let existing = provider
-                        .find_resource_by_attribute(
+                        .find_resources_by_attribute(
                             resource_type,
                             &attr.name,
-                            value,
+                            value_str,
                             request_context,
                         )
                         .await
@@ -116,11 +128,17 @@ impl SchemaRegistry {
                             message: format!("Failed to check uniqueness: {}", e),
                         })?;
 
-                    if let Some(existing_resource) = existing {
+                    // Check if any existing resources were found
+                    if !existing.is_empty() {
+                        let existing_resource = &existing[0];
                         // If we found a resource, check if it's the same one (for updates)
                         let is_same_resource = exclude_id
                             .map(|current_id| {
-                                existing_resource.id.as_ref().map(|id| id.as_str())
+                                existing_resource
+                                    .resource()
+                                    .id
+                                    .as_ref()
+                                    .map(|id| id.as_str())
                                     == Some(current_id)
                             })
                             .unwrap_or(false);

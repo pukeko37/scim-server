@@ -4,14 +4,14 @@
 //! that are used across all SCIM integration tests. It supports both single-tenant
 //! and multi-tenant scenarios using the unified ResourceProvider interface.
 
-use scim_server::resource::core::{RequestContext, Resource, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, Resource, TenantContext};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 // Re-export key types for convenience
-pub use scim_server::resource::core::{IsolationLevel, ListQuery, TenantPermissions};
+pub use scim_server::resource::{IsolationLevel, ListQuery, TenantPermissions};
 
 /// Creates a test context for single-tenant scenarios
 pub fn create_single_tenant_context() -> RequestContext {
@@ -143,7 +143,7 @@ where
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        Ok(resource)
+        Ok(resource.into_resource())
     }
 
     /// Creates a group in the specified tenant (or default context)
@@ -164,7 +164,7 @@ where
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        Ok(resource)
+        Ok(resource.into_resource())
     }
 
     /// Verifies that a resource exists in the specified tenant but not in others (multi-tenant only)
@@ -232,7 +232,7 @@ where
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        Ok(resources)
+        Ok(resources.into_iter().map(|r| r.into_resource()).collect())
     }
 }
 
@@ -343,10 +343,9 @@ pub mod assertions {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
         let resource_id = resource
-            .id
-            .as_ref()
-            .ok_or("Resource should have an ID")?
-            .as_str();
+            .resource()
+            .get_id()
+            .ok_or("Resource should have an ID")?;
 
         // Get should work
         let retrieved = provider
@@ -355,7 +354,7 @@ pub mod assertions {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
             .ok_or("Resource should be found")?;
 
-        if retrieved.id != resource.id {
+        if retrieved.get_id() != resource.get_id() {
             return Err("Retrieved resource ID should match created resource ID".into());
         }
 
@@ -365,14 +364,14 @@ pub mod assertions {
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let found = resources.iter().any(|r| r.id == resource.id);
+        let found = resources.iter().any(|r| r.get_id() == resource.get_id());
         if !found {
             return Err("List should include the created resource".into());
         }
 
         // Delete should work
         provider
-            .delete_resource("User", resource_id, context)
+            .delete_resource("User", resource_id, None, context)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
@@ -546,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_resource_validation() {
-        use scim_server::resource::core::ResourceBuilder;
+        use scim_server::resource::builder::ResourceBuilder;
         use scim_server::resource::value_objects::{ResourceId, UserName};
 
         let resource = ResourceBuilder::new("User".to_string())

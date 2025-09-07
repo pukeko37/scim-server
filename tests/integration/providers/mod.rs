@@ -49,7 +49,7 @@ pub mod common;
 // Re-export commonly used test utilities
 pub use super::super::common::providers::*;
 // pub use crate::unit::multi_tenant::provider_trait::{ProviderTestHarness, TestMultiTenantProvider}; // Disabled - removed with deleted modules
-pub use scim_server::resource::provider::ResourceProvider;
+pub use scim_server::ResourceProvider;
 
 #[cfg(test)]
 mod provider_suite_meta {
@@ -129,7 +129,7 @@ pub mod test_patterns {
             .await
             .map_err(|e| format!("Create failed: {:?}", e))?;
 
-        let resource_id = created.id.as_ref().ok_or("No resource ID")?.as_str();
+        let resource_id = created.resource().get_id().ok_or("No resource ID")?;
 
         // Test get
         let retrieved = provider
@@ -147,15 +147,15 @@ pub mod test_patterns {
         });
 
         let updated = provider
-            .update_resource("User", resource_id, update_data, &context)
+            .update_resource("User", resource_id, update_data, None, &context)
             .await
             .map_err(|e| format!("Update failed: {:?}", e))?;
 
-        assert_eq!(updated.user_name.as_ref().unwrap().as_str(), "updated_user");
+        assert_eq!(updated.resource().get_username().unwrap(), "updated_user");
 
         // Test delete
         provider
-            .delete_resource("User", resource_id, &context)
+            .delete_resource("User", resource_id, None, &context)
             .await
             .map_err(|e| format!("Delete failed: {:?}", e))?;
 
@@ -191,8 +191,8 @@ pub mod test_patterns {
             .await
             .map_err(|e| format!("Create in tenant B failed: {:?}", e))?;
 
-        let id_a = user_a.id.as_ref().ok_or("No ID for user A")?.as_str();
-        let id_b = user_b.id.as_ref().ok_or("No ID for user B")?.as_str();
+        let id_a = user_a.resource().get_id().ok_or("No ID for user A")?;
+        let id_b = user_b.resource().get_id().ok_or("No ID for user B")?;
 
         // Verify tenant A can only access its own resources
         let get_a_own = provider
@@ -276,8 +276,8 @@ pub mod test_patterns {
 
                 match result {
                     Ok(resource) => {
-                        if let Some(id) = &resource.id {
-                            created_ids.push(id.as_str().to_string());
+                        if let Some(id) = resource.resource().get_id() {
+                            created_ids.push(id.to_string());
                         }
                     }
                     Err(e) => return Err(format!("Create failed: {:?}", e).into()),

@@ -11,7 +11,7 @@ use crate::{
     mcp_integration::handlers::etag_to_raw_version,
     multi_tenant::TenantContext,
     operation_handler::ScimOperationRequest,
-    resource::version::ScimVersion,
+    resource::version::{Http, Raw, ScimVersion},
 };
 use serde_json::{Value, json};
 
@@ -223,9 +223,11 @@ pub async fn handle_update_group<P: ResourceProvider + Send + Sync + 'static>(
 
     // Handle optional version-based conditional update
     if let Some(expected_version_str) = arguments.get("expected_version").and_then(|v| v.as_str()) {
-        // Try parsing as HTTP ETag format first
-        let version_result = ScimVersion::parse_http_header(expected_version_str)
-            .or_else(|_| ScimVersion::parse_raw(expected_version_str));
+        // Try parsing as HTTP ETag format first, then as raw format
+        let version_result = expected_version_str
+            .parse::<ScimVersion<Http>>()
+            .map(|v| v.into())
+            .or_else(|_| expected_version_str.parse::<ScimVersion<Raw>>());
 
         match version_result {
             Ok(version) => {
@@ -339,9 +341,11 @@ pub async fn handle_delete_group<P: ResourceProvider + Send + Sync + 'static>(
 
     // Handle optional version-based conditional delete
     if let Some(expected_version_str) = arguments.get("expected_version").and_then(|v| v.as_str()) {
-        // Try parsing as HTTP ETag format first
-        let version_result = ScimVersion::parse_http_header(expected_version_str)
-            .or_else(|_| ScimVersion::parse_raw(expected_version_str));
+        // Try parsing as HTTP ETag format first, then as raw format
+        let version_result = expected_version_str
+            .parse::<ScimVersion<Http>>()
+            .map(|v| v.into())
+            .or_else(|_| expected_version_str.parse::<ScimVersion<Raw>>());
 
         match version_result {
             Ok(version) => {

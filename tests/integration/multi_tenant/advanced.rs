@@ -277,8 +277,8 @@ mod integration_tests {
     //! Integration tests that demonstrate the complete advanced multi-tenant workflow
 
     use super::*;
-    use scim_server::resource::core::{RequestContext, TenantContext};
-    use scim_server::resource::provider::ResourceProvider;
+    use scim_server::ResourceProvider;
+    use scim_server::resource::{RequestContext, TenantContext};
     use serde_json::json;
 
     fn create_test_context(tenant_id: &str) -> RequestContext {

@@ -1,29 +1,63 @@
 //! SCIM 2.0 server library for Rust.
 //!
-//! Provides type-safe, async-first SCIM protocol implementation with
-//! multi-tenant support and pluggable storage backends.
+//! A modern, type-safe implementation of the SCIM 2.0 protocol with clean architecture,
+//! multi-tenant support, and pluggable storage backends.
 //!
-//! # Core Components
+//! # Core Architecture
 //!
-//! - [`ScimServer`] - Main server for handling SCIM operations
-//! - [`ResourceProvider`] - Trait for implementing storage backends
-//! - [`SchemaDiscovery`] - Schema introspection and service configuration
+//! This library follows a clean, layered architecture:
+//!
+//! - **SCIM Protocol Layer**: [`ScimServer`] handles SCIM HTTP operations
+//! - **Resource Layer**: [`Resource`] provides type-safe resource representation
+//! - **Storage Layer**: [`ResourceProvider`] trait for pluggable backends
+//! - **Schema Layer**: [`Schema`] definitions with validation
+//! - **Multi-tenancy**: Built-in support via [`TenantContext`]
 //!
 //! # Quick Start
 //!
 //! ```rust,no_run
-//! use scim_server::{ScimServer, providers::StandardResourceProvider};
+//! use scim_server::ScimServer;
+//! use scim_server::providers::StandardResourceProvider;
 //! use scim_server::storage::InMemoryStorage;
+//! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // 1. Set up storage and provider
 //! let storage = InMemoryStorage::new();
 //! let provider = StandardResourceProvider::new(storage);
+//!
+//! // 2. Create SCIM server
 //! let server = ScimServer::new(provider)?;
+//!
+//! // 3. Server is ready for HTTP integration
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! For detailed usage, see the [SCIM Server Guide](https://docs.rs/scim-server/guide/).
+//! # Key Features
+//!
+//! - **Type Safety**: Value objects with compile-time validation
+//! - **Multi-tenant**: Full tenant isolation with configurable strategies
+//! - **Async First**: Built on async/await for high performance
+//! - **Pluggable Storage**: Bring your own database via [`ResourceProvider`]
+//! - **Schema Validation**: Automatic validation against SCIM schemas
+//! - **Version Control**: ETag-based optimistic concurrency control
+//! - **Extensible**: Support for custom schemas and value objects
+//!
+//! # Architecture Overview
+//!
+//! ```text
+//! ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+//! │   HTTP Layer    │───▶│   ScimServer     │───▶│ Operation       │
+//! │   (Axum/etc)    │    │   (Protocol)     │    │ Handler         │
+//! └─────────────────┘    └──────────────────┘    └─────────────────┘
+//!                                 │                        │
+//!                                 ▼                        ▼
+//! ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+//! │     Schema      │    │    Resource      │    │ ResourceProvider│
+//! │   Validation    │    │  (Value Objects) │    │   (Storage)     │
+//! └─────────────────┘    └──────────────────┘    └─────────────────┘
+//! ```
 
 pub mod auth;
 pub mod error;
@@ -46,7 +80,8 @@ pub mod storage;
 
 // Re-export commonly used types for convenience
 pub use error::{ScimError, ScimResult};
-pub use resource::{IsolationLevel, ResourceProvider, TenantPermissions};
+pub use providers::ResourceProvider;
+pub use resource::{IsolationLevel, TenantPermissions};
 pub use resource::{ListQuery, RequestContext, Resource, ScimOperation, TenantContext};
 pub use schema::{Schema, SchemaRegistry};
 pub use schema_discovery::SchemaDiscovery;

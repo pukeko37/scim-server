@@ -5,7 +5,7 @@
 
 use super::core::ScimServer;
 use crate::error::ScimResult;
-use crate::resource::ResourceProvider;
+use crate::providers::ResourceProvider;
 use crate::schema::Schema;
 
 impl<P: ResourceProvider> ScimServer<P> {

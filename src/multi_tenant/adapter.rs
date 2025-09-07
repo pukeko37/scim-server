@@ -6,7 +6,9 @@
 //! Since the ResourceProvider is now unified, these are primarily validation and
 //! convenience utilities rather than true adapters.
 
-use crate::resource::{ListQuery, RequestContext, Resource, ResourceProvider, TenantContext};
+use crate::providers::ResourceProvider;
+use crate::resource::version::RawVersion;
+use crate::resource::{ListQuery, RequestContext, TenantContext, versioned::VersionedResource};
 use serde_json::Value;
 use std::future::Future;
 
@@ -63,7 +65,7 @@ where
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         async move {
             // Validate context consistency
             self.validate_context_consistency(context)?;
@@ -80,7 +82,7 @@ where
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Option<VersionedResource>, Self::Error>> + Send {
         async move {
             self.validate_context_consistency(context)?;
 
@@ -96,13 +98,14 @@ where
         resource_type: &str,
         id: &str,
         data: Value,
+        expected_version: Option<&RawVersion>,
         context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         async move {
             self.validate_context_consistency(context)?;
 
             self.inner
-                .update_resource(resource_type, id, data, context)
+                .update_resource(resource_type, id, data, expected_version, context)
                 .await
                 .map_err(AdapterError::Provider)
         }
@@ -112,13 +115,14 @@ where
         &self,
         resource_type: &str,
         id: &str,
+        expected_version: Option<&RawVersion>,
         context: &RequestContext,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async move {
             self.validate_context_consistency(context)?;
 
             self.inner
-                .delete_resource(resource_type, id, context)
+                .delete_resource(resource_type, id, expected_version, context)
                 .await
                 .map_err(AdapterError::Provider)
         }
@@ -129,7 +133,7 @@ where
         resource_type: &str,
         query: Option<&ListQuery>,
         context: &RequestContext,
-    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
         async move {
             self.validate_context_consistency(context)?;
 
@@ -140,18 +144,41 @@ where
         }
     }
 
-    fn find_resource_by_attribute(
+    fn find_resources_by_attribute(
         &self,
         resource_type: &str,
-        attribute: &str,
-        value: &Value,
+        attribute_name: &str,
+        attribute_value: &str,
         context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
         async move {
             self.validate_context_consistency(context)?;
 
             self.inner
-                .find_resource_by_attribute(resource_type, attribute, value, context)
+                .find_resources_by_attribute(
+                    resource_type,
+                    attribute_name,
+                    attribute_value,
+                    context,
+                )
+                .await
+                .map_err(AdapterError::Provider)
+        }
+    }
+
+    fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        patch_request: &Value,
+        expected_version: Option<&RawVersion>,
+        context: &RequestContext,
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
+        async move {
+            self.validate_context_consistency(context)?;
+
+            self.inner
+                .patch_resource(resource_type, id, patch_request, expected_version, context)
                 .await
                 .map_err(AdapterError::Provider)
         }
@@ -277,7 +304,7 @@ mod tests {
             _resource_type: &str,
             _data: Value,
             _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
+        ) -> Result<VersionedResource, Self::Error> {
             Err(MockError)
         }
 
@@ -286,7 +313,7 @@ mod tests {
             _resource_type: &str,
             _id: &str,
             _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
+        ) -> Result<Option<VersionedResource>, Self::Error> {
             Ok(None)
         }
 
@@ -295,8 +322,9 @@ mod tests {
             _resource_type: &str,
             _id: &str,
             _data: Value,
+            _expected_version: Option<&RawVersion>,
             _context: &RequestContext,
-        ) -> Result<Resource, Self::Error> {
+        ) -> Result<VersionedResource, Self::Error> {
             Err(MockError)
         }
 
@@ -304,6 +332,7 @@ mod tests {
             &self,
             _resource_type: &str,
             _id: &str,
+            _expected_version: Option<&RawVersion>,
             _context: &RequestContext,
         ) -> Result<(), Self::Error> {
             Ok(())
@@ -314,18 +343,29 @@ mod tests {
             _resource_type: &str,
             _query: Option<&ListQuery>,
             _context: &RequestContext,
-        ) -> Result<Vec<Resource>, Self::Error> {
+        ) -> Result<Vec<VersionedResource>, Self::Error> {
             Ok(vec![])
         }
 
-        async fn find_resource_by_attribute(
+        async fn find_resources_by_attribute(
             &self,
             _resource_type: &str,
-            _attribute: &str,
-            _value: &Value,
+            _attribute_name: &str,
+            _attribute_value: &str,
             _context: &RequestContext,
-        ) -> Result<Option<Resource>, Self::Error> {
-            Ok(None)
+        ) -> Result<Vec<VersionedResource>, Self::Error> {
+            Ok(vec![])
+        }
+
+        async fn patch_resource(
+            &self,
+            _resource_type: &str,
+            _id: &str,
+            _patch_request: &Value,
+            _expected_version: Option<&RawVersion>,
+            _context: &RequestContext,
+        ) -> Result<VersionedResource, Self::Error> {
+            Err(MockError)
         }
 
         async fn resource_exists(

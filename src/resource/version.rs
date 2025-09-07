@@ -37,7 +37,7 @@
 //! let etag_version: HttpVersion = "W/\"abc123def\"".parse().unwrap();
 //!
 //! // Convert to HTTP weak ETag header (for responses)
-//! let etag_header = HttpVersion::from(raw_version).to_string(); // Returns: "W/\"abc123def\""
+//! let etag_header = HttpVersion::from(raw_version.clone()).to_string(); // Returns: "W/\"abc123def\""
 //!
 //! // Check version equality (works across formats)
 //! let matches = raw_version == etag_version;
@@ -65,31 +65,19 @@
 //!
 //! ```rust,no_run
 //! use scim_server::resource::version::{ConditionalResult, RawVersion, HttpVersion};
-//! use scim_server::resource::{ResourceProvider, RequestContext};
 //! use serde_json::json;
 //!
-//! # async fn example<P: ResourceProvider + Sync>(provider: &P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! let context = RequestContext::with_generated_id();
+//! // Version types provide type-safe version handling for conditional operations
 //! let expected_version = RawVersion::from_hash("current-version");
-//! let update_data = json!({"userName": "updated.name", "active": false});
+//! let http_version: HttpVersion = expected_version.clone().into();
 //!
-//! // Conditional update with type-safe version handling
-//! match provider.conditional_update("User", "123", update_data, &expected_version, &context).await {
-//!     Ok(ConditionalResult::Success(updated_resource)) => {
-//!         println!("Update succeeded: {}", updated_resource.resource().get_id().unwrap_or("unknown"));
-//!     }
-//!     Ok(ConditionalResult::VersionMismatch(conflict)) => {
-//!         println!("Version conflict: expected {}, found {}", conflict.expected, conflict.current);
-//!     }
-//!     Ok(ConditionalResult::NotFound) => {
-//!         println!("Resource not found");
-//!     }
-//!     Err(e) => {
-//!         println!("Operation failed: {}", e);
-//!     }
-//! }
-//! # Ok(())
-//! # }
+//! // ConditionalResult enum provides type-safe results:
+//! // - Success(resource) - Operation succeeded
+//! // - VersionMismatch(conflict) - Resource was modified by another client
+//! // - NotFound - Resource doesn't exist
+//!
+//! let update_data = json!({"userName": "updated.name", "active": false});
+//! // Used with ConditionalOperations trait for optimistic locking
 //! ```
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};

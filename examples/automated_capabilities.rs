@@ -7,7 +7,7 @@
 use scim_server::{
     BulkCapabilities, CapabilityIntrospectable, ExtendedCapabilities, PaginationCapabilities,
     RequestContext, Resource, ResourceProvider, ScimOperation, ScimServer,
-    create_user_resource_handler,
+    create_user_resource_handler, resource::versioned::VersionedResource,
 };
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -46,7 +46,7 @@ impl ResourceProvider for AdvancedProvider {
         resource_type: &str,
         data: Value,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let resources = self.resources.clone();
 
@@ -56,8 +56,9 @@ impl ResourceProvider for AdvancedProvider {
             })?;
             let id = resource.get_id().unwrap_or("unknown").to_string();
 
-            resources.write().await.insert(id, resource.clone());
-            Ok(resource)
+            let versioned = VersionedResource::new(resource.clone());
+            resources.write().await.insert(id, resource);
+            Ok(versioned)
         }
     }
 
@@ -66,11 +67,17 @@ impl ResourceProvider for AdvancedProvider {
         _resource_type: &str,
         id: &str,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Option<VersionedResource>, Self::Error>> + Send {
         let id = id.to_string();
         let resources = self.resources.clone();
 
-        async move { Ok(resources.read().await.get(&id).cloned()) }
+        async move {
+            Ok(resources
+                .read()
+                .await
+                .get(&id)
+                .map(|r| VersionedResource::new(r.clone())))
+        }
     }
 
     fn update_resource(
@@ -78,8 +85,11 @@ impl ResourceProvider for AdvancedProvider {
         resource_type: &str,
         id: &str,
         data: Value,
+        _expected_version: Option<
+            &scim_server::resource::version::ScimVersion<scim_server::resource::version::Raw>,
+        >,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Resource, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
         let resource_type = resource_type.to_string();
         let id = id.to_string();
         let resources = self.resources.clone();
@@ -88,8 +98,9 @@ impl ResourceProvider for AdvancedProvider {
             let resource = Resource::from_json(resource_type, data).map_err(|e| ProviderError {
                 message: format!("Failed to update resource: {}", e),
             })?;
-            resources.write().await.insert(id, resource.clone());
-            Ok(resource)
+            let versioned = VersionedResource::new(resource.clone());
+            resources.write().await.insert(id, resource);
+            Ok(versioned)
         }
     }
 
@@ -97,6 +108,9 @@ impl ResourceProvider for AdvancedProvider {
         &self,
         _resource_type: &str,
         id: &str,
+        _expected_version: Option<
+            &scim_server::resource::version::ScimVersion<scim_server::resource::version::Raw>,
+        >,
         _context: &RequestContext,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         let id = id.to_string();
@@ -113,20 +127,44 @@ impl ResourceProvider for AdvancedProvider {
         _resource_type: &str,
         _query: Option<&scim_server::ListQuery>,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
         let resources = self.resources.clone();
 
-        async move { Ok(resources.read().await.values().cloned().collect::<Vec<_>>()) }
+        async move {
+            Ok(resources
+                .read()
+                .await
+                .values()
+                .map(|r| VersionedResource::new(r.clone()))
+                .collect::<Vec<_>>())
+        }
     }
 
-    fn find_resource_by_attribute(
+    fn find_resources_by_attribute(
         &self,
         _resource_type: &str,
         _attribute: &str,
-        _value: &Value,
+        _value: &str,
         _context: &RequestContext,
-    ) -> impl Future<Output = Result<Option<Resource>, Self::Error>> + Send {
-        async move { Ok(None) }
+    ) -> impl Future<Output = Result<Vec<VersionedResource>, Self::Error>> + Send {
+        async move { Ok(Vec::new()) }
+    }
+
+    fn patch_resource(
+        &self,
+        _resource_type: &str,
+        _id: &str,
+        _patch_request: &Value,
+        _expected_version: Option<
+            &scim_server::resource::version::ScimVersion<scim_server::resource::version::Raw>,
+        >,
+        _context: &RequestContext,
+    ) -> impl Future<Output = Result<VersionedResource, Self::Error>> + Send {
+        async move {
+            Err(ProviderError {
+                message: "Patch not implemented".to_string(),
+            })
+        }
     }
 
     fn resource_exists(

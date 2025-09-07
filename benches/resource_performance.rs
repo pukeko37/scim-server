@@ -4,7 +4,7 @@
 //! Resource creation and validation operations.
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
-use scim_server::resource::core::Resource;
+use scim_server::resource::Resource;
 use scim_server::schema::registry::SchemaRegistry;
 use serde_json::{Value, json};
 // use std::collections::HashMap; // Unused import

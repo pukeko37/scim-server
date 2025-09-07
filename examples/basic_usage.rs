@@ -4,8 +4,7 @@
 //! using the StandardResourceProvider with in-memory storage.
 
 use scim_server::{
-    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
-    storage::InMemoryStorage,
+    RequestContext, ResourceProvider, providers::StandardResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -96,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Found {} users:", users.len());
     for user in &users {
         println!(
-            "   - {} ({})",
+            "  - {} (ID: {})",
             user.get_username().unwrap_or("unknown"),
             user.get_id().unwrap_or("unknown")
         );
@@ -105,40 +104,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🔍 Finding users by attributes...");
 
     // Find user by username
-    let found_user = provider
-        .find_resource_by_attribute("User", "userName", &json!("john.doe@example.com"), &context)
+    let found_users = provider
+        .find_resources_by_attribute("User", "userName", "john.doe@example.com", &context)
         .await?;
 
-    match found_user {
-        Some(user) => {
-            println!(
-                "✅ Found user by username: {} (ID: {})",
-                user.get_username().unwrap_or("unknown"),
-                user.get_id().unwrap_or("unknown")
-            );
-        }
-        None => println!("❌ User not found by username"),
+    if !found_users.is_empty() {
+        let user = &found_users[0];
+        println!(
+            "✅ Found user by username: {} (ID: {})",
+            user.get_username().unwrap_or("unknown"),
+            user.get_id().unwrap_or("unknown")
+        );
+    } else {
+        println!("❌ User not found by username");
     }
 
     // Find user by email
     let found_by_email = provider
-        .find_resource_by_attribute(
-            "User",
-            "emails.value",
-            &json!("jane.smith@example.com"),
-            &context,
-        )
+        .find_resources_by_attribute("User", "userName", "jane.smith@example.com", &context)
         .await?;
 
-    match found_by_email {
-        Some(user) => {
-            println!(
-                "✅ Found user by email: {} (ID: {})",
-                user.get_username().unwrap_or("unknown"),
-                user.get_id().unwrap_or("unknown")
-            );
-        }
-        None => println!("❌ User not found by email"),
+    if !found_by_email.is_empty() {
+        let user = &found_by_email[0];
+        println!(
+            "✅ Found user by email: {} (ID: {})",
+            user.get_username().unwrap_or("unknown"),
+            user.get_id().unwrap_or("unknown")
+        );
+    } else {
+        println!("❌ User not found by email");
     }
 
     println!("\n✏️  Updating user...");
@@ -180,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let updated_user = provider
-        .update_resource("User", user1_id, updated_data, &context)
+        .update_resource("User", user1_id, updated_data, None, &context)
         .await?;
     println!(
         "✅ Updated user: {} (ID: {})",
@@ -189,7 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Show the updated name
-    if let Some(name) = updated_user.get_name() {
+    if let Some(name) = updated_user.resource().get_name() {
         if let Some(formatted) = name.formatted.as_ref() {
             println!("   📝 New formatted name: {}", formatted);
         }
@@ -198,18 +192,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📞 Working with phone numbers...");
 
     // Demonstrate working with phone numbers
-    if let Some(phone_numbers) = updated_user.get_phone_numbers() {
+    if let Some(phone_numbers) = updated_user.resource().get_phone_numbers() {
         println!("📱 User has {} phone numbers:", phone_numbers.len());
         for phone in phone_numbers {
             let phone_type = phone.phone_type.as_ref().map_or("unknown", |v| v);
             println!("   - {}: {}", phone_type, phone.value);
         }
+    } else {
+        println!("📱 User has no phone numbers");
     }
 
     println!("\n📧 Working with email addresses...");
 
     // Demonstrate working with emails
-    if let Some(emails) = updated_user.get_emails() {
+    if let Some(emails) = updated_user.resource().get_emails() {
         println!("📧 User has {} email addresses:", emails.len());
         for email in emails {
             let email_type = email.email_type.as_ref().map_or("unknown", |v| v);
@@ -229,7 +225,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ User {} exists: {}", user2_id, exists);
 
     // Delete the second user
-    provider.delete_resource("User", user2_id, &context).await?;
+    provider
+        .delete_resource("User", user2_id, None, &context)
+        .await?;
     println!("✅ Deleted user");
 
     // Check if user still exists

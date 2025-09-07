@@ -79,6 +79,45 @@ pub struct StorageStats {
     pub total_resources: usize,
 }
 
+/// Statistics about provider usage (moved from obsolete in_memory module).
+///
+/// This provides metrics about resource counts, tenants, and resource types
+/// for monitoring and debugging purposes.
+#[derive(Debug, Clone)]
+pub struct ProviderStats {
+    /// Number of active tenants in the provider
+    pub tenant_count: usize,
+    /// Total number of resources across all tenants
+    pub total_resources: usize,
+    /// Number of distinct resource types
+    pub resource_type_count: usize,
+    /// List of resource type names
+    pub resource_types: Vec<String>,
+}
+
+impl ProviderStats {
+    /// Create new empty statistics.
+    pub fn new() -> Self {
+        Self {
+            tenant_count: 0,
+            total_resources: 0,
+            resource_type_count: 0,
+            resource_types: Vec::new(),
+        }
+    }
+
+    /// Check if the provider is empty (no resources).
+    pub fn is_empty(&self) -> bool {
+        self.total_resources == 0
+    }
+}
+
+impl Default for ProviderStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A hierarchical key for identifying resources in storage.
 ///
 /// Resources are organized as: `tenant_id` → `resource_type` → `resource_id`

@@ -40,7 +40,7 @@ async fn test_permission_enforcement_crud_operations() {
         .await
         .expect("Create should be allowed");
 
-    let user_id = created_user.get_id().unwrap();
+    let user_id = created_user.resource().get_id().unwrap();
 
     // Read should work
     let read_result = provider
@@ -63,7 +63,7 @@ async fn test_permission_enforcement_crud_operations() {
     });
 
     let update_result = provider
-        .update_resource("User", user_id, update_data, &context)
+        .update_resource("User", user_id, update_data, None, &context)
         .await;
     assert!(
         update_result.is_err(),
@@ -71,7 +71,9 @@ async fn test_permission_enforcement_crud_operations() {
     );
 
     // Delete should fail
-    let delete_result = provider.delete_resource("User", user_id, &context).await;
+    let delete_result = provider
+        .delete_resource("User", user_id, None, &context)
+        .await;
     assert!(
         delete_result.is_err(),
         "Delete should be blocked by permissions"
@@ -103,7 +105,7 @@ async fn test_resource_limits_enforcement() {
         .create_resource("User", user1_data, &context)
         .await
         .expect("First user should be created");
-    assert!(user1.get_id().is_some());
+    assert!(user1.resource().get_id().is_some());
 
     // Create second user - should succeed
     let user2_data = json!({
@@ -115,7 +117,7 @@ async fn test_resource_limits_enforcement() {
         .create_resource("User", user2_data, &context)
         .await
         .expect("Second user should be created");
-    assert!(user2.get_id().is_some());
+    assert!(user2.resource().get_id().is_some());
 
     // Create third user - should fail due to limit
     let user3_data = json!({
@@ -136,7 +138,7 @@ async fn test_resource_limits_enforcement() {
         .create_resource("Group", group1_data, &context)
         .await
         .expect("First group should be created");
-    assert!(group1.get_id().is_some());
+    assert!(group1.resource().get_id().is_some());
 
     // Create second group - should fail due to limit
     let group2_data = json!({
@@ -185,8 +187,8 @@ async fn test_tenant_isolation() {
         .await
         .expect("User creation in tenant B should succeed");
 
-    let actual_user_a_id = user_a.get_id().unwrap();
-    let actual_user_b_id = user_b.get_id().unwrap();
+    let actual_user_a_id = user_a.resource().get_id().unwrap();
+    let actual_user_b_id = user_b.resource().get_id().unwrap();
 
     // Tenant A accessing user ID "1" should find its own user, not tenant B's user
     let cross_access_result = provider
@@ -197,7 +199,7 @@ async fn test_tenant_isolation() {
     if let Some(ref found_user) = cross_access_result {
         // Should find its own user, not tenant B's user
         assert_eq!(
-            found_user.get_username().unwrap(),
+            found_user.resource().get_username().unwrap(),
             "alice.tenant.a",
             "Tenant A should find its own user with same ID, not tenant B's user"
         );
@@ -212,7 +214,7 @@ async fn test_tenant_isolation() {
     if let Some(ref found_user) = cross_access_result {
         // Should find its own user, not tenant A's user
         assert_eq!(
-            found_user.get_username().unwrap(),
+            found_user.resource().get_username().unwrap(),
             "alice.tenant.b",
             "Tenant B should find its own user with same ID, not tenant A's user"
         );
@@ -220,22 +222,22 @@ async fn test_tenant_isolation() {
 
     // Tenant A should not find tenant B's user by username
     let username_search_result = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.b"), &context_a)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.b", &context_a)
         .await
         .expect("Search should succeed");
     assert!(
-        username_search_result.is_none(),
-        "Tenant A should not find tenant B's user by username"
+        username_search_result.is_empty(),
+        "Tenant A should not find tenant B's user"
     );
 
     // Tenant B should not find tenant A's user by username
     let username_search_result = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.a"), &context_b)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.a", &context_b)
         .await
         .expect("Search should succeed");
     assert!(
-        username_search_result.is_none(),
-        "Tenant B should not find tenant A's user by username"
+        username_search_result.is_empty(),
+        "Tenant B should not find tenant A's user"
     );
 
     // Verify list operations are isolated
@@ -272,7 +274,7 @@ async fn test_single_tenant_permissions() {
         .await
         .expect("Single-tenant create should always work");
 
-    let user_id = created_user.get_id().unwrap();
+    let user_id = created_user.resource().get_id().unwrap();
 
     // Read should work
     let read_result = provider
@@ -288,17 +290,20 @@ async fn test_single_tenant_permissions() {
     });
 
     let updated_user = provider
-        .update_resource("User", user_id, update_data, &single_context)
+        .update_resource("User", user_id, update_data, None, &single_context)
         .await
         .expect("Single-tenant update should work");
     assert_eq!(
-        updated_user.get_attribute("displayName").unwrap(),
+        updated_user
+            .resource()
+            .get_attribute("displayName")
+            .unwrap(),
         &json!("Updated Single User")
     );
 
     // Delete should work
     provider
-        .delete_resource("User", user_id, &single_context)
+        .delete_resource("User", user_id, None, &single_context)
         .await
         .expect("Single-tenant delete should work");
 
@@ -350,7 +355,10 @@ async fn test_mixed_tenant_isolation() {
         .await
         .expect("Single-tenant list should work");
     assert_eq!(single_users.len(), 1);
-    assert_eq!(single_users[0].get_username().unwrap(), "single.user");
+    assert_eq!(
+        single_users[0].resource().get_username().unwrap(),
+        "single.user"
+    );
 
     // Multi-tenant should not see single-tenant users
     let multi_users = provider
@@ -358,11 +366,14 @@ async fn test_mixed_tenant_isolation() {
         .await
         .expect("Multi-tenant list should work");
     assert_eq!(multi_users.len(), 1);
-    assert_eq!(multi_users[0].get_username().unwrap(), "multi.user");
+    assert_eq!(
+        multi_users[0].resource().get_username().unwrap(),
+        "multi.user"
+    );
 
     // Cross-access should not work
-    let single_user_id = single_user.get_id().unwrap();
-    let multi_user_id = multi_user.get_id().unwrap();
+    let single_user_id = single_user.resource().get_id().unwrap();
+    let multi_user_id = multi_user.resource().get_id().unwrap();
 
     let cross_access_1 = provider
         .get_resource("User", multi_user_id, &single_context)
@@ -372,7 +383,7 @@ async fn test_mixed_tenant_isolation() {
     if let Some(ref found_user) = cross_access_1 {
         // Should find its own user, not the multi-tenant user
         assert_eq!(
-            found_user.get_username().unwrap(),
+            found_user.resource().get_username().unwrap(),
             "single.user",
             "Single-tenant should find its own user with same ID, not multi-tenant user"
         );
@@ -386,7 +397,7 @@ async fn test_mixed_tenant_isolation() {
     if let Some(ref found_user) = cross_access_2 {
         // Should find its own user, not the single-tenant user
         assert_eq!(
-            found_user.get_username().unwrap(),
+            found_user.resource().get_username().unwrap(),
             "multi.user",
             "Multi-tenant should find its own user with same ID, not single-tenant user"
         );
@@ -442,7 +453,7 @@ async fn test_operation_specific_permissions() {
         .await
         .expect("User creation should work with full permissions for setup");
 
-    let readonly_user_id = readonly_user.get_id().unwrap();
+    let readonly_user_id = readonly_user.resource().get_id().unwrap();
 
     // Test read-only tenant permissions
     let read_result = provider
@@ -476,7 +487,7 @@ async fn test_operation_specific_permissions() {
         .await
         .expect("Create should be allowed for writeonly tenant");
 
-    let writeonly_user_id = writeonly_user.get_id().unwrap();
+    let writeonly_user_id = writeonly_user.resource().get_id().unwrap();
 
     // Test write-only restrictions
     let read_result = provider
@@ -501,11 +512,20 @@ async fn test_operation_specific_permissions() {
     });
 
     let update_result = provider
-        .update_resource("User", writeonly_user_id, update_data, &writeonly_context)
+        .update_resource(
+            "User",
+            writeonly_user_id,
+            update_data,
+            None,
+            &writeonly_context,
+        )
         .await
         .expect("Update should be allowed for writeonly tenant");
     assert_eq!(
-        update_result.get_attribute("displayName").unwrap(),
+        update_result
+            .resource()
+            .get_attribute("displayName")
+            .unwrap(),
         &json!("Updated Writeonly User")
     );
 }

@@ -5,8 +5,8 @@
 //! This is essential for proper $ref field generation in SCIM responses.
 
 use crate::error::ScimError;
+use crate::providers::ResourceProvider;
 use crate::scim_server::ScimServer;
-use crate::resource::ResourceProvider;
 
 /// Strategy for handling tenant information in URLs.
 ///
@@ -88,21 +88,21 @@ impl ScimServerConfig {
         resource_id: &str,
     ) -> Result<String, ScimError> {
         match &self.tenant_strategy {
-            TenantStrategy::SingleTenant => {
-                Ok(format!("{}/{}/{}/{}",
-                    self.base_url,
-                    self.scim_version,
-                    resource_type,
-                    resource_id
-                ))
-            },
+            TenantStrategy::SingleTenant => Ok(format!(
+                "{}/{}/{}/{}",
+                self.base_url, self.scim_version, resource_type, resource_id
+            )),
             TenantStrategy::Subdomain => {
                 let tenant = tenant_id.ok_or_else(|| {
-                    ScimError::invalid_request("Tenant ID required for subdomain strategy but not provided")
+                    ScimError::invalid_request(
+                        "Tenant ID required for subdomain strategy but not provided",
+                    )
                 })?;
 
                 // Extract domain from base URL and prepend tenant
-                let url_without_protocol = self.base_url.strip_prefix("https://")
+                let url_without_protocol = self
+                    .base_url
+                    .strip_prefix("https://")
                     .or_else(|| self.base_url.strip_prefix("http://"))
                     .or_else(|| self.base_url.strip_prefix("mcp://"))
                     .ok_or_else(|| ScimError::internal("Invalid base URL format"))?;
@@ -115,7 +115,8 @@ impl ScimServerConfig {
                     "mcp"
                 };
 
-                Ok(format!("{}://{}.{}/{}/{}/{}",
+                Ok(format!(
+                    "{}://{}.{}/{}/{}/{}",
                     protocol,
                     tenant,
                     url_without_protocol,
@@ -123,20 +124,19 @@ impl ScimServerConfig {
                     resource_type,
                     resource_id
                 ))
-            },
+            }
             TenantStrategy::PathBased => {
                 let tenant = tenant_id.ok_or_else(|| {
-                    ScimError::invalid_request("Tenant ID required for path-based strategy but not provided")
+                    ScimError::invalid_request(
+                        "Tenant ID required for path-based strategy but not provided",
+                    )
                 })?;
 
-                Ok(format!("{}/{}/{}/{}/{}",
-                    self.base_url,
-                    tenant,
-                    self.scim_version,
-                    resource_type,
-                    resource_id
+                Ok(format!(
+                    "{}/{}/{}/{}/{}",
+                    self.base_url, tenant, self.scim_version, resource_type, resource_id
                 ))
-            },
+            }
         }
     }
 
@@ -148,8 +148,13 @@ impl ScimServerConfig {
             return Err(ScimError::internal("Base URL cannot be empty"));
         }
 
-        if !self.base_url.starts_with("http://") && !self.base_url.starts_with("https://") && !self.base_url.starts_with("mcp://") {
-            return Err(ScimError::internal("Base URL must start with http://, https://, or mcp://"));
+        if !self.base_url.starts_with("http://")
+            && !self.base_url.starts_with("https://")
+            && !self.base_url.starts_with("mcp://")
+        {
+            return Err(ScimError::internal(
+                "Base URL must start with http://, https://, or mcp://",
+            ));
         }
 
         if self.scim_version.is_empty() {
@@ -281,7 +286,9 @@ mod tests {
             scim_version: "v2".to_string(),
         };
 
-        let url = config.generate_ref_url(Some("acme"), "Groups", "67890").unwrap();
+        let url = config
+            .generate_ref_url(Some("acme"), "Groups", "67890")
+            .unwrap();
         assert_eq!(url, "https://acme.scim.example.com/v2/Groups/67890");
     }
 
@@ -293,7 +300,9 @@ mod tests {
             scim_version: "v2".to_string(),
         };
 
-        let url = config.generate_ref_url(Some("tenant1"), "Users", "abc123").unwrap();
+        let url = config
+            .generate_ref_url(Some("tenant1"), "Users", "abc123")
+            .unwrap();
         assert_eq!(url, "https://api.company.com/tenant1/v2/Users/abc123");
     }
 
@@ -307,7 +316,12 @@ mod tests {
 
         let result = config.generate_ref_url(None, "Users", "12345");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Tenant ID required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tenant ID required")
+        );
     }
 
     #[test]

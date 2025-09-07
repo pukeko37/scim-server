@@ -4,8 +4,7 @@
 //! with the SCIM server, showing the flexibility of the log facade approach.
 
 use scim_server::{
-    RequestContext, providers::StandardResourceProvider, resource::provider::ResourceProvider,
-    storage::InMemoryStorage,
+    RequestContext, ResourceProvider, providers::StandardResourceProvider, storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -60,10 +59,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user = provider
         .create_resource("User", user_data, &context)
         .await?;
-    let user_id = user.get_id().unwrap();
 
+    let user_id = user.get_id().unwrap();
     let _retrieved = provider.get_resource("User", user_id, &context).await?;
-    provider.delete_resource("User", user_id, &context).await?;
+    provider
+        .delete_resource("User", user_id, None, &context)
+        .await?;
 
     println!("\n{}", "=".repeat(50));
 

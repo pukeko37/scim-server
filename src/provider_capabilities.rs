@@ -22,7 +22,8 @@
 //! * **ETag Versioning**: Always enabled - conditional operations are mandatory for all providers
 
 use crate::error::ScimError;
-use crate::resource::{ResourceProvider, ScimOperation};
+use crate::providers::ResourceProvider;
+use crate::resource::ScimOperation;
 use crate::schema::{AttributeDefinition, SchemaRegistry};
 use crate::schema_discovery::{AuthenticationScheme, ServiceProviderConfig};
 use serde::{Deserialize, Serialize};

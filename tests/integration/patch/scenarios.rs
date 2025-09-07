@@ -9,8 +9,10 @@ use super::test_data::TestDataFactory;
 use super::test_helpers;
 use super::*;
 
+use scim_server::providers::helpers::conditional::ConditionalOperations;
 use scim_server::{RequestContext, ResourceProvider};
 use serde_json::{Value, json};
+use std::str::FromStr;
 
 /// Main parameterized test for all PATCH operation combinations
 #[tokio::test]
@@ -228,19 +230,37 @@ async fn execute_patch_test_case(case: &PatchTestCase) -> PatchTestResult {
         PatchOperation::Add => {
             server
                 .provider()
-                .patch_resource(&case.resource_type, &resource_id, &patch_request, &context)
+                .patch_resource(
+                    &case.resource_type,
+                    &resource_id,
+                    &patch_request,
+                    None,
+                    &context,
+                )
                 .await
         }
         PatchOperation::Remove => {
             server
                 .provider()
-                .patch_resource(&case.resource_type, &resource_id, &patch_request, &context)
+                .patch_resource(
+                    &case.resource_type,
+                    &resource_id,
+                    &patch_request,
+                    None,
+                    &context,
+                )
                 .await
         }
         PatchOperation::Replace => {
             server
                 .provider()
-                .patch_resource(&case.resource_type, &resource_id, &patch_request, &context)
+                .patch_resource(
+                    &case.resource_type,
+                    &resource_id,
+                    &patch_request,
+                    None,
+                    &context,
+                )
                 .await
         }
     };
@@ -248,7 +268,7 @@ async fn execute_patch_test_case(case: &PatchTestCase) -> PatchTestResult {
     match result {
         Ok(resource) => PatchTestResult {
             success: true,
-            resource: Some(resource.to_json().unwrap()),
+            resource: Some(resource.resource().to_json().unwrap()),
             error: None,
             status_code: Some(200),
             etag: Some("W/\"updated\"".to_string()), // Simplified - would extract from response
@@ -427,6 +447,8 @@ async fn test_multi_tenant_case(case: &MultiTenantTestCase) {
 }
 
 async fn test_error_case(case: &ErrorTestCase) {
+    use scim_server::resource::version::{ConditionalResult, HttpVersion, RawVersion};
+
     let setup = (case.setup)();
     let server = if setup.capabilities.patch_supported {
         test_helpers::create_test_server_with_patch_support()
@@ -446,9 +468,49 @@ async fn test_error_case(case: &ErrorTestCase) {
         "nonexistent-user-id".to_string()
     };
 
-    let result = server
-        .patch_resource("User", &user_id, &case.patch_request, &context)
-        .await;
+    let result = if case.name == "patch_with_invalid_etag" {
+        // For ETag test cases, use conditional patch with invalid ETag
+        let invalid_etag = RawVersion::from(
+            HttpVersion::from_str("W/\"invalid-etag\"").expect("Should be able to parse ETag"),
+        );
+
+        // Remove etag from patch request since it should be in headers
+        let mut clean_patch_request = case.patch_request.clone();
+        if let Some(obj) = clean_patch_request.as_object_mut() {
+            obj.remove("etag");
+        }
+
+        let conditional_result = server
+            .provider()
+            .conditional_patch_resource(
+                "User",
+                &user_id,
+                &clean_patch_request,
+                &invalid_etag,
+                &context,
+            )
+            .await
+            .expect("Conditional patch should not fail at provider level");
+
+        match conditional_result {
+            ConditionalResult::Success(versioned_resource) => {
+                Ok(versioned_resource.resource().clone())
+            }
+            ConditionalResult::VersionMismatch(_) => {
+                Err(scim_server::error::ScimError::invalid_request(
+                    "ETag mismatch - resource was modified by another client".to_string(),
+                ))
+            }
+            ConditionalResult::NotFound => Err(scim_server::error::ScimError::resource_not_found(
+                "User", &user_id,
+            )),
+        }
+    } else {
+        // For other error cases, use regular patch
+        server
+            .patch_resource("User", &user_id, &case.patch_request, &context)
+            .await
+    };
 
     assert!(result.is_err(), "Error case '{}' should fail", case.name);
 
@@ -481,7 +543,7 @@ async fn test_atomic_case(case: &AtomicTestCase) {
 
     let result = server
         .provider()
-        .patch_resource("User", resource_id, &patch_request, &context)
+        .patch_resource("User", resource_id, &patch_request, None, &context)
         .await;
 
     match case.expected_behavior {
@@ -649,14 +711,20 @@ async fn test_user_profile_update() {
 
     let result = server
         .provider()
-        .patch_resource("User", user_id, &patch_request, &context)
+        .patch_resource("User", user_id, &patch_request, None, &context)
         .await;
 
     assert!(result.is_ok(), "User profile update should succeed");
 
     let updated_user = result.unwrap();
-    assert_eq!(updated_user.get("displayName").unwrap(), "John Doe");
-    assert_eq!(updated_user.get("title").unwrap(), "Software Engineer");
+    assert_eq!(
+        updated_user.resource().get("displayName").unwrap(),
+        "John Doe"
+    );
+    assert_eq!(
+        updated_user.resource().get("title").unwrap(),
+        "Software Engineer"
+    );
 }
 
 async fn test_email_management() {
@@ -684,7 +752,7 @@ async fn test_email_management() {
 
     let result = server
         .provider()
-        .patch_resource("User", user_id, &add_email_request, &context)
+        .patch_resource("User", user_id, &add_email_request, None, &context)
         .await;
 
     assert!(result.is_ok(), "Adding email should succeed");
@@ -696,7 +764,7 @@ async fn test_email_management() {
 
     let result = server
         .provider()
-        .patch_resource("User", user_id, &remove_email_request, &context)
+        .patch_resource("User", user_id, &remove_email_request, None, &context)
         .await;
 
     assert!(result.is_ok(), "Removing email by filter should succeed");
@@ -754,7 +822,7 @@ async fn test_enterprise_extension_updates() {
 
     let result = server
         .provider()
-        .patch_resource("User", user_id, &patch_request, &context)
+        .patch_resource("User", user_id, &patch_request, None, &context)
         .await;
 
     assert!(result.is_ok(), "Enterprise extension update should succeed");
@@ -784,7 +852,7 @@ async fn test_group_member_addition() {
 
     let result = server
         .provider()
-        .patch_resource("Group", group_id, &add_member_request, &context)
+        .patch_resource("Group", group_id, &add_member_request, None, &context)
         .await;
 
     assert!(result.is_ok(), "Adding group member should succeed");

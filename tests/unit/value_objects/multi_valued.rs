@@ -9,11 +9,11 @@
 //! - Resource integration and JSON serialization
 
 use scim_server::error::ValidationResult;
-use scim_server::resource::core::{Resource, ResourceBuilder};
 use scim_server::resource::value_objects::{
     Address, EmailAddress, GroupMember, GroupMembers, MultiValuedAddresses, MultiValuedEmails,
     MultiValuedPhoneNumbers, Name, PhoneNumber, ResourceId, SchemaUri, UserName,
 };
+use scim_server::resource::{Resource, builder::ResourceBuilder};
 use serde_json::json;
 
 #[test]

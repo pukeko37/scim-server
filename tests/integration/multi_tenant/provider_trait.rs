@@ -4,9 +4,10 @@
 //! using the unified ResourceProvider trait. The tests verify tenant isolation,
 //! proper scoping, and all CRUD operations within multi-tenant contexts.
 
-use scim_server::resource::core::{ListQuery, RequestContext, Resource, ResourceBuilder};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
 use scim_server::resource::value_objects::{ExternalId, ResourceId, UserName};
+use scim_server::resource::{ListQuery, RequestContext, Resource, builder::ResourceBuilder};
+use scim_server::resource::{version::RawVersion, versioned::VersionedResource};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -128,7 +129,7 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         self.ensure_resource_type_exists(&tenant_id, resource_type)
@@ -211,7 +212,7 @@ impl ResourceProvider for TestMultiTenantProvider {
             .unwrap()
             .insert(id, resource.clone());
 
-        Ok(resource)
+        Ok(VersionedResource::new(resource))
     }
 
     async fn get_resource(
@@ -219,7 +220,7 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Option<VersionedResource>, Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
@@ -227,7 +228,7 @@ impl ResourceProvider for TestMultiTenantProvider {
             .get(&tenant_id)
             .and_then(|tenant| tenant.get(resource_type))
             .and_then(|resources| resources.get(id))
-            .cloned();
+            .map(|resource| VersionedResource::new(resource.clone()));
 
         Ok(result)
     }
@@ -237,8 +238,9 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         id: &str,
         data: Value,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let mut resources = self.resources.write().await;
@@ -309,13 +311,14 @@ impl ResourceProvider for TestMultiTenantProvider {
             })?;
 
         *resource = updated_resource.clone();
-        Ok(updated_resource)
+        Ok(VersionedResource::new(updated_resource))
     }
 
     async fn delete_resource(
         &self,
         resource_type: &str,
         id: &str,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
     ) -> Result<(), Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
@@ -344,74 +347,90 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         _query: Option<&ListQuery>,
         context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
         let result = resources
             .get(&tenant_id)
             .and_then(|tenant| tenant.get(resource_type))
-            .map(|resources| resources.values().cloned().collect())
+            .map(|resources| {
+                resources
+                    .values()
+                    .map(|resource| VersionedResource::new(resource.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
 
         Ok(result)
     }
 
-    async fn find_resource_by_attribute(
+    async fn find_resources_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &Value,
+        value: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = Self::get_tenant_id_from_context(context)?;
 
         let resources = self.resources.read().await;
+        let mut results = Vec::new();
         if let Some(tenant_resources) = resources.get(&tenant_id) {
             if let Some(type_resources) = tenant_resources.get(resource_type) {
                 for resource in type_resources.values() {
-                    // Check value object fields first
-                    match attribute {
-                        "userName" => {
-                            if let Some(username) = &resource.user_name {
-                                if let Some(search_str) = value.as_str() {
-                                    if username.as_str() == search_str {
-                                        return Ok(Some(resource.clone()));
-                                    }
-                                }
-                            }
-                        }
-                        "id" => {
-                            if let Some(id) = &resource.id {
-                                if let Some(search_str) = value.as_str() {
-                                    if id.as_str() == search_str {
-                                        return Ok(Some(resource.clone()));
-                                    }
-                                }
-                            }
-                        }
-                        "externalId" => {
-                            if let Some(external_id) = &resource.external_id {
-                                if let Some(search_str) = value.as_str() {
-                                    if external_id.as_str() == search_str {
-                                        return Ok(Some(resource.clone()));
-                                    }
-                                }
-                            }
-                        }
+                    let matches = match attribute {
+                        "userName" => resource
+                            .user_name
+                            .as_ref()
+                            .map(|username| username.as_str() == value)
+                            .unwrap_or(false),
+                        "id" => resource
+                            .id
+                            .as_ref()
+                            .map(|id| id.as_str() == value)
+                            .unwrap_or(false),
+                        "externalId" => resource
+                            .external_id
+                            .as_ref()
+                            .map(|external_id| external_id.as_str() == value)
+                            .unwrap_or(false),
                         _ => {
                             // Check in extended attributes
-                            if let Some(attr_value) = resource.attributes.get(attribute) {
-                                if attr_value == value {
-                                    return Ok(Some(resource.clone()));
-                                }
-                            }
+                            resource
+                                .attributes
+                                .get(attribute)
+                                .and_then(|attr_value| attr_value.as_str())
+                                .map(|attr_str| attr_str == value)
+                                .unwrap_or(false)
                         }
+                    };
+
+                    if matches {
+                        results.push(VersionedResource::new(resource.clone()));
                     }
                 }
             }
         }
-        Ok(None)
+        Ok(results)
+    }
+
+    async fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        _patch_request: &Value,
+        _expected_version: Option<&RawVersion>,
+        context: &RequestContext,
+    ) -> Result<VersionedResource, Self::Error> {
+        // Simple implementation: just return the existing resource
+        self.get_resource(resource_type, id, context)
+            .await?
+            .ok_or_else(|| TestProviderError::ResourceNotFound {
+                tenant_id: Self::get_tenant_id_from_context(context).unwrap_or_default(),
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            })
     }
 
     async fn resource_exists(

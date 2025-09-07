@@ -5,8 +5,9 @@
 //! and practical usability of the versioning system.
 
 use scim_server::providers::StandardResourceProvider;
+use scim_server::providers::helpers::conditional::ConditionalOperations;
 use scim_server::resource::{
-    core::RequestContext,
+    RequestContext,
     version::{ConditionalResult, HttpVersion, RawVersion},
 };
 use scim_server::storage::InMemoryStorage;
@@ -46,7 +47,7 @@ async fn test_http_etag_roundtrip_scenarios() {
         .await
         .expect("Failed to create user");
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version = created_user.version();
 
     // Test ETag header conversion
@@ -81,7 +82,7 @@ async fn test_http_etag_roundtrip_scenarios() {
     });
 
     let update_result = provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             user_id,
             update_data,
@@ -187,7 +188,7 @@ async fn test_multi_user_concurrent_modification() {
         });
 
         provider_1
-            .conditional_update(
+            .conditional_update_resource(
                 "Group",
                 &group_id_1,
                 new_member_data,
@@ -221,7 +222,7 @@ async fn test_multi_user_concurrent_modification() {
         });
 
         provider_2
-            .conditional_update("Group", &group_id_2, rename_data, &version_2, &context_2)
+            .conditional_update_resource("Group", &group_id_2, rename_data, &version_2, &context_2)
             .await
     });
 
@@ -245,7 +246,7 @@ async fn test_multi_user_concurrent_modification() {
         });
 
         provider_3
-            .conditional_update(
+            .conditional_update_resource(
                 "Group",
                 &group_id_3,
                 remove_member_data,
@@ -331,7 +332,7 @@ async fn test_comprehensive_conflict_resolution() {
         .await
         .expect("Failed to create user");
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version_1 = created_user.version().clone();
 
     // First update: HR changes title and department
@@ -353,7 +354,7 @@ async fn test_comprehensive_conflict_resolution() {
     });
 
     let hr_result = provider
-        .conditional_update("User", user_id, hr_update, &version_1, &context)
+        .conditional_update_resource("User", user_id, hr_update, &version_1, &context)
         .await
         .expect("HR update failed");
 
@@ -387,7 +388,7 @@ async fn test_comprehensive_conflict_resolution() {
     });
 
     let it_result = provider
-        .conditional_update("User", user_id, it_update, &version_1, &context) // Using old version
+        .conditional_update_resource("User", user_id, it_update, &version_1, &context) // Using old version
         .await
         .expect("IT update operation failed");
 
@@ -431,7 +432,7 @@ async fn test_comprehensive_conflict_resolution() {
     });
 
     let merged_result = provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             user_id,
             merged_update,
@@ -486,7 +487,7 @@ async fn test_conditional_delete_scenarios() {
         .await
         .expect("Failed to create temp user");
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version_1 = created_user.version().clone();
 
     // Admin A: Adds important audit data
@@ -509,7 +510,7 @@ async fn test_conditional_delete_scenarios() {
     });
 
     let audit_result = provider
-        .conditional_update("User", user_id, audit_update, &version_1, &context)
+        .conditional_update_resource("User", user_id, audit_update, &version_1, &context)
         .await
         .expect("Audit update failed");
 
@@ -520,7 +521,7 @@ async fn test_conditional_delete_scenarios() {
 
     // Admin B: Tries to delete user with old version (before audit data added)
     let delete_result = provider
-        .conditional_delete("User", user_id, &version_1, &context)
+        .conditional_delete_resource("User", user_id, &version_1, &context)
         .await
         .expect("Delete operation failed");
 
@@ -549,7 +550,7 @@ async fn test_conditional_delete_scenarios() {
 
     // Admin B gets current version and deletes with proper version
     let proper_delete_result = provider
-        .conditional_delete("User", user_id, preserved_user.version(), &context)
+        .conditional_delete_resource("User", user_id, preserved_user.version(), &context)
         .await
         .expect("Proper delete failed");
 
@@ -594,7 +595,7 @@ async fn test_etag_edge_cases() {
         .await
         .expect("Failed to create edge case user");
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version = created_user.version();
 
     // Test update with Unicode characters
@@ -616,7 +617,7 @@ async fn test_etag_edge_cases() {
     });
 
     let unicode_result = provider
-        .conditional_update("User", user_id, unicode_update, version, &context)
+        .conditional_update_resource("User", user_id, unicode_update, version, &context)
         .await
         .expect("Unicode update failed");
 
@@ -770,7 +771,13 @@ async fn test_etag_performance_under_load() {
             });
 
             provider_clone
-                .conditional_update("User", &user_id, update_data, &version, &context_clone)
+                .conditional_update_resource(
+                    "User",
+                    &user_id,
+                    update_data,
+                    &version,
+                    &context_clone,
+                )
                 .await
         });
     }

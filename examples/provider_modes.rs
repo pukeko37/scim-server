@@ -5,8 +5,8 @@
 //! This shows how a single provider implementation supports multiple operational modes.
 
 use scim_server::{
-    RequestContext, TenantContext, providers::StandardResourceProvider,
-    resource::provider::ResourceProvider, storage::InMemoryStorage,
+    RequestContext, ResourceProvider, TenantContext, providers::StandardResourceProvider,
+    storage::InMemoryStorage,
 };
 use serde_json::json;
 
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Created user: {} (ID: {})",
+        "   📝 Created User 1: {} (ID: {})",
         user1.get_username().unwrap_or("unknown"),
         user1.get_id().unwrap_or("unknown")
     );
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Created user: {} (ID: {})",
+        "   📝 Created User 2: {} (ID: {})",
         user2.get_username().unwrap_or("unknown"),
         user2.get_id().unwrap_or("unknown")
     );
@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Single-tenant has {} users", single_users.len());
     for user in &single_users {
         println!(
-            "   - {} ({})",
+            "      - {} ({})",
             user.get_username().unwrap_or("unknown"),
             user.get_id().unwrap_or("unknown")
         );
@@ -122,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Created user in Tenant A: {} (ID: {})",
+        "   📝 Created Tenant A User: {} (ID: {})",
         tenant_a_user.get_username().unwrap_or("unknown"),
         tenant_a_user.get_id().unwrap_or("unknown")
     );
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Created user in Tenant B: {} (ID: {})",
+        "   📝 Created Tenant B User: {} (ID: {})",
         tenant_b_user.get_username().unwrap_or("unknown"),
         tenant_b_user.get_id().unwrap_or("unknown")
     );
@@ -171,7 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Created second user in Tenant A: {} (ID: {})",
+        "   📝 Created Another Tenant A User: {} (ID: {})",
         tenant_a_user2.get_username().unwrap_or("unknown"),
         tenant_a_user2.get_id().unwrap_or("unknown")
     );
@@ -199,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Single-tenant users: {}", single_users.len());
     for user in &single_users {
         println!(
-            "    - {} ({})",
+            "      - {} ({})",
             user.get_username().unwrap_or("unknown"),
             user.get_id().unwrap_or("unknown")
         );
@@ -208,7 +208,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Tenant A users: {}", tenant_a_users.len());
     for user in &tenant_a_users {
         println!(
-            "    - {} ({})",
+            "      - {} ({})",
             user.get_username().unwrap_or("unknown"),
             user.get_id().unwrap_or("unknown")
         );
@@ -217,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Tenant B users: {}", tenant_b_users.len());
     for user in &tenant_b_users {
         println!(
-            "    - {} ({})",
+            "      - {} ({})",
             user.get_username().unwrap_or("unknown"),
             user.get_id().unwrap_or("unknown")
         );
@@ -231,62 +231,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Search for alice in single-tenant
     let alice_single = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("alice@single.com"),
-            &single_context,
-        )
+        .find_resources_by_attribute("User", "userName", "alice", &single_context)
         .await?;
 
     // Search for alice in tenant-a
     let alice_tenant_a = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("alice@tenant-a.com"),
-            &tenant_a_context,
-        )
+        .find_resources_by_attribute("User", "userName", "alice.tenant.a", &tenant_a_context)
         .await?;
 
     // Search for alice@single.com in tenant-a (should not find due to isolation)
     let alice_cross_search = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("alice@single.com"),
-            &tenant_a_context,
-        )
+        .find_resources_by_attribute("User", "userName", "alice", &tenant_a_context)
         .await?;
 
     // Search for bob in different tenants
     let bob_tenant_a = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("bob@tenant-a.com"),
-            &tenant_a_context,
-        )
+        .find_resources_by_attribute("User", "userName", "bob.tenant.a", &tenant_a_context)
         .await?;
 
     let bob_tenant_b = provider
-        .find_resource_by_attribute(
-            "User",
-            "userName",
-            &json!("bob@tenant-b.com"),
-            &tenant_b_context,
-        )
+        .find_resources_by_attribute("User", "userName", "bob.tenant.b", &tenant_b_context)
         .await?;
 
     println!("🎯 SEARCH RESULTS:");
-    println!("  • Alice in single-tenant: {} ✅", alice_single.is_some());
-    println!("  • Alice in tenant-a: {} ✅", alice_tenant_a.is_some());
+    println!(
+        "  • Alice in single-tenant: {} ✅",
+        !alice_single.is_empty()
+    );
+    println!("  • Alice in tenant-a: {} ✅", !alice_tenant_a.is_empty());
     println!(
         "  • Alice@single.com in tenant-a: {} ✅ (correctly isolated)",
-        alice_cross_search.is_some()
+        alice_cross_search.is_empty()
     );
-    println!("  • Bob in tenant-a: {} ✅", bob_tenant_a.is_some());
-    println!("  • Bob in tenant-b: {} ✅", bob_tenant_b.is_some());
+    println!("  • Bob in tenant-a: {} ✅", !bob_tenant_a.is_empty());
+    println!("  • Bob in tenant-b: {} ✅", !bob_tenant_b.is_empty());
 
     println!();
 
@@ -316,6 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 ]
             }),
+            None,
             &tenant_a_context,
         )
         .await?;

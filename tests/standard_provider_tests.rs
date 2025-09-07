@@ -3,9 +3,11 @@
 //! These tests verify StandardResourceProvider<InMemoryStorage> functionality
 //! and ensure complete behavioral compatibility with SCIM specifications.
 
-use scim_server::providers::{InMemoryError, StandardResourceProvider};
+use scim_server::ResourceProvider;
+use scim_server::providers::helpers::conditional::ConditionalOperations;
+use scim_server::providers::{ProviderError, StandardResourceProvider};
 use scim_server::resource::version::ConditionalResult;
-use scim_server::resource::{ListQuery, RequestContext, ResourceProvider, TenantContext};
+use scim_server::resource::{ListQuery, RequestContext, TenantContext};
 use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 use std::sync::Arc;
@@ -30,7 +32,7 @@ async fn test_single_tenant_operations() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = user.get_id().unwrap();
+    let user_id = user.resource().get_id().unwrap();
 
     // Get user
     let retrieved = provider
@@ -38,7 +40,10 @@ async fn test_single_tenant_operations() {
         .await
         .unwrap();
     assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().get_username(), Some("john.doe"));
+    assert_eq!(
+        retrieved.unwrap().resource().get_username(),
+        Some("john.doe")
+    );
 
     // Update user
     let update_data = json!({
@@ -47,7 +52,7 @@ async fn test_single_tenant_operations() {
         "active": false
     });
     let _updated = provider
-        .update_resource("User", user_id, update_data, &context)
+        .update_resource("User", user_id, update_data, None, &context)
         .await
         .unwrap();
     // Check that the resource was updated (we'll verify via getting it back)
@@ -57,7 +62,7 @@ async fn test_single_tenant_operations() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        verified.get_attribute("displayName"),
+        verified.resource().get_attribute("displayName"),
         Some(&json!("John Updated"))
     );
 
@@ -71,7 +76,7 @@ async fn test_single_tenant_operations() {
 
     // Delete user
     provider
-        .delete_resource("User", user_id, &context)
+        .delete_resource("User", user_id, None, &context)
         .await
         .unwrap();
     let deleted = provider
@@ -99,7 +104,7 @@ async fn test_multi_tenant_isolation() {
         .create_resource("User", user_a_data, &context_a)
         .await
         .unwrap();
-    let _user_a_id = user_a.get_id().unwrap();
+    let _user_a_id = user_a.resource().get_id().unwrap();
 
     // Create user in tenant B (different username)
     let user_b_data = create_test_user_data("alice.tenant.b");
@@ -107,44 +112,44 @@ async fn test_multi_tenant_isolation() {
         .create_resource("User", user_b_data, &context_b)
         .await
         .unwrap();
-    let _user_b_id = user_b.get_id().unwrap();
+    let _user_b_id = user_b.resource().get_id().unwrap();
 
     // Verify isolation using username search - tenant B should not find tenant A's user
     let alice_a_from_b = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.a"), &context_b)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.a", &context_b)
         .await
         .unwrap();
     assert!(
-        alice_a_from_b.is_none(),
+        alice_a_from_b.is_empty(),
         "Tenant B should not find tenant A's user by username"
     );
 
     // Verify tenant A should not find tenant B's user
     let alice_b_from_a = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.b"), &context_a)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.b", &context_a)
         .await
         .unwrap();
     assert!(
-        alice_b_from_a.is_none(),
+        alice_b_from_a.is_empty(),
         "Tenant A should not find tenant B's user by username"
     );
 
     // Each tenant should find their own user
     let alice_a_from_a = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.a"), &context_a)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.a", &context_a)
         .await
         .unwrap();
     assert!(
-        alice_a_from_a.is_some(),
+        !alice_a_from_a.is_empty(),
         "Tenant A should find its own user"
     );
 
     let alice_b_from_b = provider
-        .find_resource_by_attribute("User", "userName", &json!("alice.tenant.b"), &context_b)
+        .find_resources_by_attribute("User", "userName", "alice.tenant.b", &context_b)
         .await
         .unwrap();
     assert!(
-        alice_b_from_b.is_some(),
+        !alice_b_from_b.is_empty(),
         "Tenant B should find its own user"
     );
 
@@ -161,8 +166,8 @@ async fn test_multi_tenant_isolation() {
 
     assert_eq!(users_a.len(), 1);
     assert_eq!(users_b.len(), 1);
-    assert_eq!(users_a[0].get_username(), Some("alice.tenant.a"));
-    assert_eq!(users_b[0].get_username(), Some("alice.tenant.b"));
+    assert_eq!(users_a[0].resource().get_username(), Some("alice.tenant.a"));
+    assert_eq!(users_b[0].resource().get_username(), Some("alice.tenant.b"));
 }
 
 #[tokio::test]
@@ -184,7 +189,7 @@ async fn test_username_duplicate_detection() {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        InMemoryError::DuplicateAttribute {
+        ProviderError::DuplicateAttribute {
             attribute, value, ..
         } => {
             assert_eq!(attribute, "userName");
@@ -217,8 +222,8 @@ async fn test_cross_tenant_username_allowed() {
         .await
         .unwrap();
 
-    assert_eq!(user_a.get_username(), Some("shared.name"));
-    assert_eq!(user_b.get_username(), Some("shared.name"));
+    assert_eq!(user_a.resource().get_username(), Some("shared.name"));
+    assert_eq!(user_b.resource().get_username(), Some("shared.name"));
 }
 
 #[tokio::test]
@@ -236,20 +241,19 @@ async fn test_find_resource_by_attribute() {
 
     // Find by userName
     let found = provider
-        .find_resource_by_attribute("User", "userName", &json!("john.doe"), &context)
+        .find_resources_by_attribute("User", "userName", "john.doe", &context)
         .await
         .unwrap();
 
-    assert!(found.is_some());
-    assert_eq!(found.unwrap().get_username(), Some("john.doe"));
+    assert!(!found.is_empty());
+    assert_eq!(found[0].resource().get_username(), Some("john.doe"));
 
     // Find by non-existent attribute value
     let not_found = provider
-        .find_resource_by_attribute("User", "userName", &json!("nonexistent"), &context)
+        .find_resources_by_attribute("User", "userName", "nonexistent", &context)
         .await
         .unwrap();
-
-    assert!(not_found.is_none());
+    assert!(not_found.is_empty());
 }
 
 #[tokio::test]
@@ -264,7 +268,7 @@ async fn test_resource_exists() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = user.get_id().unwrap();
+    let user_id = user.resource().get_id().unwrap();
 
     // Check existence
     let exists = provider
@@ -282,7 +286,7 @@ async fn test_resource_exists() {
 
     // Delete and check again
     provider
-        .delete_resource("User", user_id, &context)
+        .delete_resource("User", user_id, None, &context)
         .await
         .unwrap();
 
@@ -340,19 +344,34 @@ async fn test_dynamic_tenant_discovery() {
         // Create 2 users per tenant
         for i in 0..2 {
             let user_data = create_test_user_data(&format!("user{}", idx * 2 + i));
-            provider.create_resource("User", user_data, &context).await.unwrap();
+            provider
+                .create_resource("User", user_data, &context)
+                .await
+                .unwrap();
         }
 
         // Create 1 group per tenant
         let group_data = json!({"displayName": format!("Group for {}", tenant_name)});
-        provider.create_resource("Group", group_data, &context).await.unwrap();
+        provider
+            .create_resource("Group", group_data, &context)
+            .await
+            .unwrap();
     }
 
     // The stats should dynamically discover all tenants, regardless of naming pattern
     let stats = provider.get_stats().await;
-    assert_eq!(stats.tenant_count, 3, "Should discover all 3 tenants dynamically");
-    assert_eq!(stats.total_resources, 9, "Should count 6 users + 3 groups = 9 total");
-    assert_eq!(stats.resource_type_count, 2, "Should discover User and Group types");
+    assert_eq!(
+        stats.tenant_count, 3,
+        "Should discover all 3 tenants dynamically"
+    );
+    assert_eq!(
+        stats.total_resources, 9,
+        "Should count 6 users + 3 groups = 9 total"
+    );
+    assert_eq!(
+        stats.resource_type_count, 2,
+        "Should discover User and Group types"
+    );
     assert!(stats.resource_types.contains(&"User".to_string()));
     assert!(stats.resource_types.contains(&"Group".to_string()));
 }
@@ -386,7 +405,7 @@ async fn test_conditional_operations_via_resource_provider() {
     // Using static dispatch with generic function to enforce trait bounds
     async fn test_provider<P>(provider: &P, context: &RequestContext)
     where
-        P: ResourceProvider<Error = InMemoryError> + Sync,
+        P: ResourceProvider<Error = ProviderError> + Sync,
     {
         // Create a user first using regular provider
         let user_data = create_test_user_data("jane.doe");
@@ -394,11 +413,11 @@ async fn test_conditional_operations_via_resource_provider() {
             .create_resource("User", user_data, context)
             .await
             .unwrap();
-        let user_id = user.get_id().unwrap();
+        let user_id = user.resource().get_id().unwrap();
 
         // Get versioned resource using trait method
         let versioned = provider
-            .get_versioned_resource("User", user_id, context)
+            .get_resource("User", user_id, context)
             .await
             .unwrap()
             .unwrap();
@@ -411,12 +430,18 @@ async fn test_conditional_operations_via_resource_provider() {
         });
 
         let result = provider
-            .conditional_update("User", user_id, update_data, versioned.version(), context)
+            .update_resource(
+                "User",
+                user_id,
+                update_data,
+                Some(versioned.version()),
+                context,
+            )
             .await
             .unwrap();
 
         // Should succeed since version matches
-        assert!(matches!(result, ConditionalResult::Success(_)));
+        assert!(result.resource().get_id().is_some());
     }
 
     let storage = InMemoryStorage::new();
@@ -441,7 +466,7 @@ async fn test_conditional_provider_concurrent_updates() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = user.get_id().unwrap().to_string();
+    let user_id = user.resource().get_id().unwrap().to_string();
 
     // Get initial version
     let initial_versioned = provider
@@ -468,11 +493,11 @@ async fn test_conditional_provider_concurrent_updates() {
             });
 
             provider_clone
-                .conditional_update(
-                    &"User",
+                .update_resource(
+                    "User",
                     &user_id_clone,
                     update_data,
-                    &version_clone,
+                    Some(&version_clone),
                     &context_clone,
                 )
                 .await
@@ -484,10 +509,9 @@ async fn test_conditional_provider_concurrent_updates() {
     let mut conflict_count = 0;
 
     while let Some(result) = tasks.join_next().await {
-        match result.unwrap().unwrap() {
-            ConditionalResult::Success(_) => success_count += 1,
-            ConditionalResult::VersionMismatch(_) => conflict_count += 1,
-            ConditionalResult::NotFound => panic!("Resource should exist"),
+        match result.unwrap() {
+            Ok(_) => success_count += 1,
+            Err(_) => conflict_count += 1,
         }
     }
 
@@ -512,7 +536,7 @@ async fn test_conditional_provider_delete_version_conflict() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = user.get_id().unwrap();
+    let user_id = user.resource().get_id().unwrap();
 
     // Get initial version
     let initial_versioned = provider
@@ -528,13 +552,13 @@ async fn test_conditional_provider_delete_version_conflict() {
         "active": false
     });
     provider
-        .update_resource("User", user_id, update_data, &context)
+        .update_resource("User", user_id, update_data, None, &context)
         .await
         .unwrap();
 
     // Try to delete with old version - should fail
     let delete_result = provider
-        .conditional_delete("User", user_id, initial_versioned.version(), &context)
+        .conditional_delete_resource("User", user_id, initial_versioned.version(), &context)
         .await
         .unwrap();
 
@@ -564,7 +588,7 @@ async fn test_conditional_provider_successful_delete() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = user.get_id().unwrap();
+    let user_id = user.resource().get_id().unwrap();
 
     // Get current version
     let current_versioned = provider
@@ -575,7 +599,7 @@ async fn test_conditional_provider_successful_delete() {
 
     // Delete with correct version - should succeed
     let delete_result = provider
-        .conditional_delete("User", user_id, current_versioned.version(), &context)
+        .conditional_delete_resource("User", user_id, current_versioned.version(), &context)
         .await
         .unwrap();
 

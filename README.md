@@ -10,40 +10,23 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.4.1"`. Breaking changes are signaled by minor version increments until v1.0.
+> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.5.0"`. Breaking changes are signaled by minor version increments until v1.0.
 
-## ✨ v0.4.1 New Features
+## 🚨 v0.5.0 Breaking Changes
 
-**Type-Safe Version Control**: Enhanced compile-time safety for SCIM resource versioning with phantom types:
-
-```rust
-// Type-safe version handling prevents format confusion
-let raw_version = RawVersion::from_hash("abc123");
-let http_version = HttpVersion::from(raw_version);
-let etag_header = http_version.to_string(); // "W/\"abc123\""
-
-// Cross-format equality works seamlessly
-assert!(raw_version == http_version);
-```
-
-**Enhanced Documentation**: New comprehensive concurrency control concepts covering when to use versioning and protocol differences between HTTP ETags and MCP versions.
-
-## 🚨 v0.4.0 Breaking Changes
-
-**InMemoryProvider Removed**: If you're upgrading from v0.3.x, the deprecated `InMemoryProvider` has been removed. Update your code:
+**Provider Interface Refactored**: Major simplification through helper traits with method renames:
 
 ```rust
-// Before v0.4.0 (removed)
-use scim_server::providers::InMemoryProvider;
-let provider = InMemoryProvider::new();
+// Before v0.5.0
+provider.conditional_update(resource_type, id, data, version, context).await?;
+provider.conditional_delete(resource_type, id, version, context).await?;
 
-// v0.4.1+ (current)
-use scim_server::{providers::StandardResourceProvider, storage::InMemoryStorage};
-let storage = InMemoryStorage::new();
-let provider = StandardResourceProvider::new(storage);
+// v0.5.0+ (current) 
+provider.conditional_update_resource(resource_type, id, data, version, context).await?;
+provider.conditional_delete_resource(resource_type, id, version, context).await?;
 ```
 
-**Custom Storage Implementations**: Must implement new discovery methods. See [CHANGELOG.md](CHANGELOG.md#040) for details.
+**Architecture Improvements**: `StandardResourceProvider` simplified by ~500 lines through helper trait composition while maintaining full functionality.
 
 ## Quick Start
 
@@ -51,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "=0.4.0"
+scim-server = "=0.5.0"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -75,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = InMemoryStorage::new();
     let provider = StandardResourceProvider::new(storage);
     let mut server = ScimServer::new(provider)?;
-    
+
     // Register User resource type with schema validation
     let user_schema = server
         .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
@@ -83,20 +66,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_handler = create_user_resource_handler(user_schema);
     server.register_resource_type("User", user_handler,
         vec![ScimOperation::Create, ScimOperation::Read])?;
-    
+
     // Create request context
     let context = RequestContext::new("example-request-1".to_string());
-    
+
     // Create a user with full SCIM compliance
     let user_data = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "userName": "john.doe",
         "emails": [{"value": "john@example.com", "primary": true}]
     });
-    
+
     let user_json = server.create_resource_with_refs("User", user_data, &context).await?;
     println!("Created user: {}", user_json["userName"]);
-    
+
     Ok(())
 }
 ```
@@ -104,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Key Features
 
 - **Type-Safe by Design** - Leverage Rust's type system to prevent runtime errors
-- **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants  
+- **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants
 - **Full SCIM 2.0 Compliance** - Complete implementation of RFC 7643 and RFC 7644
 - **High Performance** - Async-first with minimal overhead
 - **Framework Agnostic** - Works with Axum, Warp, Actix, or any HTTP framework
@@ -133,7 +116,7 @@ The SCIM Server acts as intelligent middleware that handles provisioning complex
 ### Learning Path
 
 1. **Start Here**: Follow the Quick Start above
-2. **Learn Concepts**: Read the [User Guide](https://pukeko37.github.io/scim-server/) 
+2. **Learn Concepts**: Read the [User Guide](https://pukeko37.github.io/scim-server/)
 3. **See Examples**: Browse [examples/](examples/) for your use case
 4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server/latest/scim_server/) for detailed API docs
 

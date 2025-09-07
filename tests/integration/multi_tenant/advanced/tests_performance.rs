@@ -8,8 +8,8 @@ use super::{
     integration::{AdvancedMultiTenantProvider, TestAdvancedProvider},
     performance::{PerformanceMetrics, ResourceUtilization, TenantStatistics},
 };
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, TenantContext};
 use serde_json::json;
 
 #[cfg(test)]
@@ -388,13 +388,13 @@ mod performance_tests {
                     .create_resource("User", create_test_user(&username), &context)
                     .await
                     .unwrap();
-                user_ids.push(user.get_id().unwrap().to_string());
+                user_ids.push(user.resource().get_id().unwrap().to_string());
             }
 
             // Delete half of them
             for user_id in user_ids.iter().take(25) {
                 provider
-                    .delete_resource("User", user_id, &context)
+                    .delete_resource("User", user_id, None, &context)
                     .await
                     .unwrap();
             }

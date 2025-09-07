@@ -9,8 +9,8 @@ use super::{
     config::{AdvancedTenantConfig, ComplianceLevel, CustomValidationRule, ValidationRuleType},
     integration::{AdvancedMultiTenantProvider, TestAdvancedProvider},
 };
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{RequestContext, TenantContext};
 use serde_json::json;
 
 #[cfg(test)]
@@ -121,7 +121,7 @@ mod integration_tests {
             .unwrap();
 
         assert_eq!(users.len(), 1);
-        assert_eq!(users[0].get_username().unwrap(), "good_user");
+        assert_eq!(users[0].resource().get_username().unwrap(), "good_user");
     }
 
     #[tokio::test]
@@ -321,7 +321,7 @@ mod integration_tests {
 
             // Verify usernames match the tenant
             for user in &users {
-                let username = user.get_username().unwrap();
+                let username = user.resource().get_username().unwrap();
                 assert!(username.starts_with(tenant_id));
             }
 
@@ -424,7 +424,10 @@ mod integration_tests {
 
         assert_eq!(users.len(), 3);
 
-        let usernames: Vec<&str> = users.iter().map(|u| u.get_username().unwrap()).collect();
+        let usernames: Vec<&str> = users
+            .iter()
+            .map(|u| u.resource().get_username().unwrap())
+            .collect();
 
         assert!(usernames.contains(&"valid_user1"));
         assert!(usernames.contains(&"valid_user2"));
@@ -516,7 +519,7 @@ mod integration_tests {
             .await
             .unwrap();
 
-        assert!(new_user.get_id().is_some());
+        assert!(new_user.resource().get_id().is_some());
 
         // Final verification
         let final_stats = provider
@@ -720,11 +723,16 @@ mod integration_tests {
 
         // Verify no cross-contamination
         for user in &enterprise_users {
-            assert!(user.get_username().unwrap().contains("enterprise"));
+            assert!(
+                user.resource()
+                    .get_username()
+                    .unwrap()
+                    .contains("enterprise")
+            );
         }
 
         for user in &dev_users {
-            assert!(user.get_username().unwrap().contains("dev"));
+            assert!(user.resource().get_username().unwrap().contains("dev"));
         }
 
         println!(

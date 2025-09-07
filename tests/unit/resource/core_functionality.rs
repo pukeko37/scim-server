@@ -4,7 +4,7 @@
 //! value objects as core members instead of raw JSON strings.
 
 use scim_server::error::ValidationError;
-use scim_server::resource::core::Resource;
+use scim_server::resource::Resource;
 use scim_server::resource::value_objects::{ExternalId, ResourceId, SchemaUri, UserName};
 use scim_server::schema::registry::SchemaRegistry;
 use scim_server::schema::validation::OperationContext;

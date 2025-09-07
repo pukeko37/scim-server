@@ -61,41 +61,21 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_handler_compatibility() {
-        // Test that handlers maintain expected interface
+    fn test_user_handler_functionality() {
+        // Test that handlers contain the expected schema
         let registry = SchemaRegistry::new().expect("Failed to create registry");
 
         let user_schema = registry.get_user_schema().clone();
-        let user_handler = create_user_resource_handler(user_schema);
+        let user_handler = create_user_resource_handler(user_schema.clone());
 
-        // Verify handler has expected components
-        assert!(
-            !user_handler.handlers.is_empty(),
-            "User handler should have attribute handlers"
-        );
-        assert!(
-            !user_handler.custom_methods.is_empty(),
-            "User handler should have custom methods"
-        );
-        assert!(
-            !user_handler.mappers.is_empty(),
-            "User handler should have database mappers"
-        );
+        // Verify handler has the correct schema
+        assert_eq!(user_handler.schema.id, user_schema.id);
+        assert_eq!(user_handler.schema.name, user_schema.name);
 
         let group_schema = registry.get_group_schema().clone();
-        let group_handler = create_group_resource_handler(group_schema);
+        let group_handler = create_group_resource_handler(group_schema.clone());
 
-        assert!(
-            !group_handler.handlers.is_empty(),
-            "Group handler should have attribute handlers"
-        );
-        assert!(
-            !group_handler.custom_methods.is_empty(),
-            "Group handler should have custom methods"
-        );
-        assert!(
-            !group_handler.mappers.is_empty(),
-            "Group handler should have database mappers"
-        );
+        assert_eq!(group_handler.schema.id, group_schema.id);
+        assert_eq!(group_handler.schema.name, group_schema.name);
     }
 }

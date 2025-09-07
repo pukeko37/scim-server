@@ -18,16 +18,21 @@ use serde_json::{Map, Value};
 ///
 /// # Example
 /// ```rust
-/// use scim_server::resource::{ResourceBuilder, ResourceId, UserName, Name};
+/// use scim_server::Resource;
 /// use serde_json::json;
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let resource = ResourceBuilder::new("User".to_string())
-///         .with_id(ResourceId::new("123".to_string())?)
-///         .with_username(UserName::new("jdoe".to_string())?)
-///         .with_name(Name::new_simple("John".to_string(), "Doe".to_string())?)
-///         .with_attribute("displayName", json!("John Doe"))
-///         .build()?;
+///     let user_data = json!({
+///         "id": "123",
+///         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+///         "userName": "jdoe",
+///         "name": {
+///             "givenName": "John",
+///             "familyName": "Doe"
+///         },
+///         "displayName": "John Doe"
+///     });
+///     let resource = Resource::from_json("User".to_string(), user_data)?;
 ///
 ///     Ok(())
 /// }

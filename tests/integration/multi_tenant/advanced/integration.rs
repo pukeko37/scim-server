@@ -14,8 +14,10 @@ use super::{
     performance::TenantStatistics,
 };
 use scim_server::Resource;
-use scim_server::resource::core::{RequestContext, TenantContext};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
+use scim_server::resource::{
+    RequestContext, TenantContext, version::RawVersion, versioned::VersionedResource,
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -30,7 +32,9 @@ pub trait AdvancedMultiTenantProvider: ResourceProvider {
         &self,
         request: BulkOperationRequest,
         context: &RequestContext,
-    ) -> impl std::future::Future<Output = Result<BulkOperationResult, Self::Error>> + Send;
+    ) -> impl std::future::Future<
+        Output = Result<BulkOperationResult, <Self as ResourceProvider>::Error>,
+    > + Send;
 
     /// Migrate tenant data between tenants
     fn migrate_tenant_data(
@@ -127,7 +131,7 @@ impl ResourceProvider for TestAdvancedProvider {
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         let result = self
@@ -135,14 +139,8 @@ impl ResourceProvider for TestAdvancedProvider {
             .create_resource(resource_type, data, context)
             .await?;
 
-        self.log_operation(
-            tenant_id,
-            "create",
-            resource_type,
-            result.get_id().as_deref(),
-            context,
-        )
-        .await;
+        self.log_operation(tenant_id, "create", resource_type, result.get_id(), context)
+            .await;
 
         Ok(result)
     }
@@ -152,7 +150,7 @@ impl ResourceProvider for TestAdvancedProvider {
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Option<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         let result = self
@@ -171,13 +169,14 @@ impl ResourceProvider for TestAdvancedProvider {
         resource_type: &str,
         id: &str,
         data: Value,
+        expected_version: Option<&RawVersion>,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         let result = self
             .base_provider
-            .update_resource(resource_type, id, data, context)
+            .update_resource(resource_type, id, data, expected_version, context)
             .await?;
 
         self.log_operation(tenant_id, "update", resource_type, Some(id), context)
@@ -190,12 +189,13 @@ impl ResourceProvider for TestAdvancedProvider {
         &self,
         resource_type: &str,
         id: &str,
+        expected_version: Option<&RawVersion>,
         context: &RequestContext,
     ) -> Result<(), Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         self.base_provider
-            .delete_resource(resource_type, id, context)
+            .delete_resource(resource_type, id, expected_version, context)
             .await?;
 
         self.log_operation(tenant_id, "delete", resource_type, Some(id), context)
@@ -207,9 +207,9 @@ impl ResourceProvider for TestAdvancedProvider {
     async fn list_resources(
         &self,
         resource_type: &str,
-        query: Option<&scim_server::resource::core::ListQuery>,
+        query: Option<&scim_server::resource::ListQuery>,
         context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         let result = self
@@ -223,21 +223,42 @@ impl ResourceProvider for TestAdvancedProvider {
         Ok(result)
     }
 
-    async fn find_resource_by_attribute(
+    async fn find_resources_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &serde_json::Value,
+        value: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
 
         let result = self
             .base_provider
-            .find_resource_by_attribute(resource_type, attribute, value, context)
+            .find_resources_by_attribute(resource_type, attribute, value, context)
             .await?;
 
         self.log_operation(tenant_id, "find", resource_type, None, context)
+            .await;
+
+        Ok(result)
+    }
+
+    async fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        patch_request: &Value,
+        expected_version: Option<&RawVersion>,
+        context: &RequestContext,
+    ) -> Result<VersionedResource, Self::Error> {
+        let tenant_id = context.tenant_id().unwrap_or("default");
+
+        let result = self
+            .base_provider
+            .patch_resource(resource_type, id, patch_request, expected_version, context)
+            .await?;
+
+        self.log_operation(tenant_id, "patch", resource_type, Some(id), context)
             .await;
 
         Ok(result)
@@ -287,7 +308,7 @@ impl AdvancedMultiTenantProvider for TestAdvancedProvider {
                                 BulkOperationItemResult {
                                     operation_index: index,
                                     success: true,
-                                    resource: Some(resource),
+                                    resource: Some(resource.into_resource()),
                                     error: None,
                                 }
                             }
@@ -314,7 +335,13 @@ impl AdvancedMultiTenantProvider for TestAdvancedProvider {
                 BulkOperationType::Update => {
                     if let (Some(id), Some(data)) = (&operation.resource_id, &operation.data) {
                         match self
-                            .update_resource(&operation.resource_type, id, data.clone(), context)
+                            .update_resource(
+                                &operation.resource_type,
+                                id,
+                                data.clone(),
+                                None,
+                                context,
+                            )
                             .await
                         {
                             Ok(resource) => {
@@ -322,7 +349,7 @@ impl AdvancedMultiTenantProvider for TestAdvancedProvider {
                                 BulkOperationItemResult {
                                     operation_index: index,
                                     success: true,
-                                    resource: Some(resource),
+                                    resource: Some(resource.into_resource()),
                                     error: None,
                                 }
                             }
@@ -351,7 +378,7 @@ impl AdvancedMultiTenantProvider for TestAdvancedProvider {
                 BulkOperationType::Delete => {
                     if let Some(id) = &operation.resource_id {
                         match self
-                            .delete_resource(&operation.resource_type, id, context)
+                            .delete_resource(&operation.resource_type, id, None, context)
                             .await
                         {
                             Ok(_) => {
@@ -599,12 +626,13 @@ impl TestHarness {
             .provider
             .create_resource("User", user_data, &context)
             .await?;
+
         let group = self
             .provider
             .create_resource("Group", group_data, &context)
             .await?;
 
-        Ok((user, group))
+        Ok((user.into_resource(), group.into_resource()))
     }
 }
 

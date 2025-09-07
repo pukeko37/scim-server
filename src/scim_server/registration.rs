@@ -5,7 +5,8 @@
 
 use super::core::ScimServer;
 use crate::error::{ScimError, ScimResult};
-use crate::resource::{ResourceHandler, ResourceProvider, ScimOperation};
+use crate::providers::ResourceProvider;
+use crate::resource::{ResourceHandler, ScimOperation};
 use crate::schema::Schema;
 use std::sync::Arc;
 

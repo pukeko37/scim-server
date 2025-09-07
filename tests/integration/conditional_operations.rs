@@ -4,7 +4,8 @@
 //! prevent data corruption when multiple clients modify the same resource.
 
 use scim_server::providers::StandardResourceProvider;
-use scim_server::resource::{core::RequestContext, version::ConditionalResult};
+use scim_server::providers::helpers::conditional::ConditionalOperations;
+use scim_server::resource::{RequestContext, version::ConditionalResult};
 use scim_server::storage::InMemoryStorage;
 use serde_json::json;
 use std::sync::Arc;
@@ -30,7 +31,7 @@ async fn test_conditional_operations_prevent_data_loss() {
         .await
         .expect("Failed to create user");
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let initial_version = created_user.version().clone();
 
     // === Scenario: Two admins try to update the same user ===
@@ -53,7 +54,7 @@ async fn test_conditional_operations_prevent_data_loss() {
 
     // === Test: Admin A updates first (disables user) ===
     let result_a = provider
-        .conditional_update("User", user_id, admin_a_update, &initial_version, &context)
+        .conditional_update_resource("User", user_id, admin_a_update, &initial_version, &context)
         .await
         .expect("Admin A update failed");
 
@@ -63,12 +64,9 @@ async fn test_conditional_operations_prevent_data_loss() {
     };
 
     // Verify Admin A's update worked
+    assert_eq!(updated_user.get("active").unwrap(), &json!(false));
     assert_eq!(
-        updated_user.resource().get("active").unwrap(),
-        &json!(false)
-    );
-    assert_eq!(
-        updated_user.resource().get("notes").unwrap(),
+        updated_user.get("notes").unwrap(),
         &json!("Disabled due to security incident")
     );
 
@@ -77,7 +75,7 @@ async fn test_conditional_operations_prevent_data_loss() {
 
     // === Test: Admin B tries to update with stale version ===
     let result_b = provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             user_id,
             admin_b_update,
@@ -105,21 +103,15 @@ async fn test_conditional_operations_prevent_data_loss() {
         .expect("User should exist");
 
     // The user should still be DISABLED (Admin A's critical security change preserved)
-    assert_eq!(final_user.resource().get("active").unwrap(), &json!(false));
+    assert_eq!(final_user.get("active").unwrap(), &json!(false));
     assert_eq!(
-        final_user.resource().get("notes").unwrap(),
+        final_user.get("notes").unwrap(),
         &json!("Disabled due to security incident")
     );
-    assert_eq!(
-        final_user.resource().get("department").unwrap(),
-        &json!("Engineering")
-    );
+    assert_eq!(final_user.get("department").unwrap(), &json!("Engineering"));
 
     // Admin B's changes should NOT have been applied
-    assert_ne!(
-        final_user.resource().get("department").unwrap(),
-        &json!("Security")
-    );
+    assert_ne!(final_user.get("department").unwrap(), &json!("Security"));
 }
 
 /// Test that shows how Admin B can properly handle the conflict and make an informed decision.
@@ -141,7 +133,7 @@ async fn test_conflict_resolution_workflow() {
         .await
         .unwrap();
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version_1 = created_user.version().clone();
 
     // Admin A: Promotes user to manager
@@ -153,7 +145,7 @@ async fn test_conflict_resolution_workflow() {
     });
 
     let result_a = provider
-        .conditional_update("User", user_id, promotion_update, &version_1, &context)
+        .conditional_update_resource("User", user_id, promotion_update, &version_1, &context)
         .await
         .unwrap();
 
@@ -174,7 +166,7 @@ async fn test_conflict_resolution_workflow() {
 
     // Admin B gets conflict
     let result_b = provider
-        .conditional_update("User", user_id, team_update, &version_1, &context)
+        .conditional_update_resource("User", user_id, team_update, &version_1, &context)
         .await
         .unwrap();
 
@@ -190,10 +182,7 @@ async fn test_conflict_resolution_workflow() {
         .unwrap();
 
     // 2. Admin B sees the user was promoted to Manager
-    assert_eq!(
-        current_user.resource().get("role").unwrap(),
-        &json!("Manager")
-    );
+    assert_eq!(current_user.get("role").unwrap(), &json!("Manager"));
 
     // 3. Admin B makes informed decision: keep promotion, just change team
     let informed_update = json!({
@@ -205,7 +194,7 @@ async fn test_conflict_resolution_workflow() {
 
     // 4. Admin B updates with current version
     let result_b_retry = provider
-        .conditional_update(
+        .conditional_update_resource(
             "User",
             user_id,
             informed_update,
@@ -221,14 +210,8 @@ async fn test_conflict_resolution_workflow() {
         _ => panic!("Informed update should succeed"),
     };
 
-    assert_eq!(
-        final_user.resource().get("role").unwrap(),
-        &json!("Manager")
-    );
-    assert_eq!(
-        final_user.resource().get("team").unwrap(),
-        &json!("Frontend")
-    );
+    assert_eq!(final_user.get("role").unwrap(), &json!("Manager"));
+    assert_eq!(final_user.get("team").unwrap(), &json!("Frontend"));
 }
 
 /// Test that concurrent delete operations are also protected by versioning.
@@ -249,7 +232,7 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
         .await
         .unwrap();
 
-    let user_id = created_user.resource().get_id().unwrap();
+    let user_id = created_user.get_id().unwrap();
     let version_1 = created_user.version().clone();
 
     // Admin A: Updates user (adds important data)
@@ -260,7 +243,7 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
     });
 
     let update_result = provider
-        .conditional_update("User", user_id, update_data, &version_1, &context)
+        .conditional_update_resource("User", user_id, update_data, &version_1, &context)
         .await
         .unwrap();
 
@@ -271,7 +254,7 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
 
     // Admin B: Tries to delete user with old version (before important data was added)
     let delete_result = provider
-        .conditional_delete(
+        .conditional_delete_resource(
             "User", user_id, &version_1, // ← Old version, before important data was added
             &context,
         )
@@ -295,7 +278,7 @@ async fn test_conditional_delete_prevents_accidental_deletion() {
         .unwrap();
 
     assert_eq!(
-        final_user.resource().get("importantData").unwrap(),
+        final_user.get("importantData").unwrap(),
         &json!("DO NOT DELETE - contains critical audit trail")
     );
 }
@@ -319,7 +302,7 @@ async fn test_conditional_operations_performance() {
         .await
         .unwrap();
 
-    let user_id = created_user.resource().get_id().unwrap().to_string();
+    let user_id = created_user.get_id().unwrap().to_string();
 
     // Test: Multiple sequential updates (simulating normal operation)
     let start = std::time::Instant::now();
@@ -333,7 +316,7 @@ async fn test_conditional_operations_performance() {
         });
 
         let result = provider
-            .conditional_update("User", &user_id, update_data, &current_version, &context)
+            .conditional_update_resource("User", &user_id, update_data, &current_version, &context)
             .await
             .unwrap();
 
@@ -361,5 +344,5 @@ async fn test_conditional_operations_performance() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(final_user.resource().get("counter").unwrap(), &json!(100));
+    assert_eq!(final_user.get("counter").unwrap(), &json!(100));
 }

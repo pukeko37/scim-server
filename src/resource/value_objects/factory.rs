@@ -12,6 +12,8 @@
 //! - **Type-Safe**: Compile-time guarantees where possible
 //! - **Performance**: Efficient lookup and construction mechanisms
 
+#![allow(dead_code)]
+
 use super::extension::ExtensionAttributeValue;
 use super::value_object_trait::{ValueObject, ValueObjectConstructor, ValueObjectRegistry};
 use super::{EmailAddress, ExternalId, Name, ResourceId, SchemaUri, UserName};

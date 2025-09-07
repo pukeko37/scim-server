@@ -1,6 +1,10 @@
 //! Unit tests for the multi-tenant provider trait.
 
-use scim_server::resource::{ListQuery, RequestContext, Resource, ResourceProvider, TenantContext};
+use scim_server::ResourceProvider;
+use scim_server::resource::{
+    ListQuery, RequestContext, Resource, TenantContext, version::RawVersion,
+    versioned::VersionedResource,
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -49,7 +53,7 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         data: Value,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
         let mut storage = self.data.write().await;
 
@@ -86,7 +90,7 @@ impl ResourceProvider for TestMultiTenantProvider {
         }
 
         resource_type_data.insert(resource_id, resource.clone());
-        Ok(resource)
+        Ok(VersionedResource::new(resource))
     }
 
     async fn get_resource(
@@ -94,7 +98,7 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         id: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Option<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
         let storage = self.data.read().await;
 
@@ -102,7 +106,7 @@ impl ResourceProvider for TestMultiTenantProvider {
             .get(tenant_id)
             .and_then(|tenant_data| tenant_data.get(resource_type))
             .and_then(|resource_type_data| resource_type_data.get(id))
-            .cloned())
+            .map(|resource| VersionedResource::new(resource.clone())))
     }
 
     async fn update_resource(
@@ -110,8 +114,9 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         id: &str,
         data: Value,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
-    ) -> Result<Resource, Self::Error> {
+    ) -> Result<VersionedResource, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
         let mut storage = self.data.write().await;
 
@@ -163,13 +168,14 @@ impl ResourceProvider for TestMultiTenantProvider {
             })?;
 
         *existing_resource = updated_resource.clone();
-        Ok(updated_resource)
+        Ok(VersionedResource::new(updated_resource))
     }
 
     async fn delete_resource(
         &self,
         resource_type: &str,
         id: &str,
+        _expected_version: Option<&RawVersion>,
         context: &RequestContext,
     ) -> Result<(), Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
@@ -208,26 +214,32 @@ impl ResourceProvider for TestMultiTenantProvider {
         resource_type: &str,
         _query: Option<&ListQuery>,
         context: &RequestContext,
-    ) -> Result<Vec<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
         let storage = self.data.read().await;
 
         Ok(storage
             .get(tenant_id)
             .and_then(|tenant_data| tenant_data.get(resource_type))
-            .map(|resource_type_data| resource_type_data.values().cloned().collect())
+            .map(|resource_type_data| {
+                resource_type_data
+                    .values()
+                    .map(|resource| VersionedResource::new(resource.clone()))
+                    .collect()
+            })
             .unwrap_or_default())
     }
 
-    async fn find_resource_by_attribute(
+    async fn find_resources_by_attribute(
         &self,
         resource_type: &str,
         attribute: &str,
-        value: &Value,
+        value: &str,
         context: &RequestContext,
-    ) -> Result<Option<Resource>, Self::Error> {
+    ) -> Result<Vec<VersionedResource>, Self::Error> {
         let tenant_id = context.tenant_id().unwrap_or("default");
         let storage = self.data.read().await;
+        let mut results = Vec::new();
 
         if let Some(tenant_data) = storage.get(tenant_id) {
             if let Some(resource_type_data) = tenant_data.get(resource_type) {
@@ -236,21 +248,21 @@ impl ResourceProvider for TestMultiTenantProvider {
                     let found = match attribute {
                         "userName" => {
                             if let Some(username) = resource.get_username() {
-                                value.as_str() == Some(username)
+                                username == value
                             } else {
                                 false
                             }
                         }
                         "id" => {
                             if let Some(id) = resource.get_id() {
-                                value.as_str() == Some(id)
+                                id == value
                             } else {
                                 false
                             }
                         }
                         "externalId" => {
                             if let Some(external_id) = resource.get_external_id() {
-                                value.as_str() == Some(external_id)
+                                external_id == value
                             } else {
                                 false
                             }
@@ -258,7 +270,7 @@ impl ResourceProvider for TestMultiTenantProvider {
                         // Fall back to attributes map for other fields
                         _ => {
                             if let Some(attr_value) = resource.get_attribute(attribute) {
-                                attr_value == value
+                                attr_value.as_str() == Some(value)
                             } else {
                                 false
                             }
@@ -266,13 +278,31 @@ impl ResourceProvider for TestMultiTenantProvider {
                     };
 
                     if found {
-                        return Ok(Some(resource.clone()));
+                        results.push(VersionedResource::new(resource.clone()));
                     }
                 }
             }
         }
 
-        Ok(None)
+        Ok(results)
+    }
+
+    async fn patch_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        _patch_request: &Value,
+        _expected_version: Option<&RawVersion>,
+        context: &RequestContext,
+    ) -> Result<VersionedResource, Self::Error> {
+        // Simple implementation: just return the existing resource
+        self.get_resource(resource_type, id, context)
+            .await?
+            .ok_or_else(|| TestProviderError::ResourceNotFound {
+                tenant_id: context.tenant_id().unwrap_or("default").to_string(),
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            })
     }
 
     async fn resource_exists(
@@ -319,12 +349,12 @@ async fn test_create_resource_with_tenant_scope() {
     assert!(result.is_ok());
 
     let resource = result.unwrap();
-    assert_eq!(resource.resource_type, "User");
+    assert_eq!(resource.resource().resource_type, "User");
     assert!(
         resource
-            .id
-            .as_ref()
-            .map(|id| id.as_str().starts_with("test-"))
+            .resource()
+            .get_id()
+            .map(|id| id.starts_with("test-"))
             .unwrap_or(false)
     );
 }
@@ -342,15 +372,15 @@ async fn test_get_resource_with_tenant_scope() {
         .unwrap();
 
     // Get resource
-    let id_str = created.id.as_ref().unwrap().as_str();
+    let id_str = created.resource().get_id().unwrap();
     let result = provider.get_resource("User", id_str, &context).await;
     assert!(result.is_ok());
 
     let retrieved = result.unwrap();
     assert!(retrieved.is_some());
     let resource = retrieved.unwrap();
-    assert_eq!(resource.id, created.id);
-    assert_eq!(resource.resource_type, "User");
+    assert_eq!(resource.resource().get_id(), created.resource().get_id());
+    assert_eq!(resource.resource().resource_type, "User");
 }
 
 #[tokio::test]
@@ -374,16 +404,26 @@ async fn test_update_resource_with_tenant_scope() {
         }
     });
 
-    let id_str = created.id.as_ref().unwrap().as_str();
+    let id_str = created.resource().id.as_ref().unwrap().as_str();
     let result = provider
-        .update_resource("User", id_str, updated_data, &context)
+        .update_resource("User", id_str, updated_data, None, &context)
         .await;
     assert!(result.is_ok());
 
     let updated = result.unwrap();
-    assert_eq!(updated.user_name.as_ref().unwrap().as_str(), "updateduser");
     assert_eq!(
-        updated.name.as_ref().unwrap().family_name.as_ref().unwrap(),
+        updated.resource().user_name.as_ref().unwrap().as_str(),
+        "updateduser"
+    );
+    assert_eq!(
+        updated
+            .resource()
+            .name
+            .as_ref()
+            .unwrap()
+            .family_name
+            .as_ref()
+            .unwrap(),
         "Smith"
     );
 }
@@ -401,8 +441,10 @@ async fn test_delete_resource_with_tenant_scope() {
         .unwrap();
 
     // Delete resource
-    let id_str = created.id.as_ref().unwrap().as_str();
-    let result = provider.delete_resource("User", id_str, &context).await;
+    let id_str = created.resource().id.as_ref().unwrap().as_str();
+    let result = provider
+        .delete_resource("User", id_str, None, &context)
+        .await;
     assert!(result.is_ok());
 
     // Verify deletion
@@ -454,7 +496,7 @@ async fn test_tenant_isolation_in_create_and_get() {
         .unwrap();
 
     // Try to get resource from tenant2 (should not find it)
-    let id_str = created.id.as_ref().unwrap().as_str();
+    let id_str = created.resource().id.as_ref().unwrap().as_str();
     let result = provider.get_resource("User", id_str, &context2).await;
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -557,10 +599,10 @@ async fn test_same_username_allowed_across_tenants() {
     let user1 = result1.unwrap();
     let user2 = result2.unwrap();
 
-    assert_ne!(user1.id, user2.id);
+    assert_ne!(user1.resource().id, user2.resource().id);
     assert_eq!(
-        user1.user_name.as_ref().unwrap().as_str(),
-        user2.user_name.as_ref().unwrap().as_str()
+        user1.resource().user_name.as_ref().unwrap().as_str(),
+        user2.resource().user_name.as_ref().unwrap().as_str()
     );
 }
 
@@ -581,7 +623,7 @@ async fn test_resource_ids_unique_within_tenant() {
         .await
         .unwrap();
 
-    assert_ne!(result1.id, result2.id);
+    assert_ne!(result1.resource().get_id(), result2.resource().get_id());
 }
 
 #[tokio::test]
@@ -599,7 +641,7 @@ async fn test_resource_exists_tenant_scoped() {
         .unwrap();
 
     // Check existence in tenant1 (should exist)
-    let id_str = created.id.as_ref().unwrap().as_str();
+    let id_str = created.resource().id.as_ref().unwrap().as_str();
     let exists1 = provider
         .resource_exists("User", id_str, &context1)
         .await
@@ -630,17 +672,17 @@ async fn test_find_resource_by_attribute_tenant_scoped() {
 
     // Find by attribute in tenant1 (should find)
     let result1 = provider
-        .find_resource_by_attribute("User", "userName", &json!("testuser"), &context1)
+        .find_resources_by_attribute("User", "userName", "testuser", &context1)
         .await
         .unwrap();
-    assert!(result1.is_some());
+    assert!(!result1.is_empty());
 
     // Find by attribute in tenant2 (should not find)
     let result2 = provider
-        .find_resource_by_attribute("User", "userName", &json!("testuser"), &context2)
+        .find_resources_by_attribute("User", "userName", "testuser", &context2)
         .await
         .unwrap();
-    assert!(result2.is_none());
+    assert!(result2.is_empty());
 }
 
 #[tokio::test]
@@ -650,10 +692,10 @@ async fn test_find_resource_by_attribute_not_found_in_tenant() {
 
     // Search for non-existent resource
     let result = provider
-        .find_resource_by_attribute("User", "userName", &json!("nonexistent"), &context)
+        .find_resources_by_attribute("User", "userName", "nonexistent", &context)
         .await
         .unwrap();
-    assert!(result.is_none());
+    assert!(result.is_empty());
 }
 
 #[tokio::test]
@@ -678,7 +720,7 @@ async fn test_update_nonexistent_resource() {
     });
 
     let result = provider
-        .update_resource("User", "nonexistent", updated_data, &context)
+        .update_resource("User", "nonexistent", updated_data, None, &context)
         .await;
     assert!(result.is_err());
 
@@ -702,7 +744,7 @@ async fn test_delete_nonexistent_resource() {
     let context = create_test_context("tenant1");
 
     let result = provider
-        .delete_resource("User", "nonexistent", &context)
+        .delete_resource("User", "nonexistent", None, &context)
         .await;
     assert!(result.is_err());
 
@@ -796,11 +838,11 @@ async fn test_provider_trait_documentation() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    assert!(created.get_id().is_some());
+    assert!(created.resource().get_id().is_some());
 
     // Get resource
     let retrieved = provider
-        .get_resource("User", created.get_id().unwrap(), &context)
+        .get_resource("User", created.resource().get_id().unwrap(), &context)
         .await
         .unwrap();
     assert!(retrieved.is_some());
@@ -814,20 +856,20 @@ async fn test_provider_trait_documentation() {
 
     // Check existence
     let exists = provider
-        .resource_exists("User", created.get_id().unwrap(), &context)
+        .resource_exists("User", created.resource().get_id().unwrap(), &context)
         .await
         .unwrap();
     assert!(exists);
 
     // Delete resource
     provider
-        .delete_resource("User", created.get_id().unwrap(), &context)
+        .delete_resource("User", created.resource().get_id().unwrap(), None, &context)
         .await
         .unwrap();
 
     // Verify deletion
     let deleted = provider
-        .get_resource("User", created.get_id().unwrap(), &context)
+        .get_resource("User", created.resource().get_id().unwrap(), &context)
         .await
         .unwrap();
     assert!(deleted.is_none());
@@ -885,7 +927,7 @@ impl ProviderTestHarness {
 
         // Verify cross-tenant access fails
         if let Some(user) = tenant1_users.first() {
-            let id_str = user.id.as_ref().unwrap().as_str();
+            let id_str = user.resource().id.as_ref().unwrap().as_str();
             let cross_access = provider
                 .get_resource("User", id_str, &tenant2_context)
                 .await

@@ -5,7 +5,7 @@
 //! These utilities ensure consistent testing patterns across different provider types.
 
 use crate::common::{UnifiedTestHarness, create_multi_tenant_context, create_test_user};
-use scim_server::resource::provider::ResourceProvider;
+use scim_server::ResourceProvider;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -175,7 +175,7 @@ impl ProviderTestingSuite {
 
         // Create
         let user = harness.create_user(None, "crud_test_user").await?;
-        let user_id = user.id.as_ref().unwrap().as_str();
+        let user_id = user.get_id().unwrap();
 
         // Read
         let retrieved = harness
@@ -185,7 +185,7 @@ impl ProviderTestingSuite {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
             .ok_or("User should be retrievable")?;
 
-        assert_eq!(retrieved.id, user.id);
+        assert_eq!(retrieved.resource().get_id(), user.get_id());
 
         // Update
         let update_data = json!({
@@ -195,19 +195,19 @@ impl ProviderTestingSuite {
 
         let updated = harness
             .provider
-            .update_resource("User", user_id, update_data, context)
+            .update_resource("User", user_id, update_data, None, context)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
         assert_eq!(
-            updated.user_name.as_ref().unwrap().as_str(),
+            updated.resource().get_username().unwrap(),
             "updated_crud_user"
         );
 
         // Delete
         harness
             .provider
-            .delete_resource("User", user_id, context)
+            .delete_resource("User", user_id, None, context)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
@@ -326,16 +326,16 @@ impl ProviderTestingSuite {
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
             // Verify data integrity
-            if created.user_name.as_ref().unwrap().as_str() != username {
+            if created.resource().get_username().unwrap() != username {
                 return Err(format!("Data integrity failed for test case: {}", test_name).into());
             }
 
             // Verify resource has proper structure
-            if created.id.is_none() {
+            if created.resource().get_id().is_none() {
                 return Err(format!("Resource ID missing for test case: {}", test_name).into());
             }
 
-            if created.schemas.is_empty() {
+            if created.resource().get_schemas().is_empty() {
                 return Err(format!("Schemas missing for test case: {}", test_name).into());
             }
         }

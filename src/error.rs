@@ -64,14 +64,6 @@ pub enum ScimError {
         operation: String,
     },
 
-    /// Method not found on resource
-    #[error("Method '{0}' not found")]
-    MethodNotFound(String),
-
-    /// Schema mapper not found
-    #[error("Schema mapper at index {0} not found")]
-    MapperNotFound(usize),
-
     /// Resource provider error with string message
     #[error("Resource provider error: {0}")]
     ProviderError(String),

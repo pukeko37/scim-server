@@ -125,8 +125,8 @@ async fn test_multi_tenant_provider_functionality() {
         .await
         .unwrap();
 
-    assert_eq!(created_user.get_username(), Some("dbuser"));
-    assert!(created_user.get_id().is_some());
+    assert_eq!(created_user.resource().get_username(), Some("dbuser"));
+    assert!(created_user.resource().get_id().is_some());
 
     // Test list resources
     let users = provider
@@ -134,10 +134,10 @@ async fn test_multi_tenant_provider_functionality() {
         .await
         .unwrap();
     assert_eq!(users.len(), 1);
-    assert_eq!(users[0].get_username(), Some("dbuser"));
+    assert_eq!(users[0].resource().get_username(), Some("dbuser"));
 
     // Test update
-    let user_id = created_user.get_id().unwrap();
+    let user_id = created_user.resource().get_id().unwrap();
     let updated_data = json!({
         "id": user_id,
         "userName": "dbuser",
@@ -145,17 +145,17 @@ async fn test_multi_tenant_provider_functionality() {
     });
 
     let updated_user = provider
-        .update_resource("User", user_id, updated_data, &context)
+        .update_resource("User", user_id, updated_data, None, &context)
         .await
         .unwrap();
     assert_eq!(
-        updated_user.get_attribute("displayName"),
+        updated_user.resource().get_attribute("displayName"),
         Some(&json!("Updated Database User"))
     );
 
     // Test delete
     provider
-        .delete_resource("User", user_id, &context)
+        .delete_resource("User", user_id, None, &context)
         .await
         .unwrap();
 
@@ -200,7 +200,7 @@ async fn test_multi_tenant_isolation() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        user_a.get_attribute("displayName"),
+        user_a.resource().get_attribute("displayName"),
         Some(&json!("John from A"))
     );
 
@@ -210,7 +210,7 @@ async fn test_multi_tenant_isolation() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        user_b.get_attribute("displayName"),
+        user_b.resource().get_attribute("displayName"),
         Some(&json!("John from B"))
     );
 
@@ -261,7 +261,9 @@ async fn test_tenant_permissions_and_limits() {
     assert!(result2.is_err());
 
     // Delete should fail - tenant has can_delete = false
-    let delete_result = provider.delete_resource("User", "user1", &context).await;
+    let delete_result = provider
+        .delete_resource("User", "user1", None, &context)
+        .await;
     // Should fail because tenant doesn't have delete permission
     assert!(delete_result.is_err());
 }
@@ -299,7 +301,7 @@ async fn test_end_to_end_workflow() {
         .create_resource("User", user_data, &context)
         .await
         .unwrap();
-    let user_id = created_user.get_id().unwrap();
+    let user_id = created_user.resource().get_id().unwrap();
 
     // Read
     let retrieved_user = provider
@@ -307,7 +309,7 @@ async fn test_end_to_end_workflow() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(retrieved_user.get_username(), Some("e2euser"));
+    assert_eq!(retrieved_user.resource().get_username(), Some("e2euser"));
 
     // Update
     let updated_data = json!({
@@ -316,11 +318,11 @@ async fn test_end_to_end_workflow() {
         "displayName": "Updated E2E User"
     });
     let updated_user = provider
-        .update_resource("User", user_id, updated_data, &context)
+        .update_resource("User", user_id, updated_data, None, &context)
         .await
         .unwrap();
     assert_eq!(
-        updated_user.get_attribute("displayName"),
+        updated_user.resource().get_attribute("displayName"),
         Some(&json!("Updated E2E User"))
     );
 
@@ -332,16 +334,17 @@ async fn test_end_to_end_workflow() {
     assert_eq!(users.len(), 1);
 
     // Search by attribute
-    let found_user = provider
-        .find_resource_by_attribute("User", "userName", &json!("e2euser"), &context)
+    let found_users = provider
+        .find_resources_by_attribute("User", "userName", "e2euser", &context)
         .await
-        .unwrap()
         .unwrap();
-    assert_eq!(found_user.get_id(), Some(user_id));
+    assert!(!found_users.is_empty());
+    let found_user = &found_users[0];
+    assert_eq!(found_user.resource().get_id(), Some(user_id));
 
     // Delete
     provider
-        .delete_resource("User", user_id, &context)
+        .delete_resource("User", user_id, None, &context)
         .await
         .unwrap();
 

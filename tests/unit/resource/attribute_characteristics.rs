@@ -4,9 +4,10 @@
 //! such as mutability, uniqueness, case sensitivity, and other schema-defined
 //! constraints in SCIM resources (Errors 44-52).
 
+use scim_server::ResourceProvider;
 use scim_server::error::ValidationError;
 use scim_server::providers::StandardResourceProvider;
-use scim_server::resource::{RequestContext, ResourceProvider};
+use scim_server::resource::RequestContext;
 use scim_server::schema::{SchemaRegistry, validation::OperationContext};
 use scim_server::storage::InMemoryStorage;
 use serde_json::json;
@@ -927,7 +928,7 @@ async fn test_uniqueness_update_same_resource() {
     // Now try to update the same user with the same userName (should succeed)
     let update_user = json!({
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "id": created_user.id.as_ref().unwrap().as_str(),
+        "id": created_user.resource().get_id().unwrap(),
         "userName": "existing@example.com", // Same userName
         "displayName": "Updated Display Name", // Changed field
         "meta": {

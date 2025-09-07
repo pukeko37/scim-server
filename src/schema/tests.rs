@@ -125,7 +125,7 @@ fn test_id_validation() {
         }
     });
 
-    let result = crate::resource::core::Resource::from_json("User".to_string(), valid_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), valid_user);
     assert!(
         result.is_ok(),
         "Valid user resource should be created successfully"
@@ -140,7 +140,7 @@ fn test_id_validation() {
         }
     });
 
-    let result = crate::resource::core::Resource::from_json("User".to_string(), missing_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), missing_id_user);
     assert!(
         result.is_ok(),
         "Resource creation should succeed without ID"
@@ -161,7 +161,7 @@ fn test_id_validation() {
         }
     });
 
-    let result = crate::resource::core::Resource::from_json("User".to_string(), empty_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), empty_id_user);
     assert!(
         result.is_err(),
         "Empty ID should cause resource creation to fail"
@@ -177,7 +177,7 @@ fn test_id_validation() {
         }
     });
 
-    let result = crate::resource::core::Resource::from_json("User".to_string(), invalid_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), invalid_id_user);
     assert!(
         result.is_err(),
         "Non-string ID should cause resource creation to fail"
@@ -197,8 +197,7 @@ fn test_external_id_validation() {
         }
     });
 
-    let result =
-        crate::resource::core::Resource::from_json("User".to_string(), valid_external_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), valid_external_id_user);
     assert!(result.is_ok(), "Valid external ID should be accepted");
     let resource = result.unwrap();
     assert_eq!(resource.external_id.unwrap().as_str(), "ext-12345");
@@ -214,8 +213,7 @@ fn test_external_id_validation() {
         }
     });
 
-    let result =
-        crate::resource::core::Resource::from_json("User".to_string(), invalid_external_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), invalid_external_id_user);
     assert!(
         result.is_err(),
         "Non-string external ID should cause resource creation to fail"
@@ -232,8 +230,7 @@ fn test_external_id_validation() {
         }
     });
 
-    let result =
-        crate::resource::core::Resource::from_json("User".to_string(), empty_external_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), empty_external_id_user);
     assert!(
         result.is_err(),
         "Empty external ID should cause resource creation to fail"
@@ -256,8 +253,7 @@ fn test_schema_validation_integration() {
     });
 
     // Resource creation should succeed
-    let resource_result =
-        crate::resource::core::Resource::from_json("User".to_string(), valid_user);
+    let resource_result = crate::resource::Resource::from_json("User".to_string(), valid_user);
     assert!(
         resource_result.is_ok(),
         "Valid resource should be created successfully"
@@ -282,8 +278,7 @@ fn test_schema_validation_integration() {
         }
     });
 
-    let result =
-        crate::resource::core::Resource::from_json("User".to_string(), invalid_user_empty_id);
+    let result = crate::resource::Resource::from_json("User".to_string(), invalid_user_empty_id);
     assert!(
         result.is_err(),
         "Empty ID should cause resource creation to fail"
@@ -300,8 +295,7 @@ fn test_schema_validation_integration() {
         }
     });
 
-    let result =
-        crate::resource::core::Resource::from_json("User".to_string(), invalid_external_id);
+    let result = crate::resource::Resource::from_json("User".to_string(), invalid_external_id);
     assert!(
         result.is_err(),
         "Empty external ID should cause resource creation to fail"
@@ -316,7 +310,7 @@ fn test_schema_validation_integration() {
         }
     });
 
-    let result = crate::resource::core::Resource::from_json("User".to_string(), missing_id_user);
+    let result = crate::resource::Resource::from_json("User".to_string(), missing_id_user);
     assert!(
         result.is_ok(),
         "Missing ID should be allowed in resource creation"
@@ -331,7 +325,7 @@ fn test_schema_validation_integration() {
     });
 
     let resource_result =
-        crate::resource::core::Resource::from_json("User".to_string(), schema_validation_user);
+        crate::resource::Resource::from_json("User".to_string(), schema_validation_user);
     assert!(
         resource_result.is_ok(),
         "Resource creation should succeed even with extra attributes"

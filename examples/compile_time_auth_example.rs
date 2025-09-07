@@ -7,12 +7,13 @@
 //! Run with: cargo run --example compile_time_auth_example
 
 use scim_server::{
+    ResourceProvider,
     auth::{
         AuthenticatedRequestContext, AuthenticationValidator, Credential, LinearCredential,
         Unauthenticated,
     },
     providers::StandardResourceProvider,
-    resource::{IsolationLevel, ResourceProvider, TenantContext, TenantPermissions},
+    resource::{IsolationLevel, TenantContext, TenantPermissions},
     storage::InMemoryStorage,
 };
 use serde_json::json;
@@ -299,7 +300,7 @@ fn demonstrate_impossible_states() {
 /// ```rust,no_run
 /// use scim_server::{
 ///     auth::AuthenticatedRequestContext,
-///     providers::{StandardResourceProvider, InMemoryError},
+///     providers::{StandardResourceProvider, ProviderError},
 ///     storage::InMemoryStorage,
 ///     resource::Resource,
 /// };
@@ -327,7 +328,7 @@ fn demonstrate_impossible_states() {
 ///
 /// /// Example implementation showing compile-time enforcement
 /// impl SecureScimProvider for StandardResourceProvider<InMemoryStorage> {
-///     type Error = InMemoryError;
+///     type Error = ProviderError;
 ///
 ///     async fn secure_list_users(
 ///         &self,

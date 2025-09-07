@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-01-29
+
+### ⚠️ BREAKING CHANGES
+
+- **Provider Interface Refactored**: Major simplification of `StandardResourceProvider` through helper traits
+  - Conditional operations methods renamed: `conditional_update()` → `conditional_update_resource()`, `conditional_delete()` → `conditional_delete_resource()`
+  - Helper traits now provide metadata management, patch operations, and multi-tenant functionality
+  - `StandardResourceProvider` reduced by ~500 lines through trait composition
+- **Error Handling Enhanced**: Added `String` → `ProviderError` conversion for improved error ergonomics
+
+### Added
+- **Helper Trait System**: New modular trait architecture for provider functionality
+  - `ScimMetadataManager` for SCIM metadata operations
+  - `ScimPatchOperations` for PATCH request handling  
+  - `MultiTenantProvider` for tenant-aware operations
+  - `ConditionalOperations` for version-based concurrency control
+- **Comprehensive Architecture Documentation**: 1,160+ lines of detailed concept guides
+  - Resources concept guide covering type safety and extensibility patterns
+  - Resource Providers guide explaining business logic layer and SCIM compliance
+  - Storage Providers guide documenting data persistence abstraction
+
+### Changed
+- **Code Organization**: Simplified `StandardResourceProvider` implementation through trait composition
+- **Method Consistency**: Standardized conditional operation method naming across the codebase
+- **Documentation Structure**: Reorganized concept guides in user documentation for better navigation
+
+### Migration Guide
+Update conditional operation method calls:
+```rust
+// Before v0.5.0
+provider.conditional_update(resource_type, id, data, version, context).await?;
+provider.conditional_delete(resource_type, id, version, context).await?;
+
+// v0.5.0+
+provider.conditional_update_resource(resource_type, id, data, version, context).await?;
+provider.conditional_delete_resource(resource_type, id, version, context).await?;
+```
+
 ## [0.4.1] - 2025-09-04
 
 ### Added

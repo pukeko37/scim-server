@@ -6,13 +6,10 @@
 //! Run with: cargo run --example multi_tenant_example
 
 use scim_server::{
-    RequestContext, TenantContext,
+    RequestContext, ResourceProvider, TenantContext,
     multi_tenant::resolver::{StaticTenantResolver, TenantResolver},
     providers::StandardResourceProvider,
-    resource::{
-        core::{IsolationLevel, TenantPermissions},
-        provider::ResourceProvider,
-    },
+    resource::{IsolationLevel, TenantPermissions},
     storage::InMemoryStorage,
 };
 use serde_json::json;
@@ -225,12 +222,12 @@ async fn demo_tenant_isolation(
 
         // Enterprise tenant trying to find startup tenant's user by username (should not find it)
         let cross_access_result = provider
-            .find_resource_by_attribute("User", "userName", &json!(startup_username), &ent_context)
+            .find_resources_by_attribute("User", "userName", &startup_username, &ent_context)
             .await?;
 
-        match cross_access_result {
-            None => println!("   ✅ Cross-tenant access correctly blocked"),
-            Some(_) => println!("   ❌ ERROR: Cross-tenant access was allowed!"),
+        match cross_access_result.is_empty() {
+            true => println!("   ✅ Cross-tenant access correctly blocked"),
+            false => println!("   ❌ ERROR: Cross-tenant access was allowed!"),
         }
     } else {
         println!("   ❌ ERROR: Could not find startup user for isolation test");
@@ -286,7 +283,7 @@ async fn demo_permission_system(
 
     // Try to delete (startup tenant has delete disabled)
     let delete_result = provider
-        .delete_resource("User", test_user.get_id().unwrap(), &startup_ctx)
+        .delete_resource("User", test_user.get_id().unwrap(), None, &startup_ctx)
         .await;
 
     match delete_result {
