@@ -163,7 +163,7 @@ let etag_header = http_version.to_string();        // "W/\"abc123\""
 
 ### AI and Automation
 
-**AI Agent Integration**: AI systems making identity management decisions benefit from MCP version handling, which provides cleaner programmatic access compared to HTTP header parsing.
+**AI Agent Integration**: AI systems making identity management decisions benefit from MCP version handling, which uses raw version strings (e.g., `"abc123def"`) instead of HTTP ETag format for cleaner programmatic access. The MCP integration automatically converts between formats.
 
 **Automated Compliance**: Compliance systems that automatically update user attributes based on policy changes need concurrency protection to avoid overwriting simultaneous manual administrative changes.
 

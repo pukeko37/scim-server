@@ -14,12 +14,16 @@
 
 # Concepts
 
+- [Operation Handlers](./concepts/operation-handlers.md)
+- [MCP Integration (AI Agent Support)](./concepts/mcp-integration.md)
+- [SCIM Server](./concepts/scim-server.md)
 - [Resources](./concepts/resources.md)
 - [Resource Providers](./concepts/resource-providers.md)
 - [Storage Providers](./concepts/storage-providers.md)
 - [Understanding SCIM Schemas](./concepts/schemas.md)
 - [Schema Mechanisms in SCIM Server](./concepts/schema-mechanisms.md)
 - [Concurrency Control in SCIM Operations](./concepts/concurrency.md)
+- [Multi-Tenant Architecture](./concepts/multi-tenant-architecture.md)
 
 # Advanced Topics
 
