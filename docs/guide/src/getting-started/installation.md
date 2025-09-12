@@ -18,7 +18,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "=0.5.0"
+scim-server = "=0.5.1"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```

@@ -10,7 +10,7 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 **SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
 
-> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.5.0"`. Breaking changes are signaled by minor version increments until v1.0.
+> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.5.1"`. Breaking changes are signaled by minor version increments until v1.0.
 
 ## 🚨 v0.5.0 Breaking Changes
 
@@ -34,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = "=0.5.0"
+scim-server = "=0.5.1"
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 ```
@@ -93,6 +93,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **Framework Agnostic** - Works with Axum, Warp, Actix, or any HTTP framework
 - **AI-Ready** - Built-in Model Context Protocol for AI tool integration
 - **ETag Concurrency Control** - Prevents lost updates in multi-client scenarios
+- **Comprehensive Documentation** - Detailed concept guides and integration examples
+
+## Documentation
+
+**📚 New in v0.5.1**: Comprehensive concept documentation with 2,100+ lines covering:
+
+- **[Operation Handlers](https://docs.rs/scim-server/latest/scim_server/)** - Framework-agnostic integration for HTTP, MCP, CLI, and custom protocols
+- **[MCP Integration](https://docs.rs/scim-server/latest/scim_server/)** - AI-native interface with tool discovery for conversational identity management  
+- **[SCIM Server Architecture](https://docs.rs/scim-server/latest/scim_server/)** - Dynamic resource management with multi-tenant support
+- **[Multi-Tenant Patterns](https://docs.rs/scim-server/latest/scim_server/)** - Enterprise deployment strategies for SaaS and compliance scenarios
 
 ## How It Works
 

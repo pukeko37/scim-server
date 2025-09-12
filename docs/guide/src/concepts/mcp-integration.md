@@ -549,7 +549,7 @@ To enable MCP Integration, add the feature flag to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = { version = "0.5", features = ["mcp"] }
+scim-server = { version = "0.5.1", features = ["mcp"] }
 ```
 
 The MCP integration includes:

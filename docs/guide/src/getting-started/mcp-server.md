@@ -20,7 +20,7 @@ Add the MCP feature to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scim-server = { version = "0.5.0", features = ["mcp"] }
+scim-server = { version = "0.5.1", features = ["mcp"] }
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 env_logger = "0.10"  # For logging (recommended)

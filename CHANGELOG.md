@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-09-12
+
+### Added
+- **Comprehensive Concept Documentation**: Added 4 major concept guides totaling 2,100+ lines
+  - **Operation Handlers**: Framework-agnostic integration layer for HTTP, MCP, CLI, and custom protocols
+  - **MCP Integration (AI Agent Support)**: AI-native interface with tool discovery and schema-driven operations
+  - **SCIM Server**: Central orchestration layer with dynamic resource management and multi-tenant support
+  - **Multi-Tenant Architecture**: Complete tenant isolation with flexible deployment patterns
+- **Enhanced Documentation Structure**: Reorganized concept guides by integration importance
+  - Operation Handlers positioned as primary integration point
+  - Logical flow from integration patterns to core architecture concepts
+
+### Changed  
+- **MCP Version Handling Documentation**: Clarified that MCP integration uses raw version format (`"abc123def"`) instead of HTTP ETag format for better AI agent programmatic access
+- **Feature Flag Documentation**: Added comprehensive documentation for MCP feature flag usage
+- **Concurrency Documentation**: Updated to ensure consistency with MCP integration patterns
+
+### Documentation
+- **Operation Handlers**: Complete guide covering framework-agnostic SCIM integration patterns
+- **AI Agent Support**: Detailed MCP integration guide with conversational identity management examples
+- **Multi-Tenant Scenarios**: Enterprise deployment patterns including SaaS, compliance, and geographic isolation
+- **SCIM Server Architecture**: Deep dive into dynamic resource management and capability discovery
+
 ## [0.5.0] - 2025-01-29
 
 ### ⚠️ BREAKING CHANGES
