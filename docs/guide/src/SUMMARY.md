@@ -30,4 +30,32 @@
 
 # Examples
 
+- [Overview](./examples/overview.md)
+
+## Core Examples
+- [Basic Usage](./examples/basic-usage.md)
+- [Multi-Tenant Server](./examples/multi-tenant.md)
+- [Group Management](./examples/group-management.md)
+
+## Advanced Features
+- [ETag Concurrency Control](./examples/etag-concurrency.md)
+- [Operation Handlers](./examples/operation-handlers.md)
+- [Builder Pattern Configuration](./examples/builder-pattern.md)
+
+## MCP Integration (AI Agents)
+- [MCP Server](./examples/mcp-server.md)
+- [MCP with ETag Support](./examples/mcp-etag.md)
+- [Simple MCP Demo](./examples/simple-mcp-demo.md)
+- [MCP STDIO Server](./examples/mcp-stdio-server.md)
+
+## Security & Authentication
+- [Compile-Time Auth](./examples/compile-time-auth.md)
+- [Role-Based Access Control](./examples/rbac.md)
+
+## Infrastructure & Operations
+- [Logging Backends](./examples/logging-backends.md)
+- [Logging Configuration](./examples/logging-setup.md)
+- [Provider Modes](./examples/provider-modes.md)
+- [Automated Capabilities](./examples/automated-capabilities.md)
+
 # Reference
