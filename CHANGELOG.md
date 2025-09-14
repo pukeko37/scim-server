@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2025-01-25
+
+### Documentation
+- **Comprehensive API Reference Integration**: Added docs.rs API links throughout all mdbook pages for seamless navigation between guide and reference documentation
+- **Examples Section**: Added 11 detailed example pages with narrative descriptions covering:
+  - Core functionality (Basic Usage, Multi-Tenant Server, Group Management)
+  - Advanced features (ETag Concurrency Control, Operation Handlers, Builder Pattern)
+  - MCP Integration (MCP Server, MCP with ETag Support, Simple MCP Demo)
+  - Infrastructure & Operations (Logging Configuration)
+- **Enhanced Navigation**: Fixed internal cross-references between concept pages and improved getting-started flow
+- **API Documentation Links**: Added comprehensive docs.rs links for all major types, traits, and methods
+- **Learning Paths**: Created structured learning paths and categorized examples by use case and complexity
+
+### Improved
+- **Developer Experience**: Significantly reduced friction between mdbook guide and docs.rs reference documentation
+- **Example Discoverability**: Each example now includes clear narrative descriptions focusing on key features rather than code duplication
+- **Cross-Reference Quality**: Better internal linking between related concepts and examples
+
 ## [0.5.1] - 2025-09-12
 
 ### Added
