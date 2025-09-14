@@ -2,6 +2,8 @@
 
 Resources are the foundational data structures in SCIM that represent identity objects like users, groups, and custom entities. The SCIM Server library implements a hybrid resource design that combines type safety for core attributes with JSON flexibility for extensions.
 
+See the [Resource API documentation](https://docs.rs/scim-server/latest/scim_server/struct.Resource.html) for complete details.
+
 ## Value Proposition
 
 The Resource system in SCIM Server provides several key benefits:
@@ -33,10 +35,10 @@ Resource
 
 The following attributes use type-safe value objects with compile-time validation:
 
-- **Resource Identity**: `ResourceId`, `ExternalId`, `SchemaUri`
-- **User Attributes**: `UserName`, `Name`, `EmailAddress`, `PhoneNumber`, `Address`
-- **Group Attributes**: `GroupMembers`
-- **Metadata**: `Meta` (timestamps, versions, resource type)
+- **Resource Identity**: [`ResourceId`](https://docs.rs/scim-server/latest/scim_server/resource/struct.ResourceId.html), [`ExternalId`](https://docs.rs/scim-server/latest/scim_server/resource/struct.ExternalId.html), [`SchemaUri`](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaUri.html)
+- **User Attributes**: [`UserName`](https://docs.rs/scim-server/latest/scim_server/resource/struct.UserName.html), [`Name`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Name.html), [`EmailAddress`](https://docs.rs/scim-server/latest/scim_server/resource/struct.EmailAddress.html), [`PhoneNumber`](https://docs.rs/scim-server/latest/scim_server/resource/struct.PhoneNumber.html), [`Address`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Address.html)
+- **Group Attributes**: [`GroupMembers`](https://docs.rs/scim-server/latest/scim_server/resource/struct.GroupMembers.html)
+- **Metadata**: [`Meta`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Meta.html) (timestamps, versions, resource type)
 
 ### Extended Attributes
 

@@ -1,6 +1,8 @@
 # SCIM Server
 
-The SCIM Server is the central orchestration layer of the SCIM Server library, providing a complete, dynamic SCIM 2.0 protocol implementation that can handle any resource type registered at runtime. It serves as the primary interface between your application and the SCIM protocol, eliminating hard-coded resource types and enabling truly schema-driven identity management.
+The [`ScimServer`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html) is the central orchestration layer of the SCIM Server library, providing a complete, dynamic SCIM 2.0 protocol implementation that can handle any resource type registered at runtime. It serves as the primary interface between your application and the SCIM protocol, eliminating hard-coded resource types and enabling truly schema-driven identity management.
+
+See the [ScimServer API documentation](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html) for complete details.
 
 ## Value Proposition
 
@@ -34,12 +36,12 @@ Storage Provider (Data Persistence)
 
 ### Core Components
 
-1. **ScimServer Struct**: The main server instance with pluggable providers
-2. **ScimServerBuilder**: Fluent configuration API for server setup
-3. **Resource Registration**: Runtime registration of resource types and operations
-4. **Schema Management**: Automatic schema validation and discovery
+1. **[`ScimServer` Struct](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html)**: The main server instance with pluggable providers
+2. **[`ScimServerBuilder`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html)**: Fluent configuration API for server setup
+3. **[Resource Registration](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type)**: Runtime registration of resource types and operations
+4. **[Schema Management](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html)**: Automatic schema validation and discovery
 5. **Operation Router**: Dynamic dispatch to appropriate handlers
-6. **URL Generation**: Multi-tenant aware endpoint URL creation
+6. **[URL Generation](https://docs.rs/scim-server/latest/scim_server/enum.TenantStrategy.html)**: Multi-tenant aware endpoint URL creation
 
 ## Use Cases
 
@@ -54,11 +56,15 @@ use scim_server::storage::InMemoryStorage;
 use scim_server::resource::{RequestContext, ScimOperation};
 
 // Setup server with provider
+// See: https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html
 let storage = InMemoryStorage::new();
+// See: https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html
 let provider = StandardResourceProvider::new(storage);
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html
 let mut server = ScimServer::new(provider)?;
 
 // Register User resource type
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type
 server.register_resource_type(
     "User",
     user_handler,
@@ -66,6 +72,7 @@ server.register_resource_type(
 )?;
 
 // Create user through SCIM server
+// See: https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html
 let context = RequestContext::new("request-123".to_string());
 let user_data = json!({
     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -74,6 +81,7 @@ let user_data = json!({
     "emails": [{"value": "alice@company.com", "primary": true}]
 });
 
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.create_resource
 let created_user = server.create_resource("User", user_data, &context).await?;
 ```
 
@@ -86,6 +94,8 @@ let created_user = server.create_resource("User", user_data, &context).await?;
 ```rust
 use scim_server::{ScimServerBuilder, TenantStrategy};
 use scim_server::resource::{RequestContext, TenantContext, TenantPermissions};
+
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html
 
 // Configure multi-tenant server
 let mut server = ScimServerBuilder::new(provider)
@@ -124,24 +134,30 @@ let user = server.create_resource("User", user_data, &context).await?;
 
 ```rust
 // Register custom resource type at runtime
+// See: https://docs.rs/scim-server/latest/scim_server/schema/struct.Schema.html
 let application_schema = Schema {
     id: "urn:example:schemas:Application".to_string(),
     name: "Application".to_string(),
     description: "Custom application resource".to_string(),
     attributes: vec![
-        // Define custom attributes
+        // Define custom attributes using AttributeDefinition
+        // See: https://docs.rs/scim-server/latest/scim_server/schema/struct.AttributeDefinition.html
         create_attribute("displayName", AttributeType::String, false, true, false),
         create_attribute("version", AttributeType::String, false, false, false),
         create_attribute("permissions", AttributeType::Complex, true, false, false),
     ],
 };
 
+// Create resource handler for the custom schema
+// See: https://docs.rs/scim-server/latest/scim_server/resource_handlers/index.html
 let app_handler = ResourceHandler {
     resource_type: "Application".to_string(),
     schema: application_schema,
     endpoint: "/Applications".to_string(),
 };
 
+// Register with the server
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type
 server.register_resource_type(
     "Application",
     app_handler,
@@ -159,6 +175,7 @@ let app_data = json!({
     ]
 });
 
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.create_resource
 let application = server.create_resource("Application", app_data, &context).await?;
 ```
 
@@ -170,23 +187,27 @@ let application = server.create_resource("Application", app_data, &context).awai
 
 ```rust
 // Automatic capability discovery
-let capabilities = server.discover_capabilities()?;
-println!("Supported resource types: {:?}", capabilities.resource_types);
-println!("Supported operations: {:?}", capabilities.supported_operations);
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_server_info
+let server_info = server.get_server_info();
+println!("Supported resource types: {:?}", server_info.supported_resource_types);
+println!("SCIM version: {}", server_info.scim_version);
 
 // SCIM ServiceProviderConfig generation
+// See: https://docs.rs/scim-server/latest/scim_server/schema_discovery/index.html
 let service_config = server.get_service_provider_config()?;
 println!("Authentication schemes: {:?}", service_config.authentication_schemes);
 println!("Bulk operations: {:?}", service_config.bulk);
 
 // Schema introspection
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_all_schemas
 let all_schemas = server.get_all_schemas();
 for schema in all_schemas {
     println!("Schema: {} - {}", schema.id, schema.description);
 }
 
 // Resource type specific schema
-let user_schema = server.get_resource_schema("User")?;
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_schema_by_id
+let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
 println!("User schema attributes: {}", user_schema.attributes.len());
 ```
 
@@ -198,6 +219,7 @@ println!("User schema attributes: {}", user_schema.attributes.len());
 
 ```rust
 // Subdomain-based tenant isolation
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html#method.with_tenant_strategy
 let server = ScimServerBuilder::new(provider)
     .with_base_url("https://scim.company.com")
     .with_tenant_strategy(TenantStrategy::Subdomain)
@@ -230,9 +252,10 @@ let ref_url = server.generate_ref_url(None, "Users", "user456")?;
 
 ### Builder Pattern for Configuration
 
-The SCIM Server uses the builder pattern for flexible configuration:
+The SCIM Server uses the builder pattern for flexible configuration with [`ScimServerBuilder`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html):
 
 ```rust
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html
 pub struct ScimServerBuilder<P> {
     provider: P,
     config: ScimServerConfig,
@@ -270,16 +293,18 @@ This enables:
 
 ### Provider Abstraction
 
-The server is generic over any `ResourceProvider` implementation:
+Clean abstraction over [`ResourceProvider`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html):
 
 ```rust
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html
 pub struct ScimServer<P> {
     provider: P,
     // ...
 }
 
-impl<P: ResourceProvider + Sync> ScimServer<P> {
-    // Operations delegate to provider
+// See: https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html
+impl<P: ResourceProvider> ScimServer<P> {
+    // Operations delegated to provider
 }
 ```
 
@@ -293,25 +318,25 @@ This enables:
 
 ### Resource Integration
 
-The SCIM Server works seamlessly with the Resource system:
+The SCIM Server works seamlessly with the [Resource system](https://docs.rs/scim-server/latest/scim_server/struct.Resource.html):
 
-- **Type Safety**: Core attributes use validated value objects
+- **Type Safety**: Core attributes use [validated value objects](https://docs.rs/scim-server/latest/scim_server/schema/trait.ValueObject.html)
 - **Flexibility**: Extended attributes remain as JSON
-- **Serialization**: Automatic $ref field injection for SCIM compliance
+- **Serialization**: Automatic [$ref field injection](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.create_resource_with_refs) for SCIM compliance
 - **Metadata**: Automatic timestamp and version management
 
 ### Resource Provider Integration
 
-The server orchestrates provider operations:
+The server orchestrates [provider operations](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html):
 
 - **Operation Dispatch**: Routes operations to appropriate provider methods
-- **Context Passing**: Ensures request context flows through all operations
-- **Error Translation**: Converts provider errors to SCIM-compliant responses
+- **Context Passing**: Ensures [request context](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html) flows through all operations
+- **Error Translation**: Converts provider errors to [SCIM-compliant responses](https://docs.rs/scim-server/latest/scim_server/enum.ScimError.html)
 - **Concurrency**: Manages version-aware operations for conflict prevention
 
 ### Storage Provider Integration
 
-Through the Resource Provider layer:
+Through the [Resource Provider](./resource-providers.md) layer:
 
 - **Storage Agnostic**: Works with any storage implementation
 - **Transaction Support**: Leverages provider transaction capabilities
@@ -320,11 +345,11 @@ Through the Resource Provider layer:
 
 ### Schema Integration
 
-Deep integration with the schema system:
+Deep integration with the [schema system](https://docs.rs/scim-server/latest/scim_server/schema/index.html):
 
-- **Automatic Validation**: All operations validated against registered schemas
-- **Schema Discovery**: Runtime introspection of available schemas
-- **Extension Support**: Handles custom schema extensions transparently
+- **Automatic Validation**: All operations validated against [registered schemas](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html)
+- **Schema Discovery**: Runtime introspection of [available schemas](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_all_schemas)
+- **Extension Support**: Handles [custom schema extensions](./schema-mechanisms.md) transparently
 - **Compliance Checking**: Ensures SCIM 2.0 specification adherence
 
 ## Error Handling
@@ -333,15 +358,17 @@ The SCIM Server provides comprehensive error handling:
 
 ### Structured Error Types
 
+All server operations return [structured errors](https://docs.rs/scim-server/latest/scim_server/enum.ScimError.html) with proper SCIM compliance:
+
 ```rust
 pub enum ScimError {
     UnsupportedResourceType(String),
-    UnsupportedOperation { resource_type: String, operation: String },
+    UnsupportedOperation { resource_type: String, operation: ScimOperation },
     SchemaValidation { schema_id: String, message: String },
     InvalidRequest { message: String },
     ResourceNotFound { resource_type: String, id: String },
     ConflictError { message: String },
-    // ...
+    // ... other variants
 }
 ```
 
@@ -371,10 +398,11 @@ let result = self
 
 ### 1. Use Builder Pattern for Configuration
 
-Always use the builder for server setup:
+Always use the [`ScimServerBuilder`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html) for server setup:
 
 ```rust
 // Good: Explicit configuration
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html
 let server = ScimServerBuilder::new(provider)
     .with_base_url("https://api.company.com")
     .with_tenant_strategy(TenantStrategy::PathBased)
@@ -386,31 +414,34 @@ let server = ScimServer::new(provider)?; // Uses localhost defaults
 
 ### 2. Register All Required Operations
 
-Be explicit about supported operations:
+Be explicit about supported operations using [`register_resource_type`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type):
 
 ```rust
 // Good: Explicit operation support
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type
 server.register_resource_type(
     "User",
     user_handler,
     vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update]
 )?;
 
-// Avoid: Supporting all operations by default
-// Some providers may not support all operations efficiently
+// Avoid: Registering unsupported operations
+server.register_resource_type("User", user_handler, vec![ScimOperation::Patch])?; // Not implemented
 ```
 
 ### 3. Handle Multi-Tenancy Consistently
 
-Choose a tenant strategy and use it consistently:
+Choose a [`TenantStrategy`](https://docs.rs/scim-server/latest/scim_server/enum.TenantStrategy.html) and use it consistently:
 
 ```rust
 // Good: Consistent tenant strategy
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html#method.with_tenant_strategy
 let server = ScimServerBuilder::new(provider)
     .with_tenant_strategy(TenantStrategy::PathBased)
     .build()?;
 
 // All operations automatically handle tenant isolation
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.create_resource
 let user = server.create_resource("User", data, &tenant_context).await?;
 
 // Avoid: Manual tenant handling
@@ -419,13 +450,15 @@ let user = server.create_resource("User", data, &tenant_context).await?;
 
 ### 4. Leverage Schema Validation
 
-Trust the automatic schema validation:
+Trust the automatic [schema validation](https://docs.rs/scim-server/latest/scim_server/schema/index.html):
 
 ```rust
 // Good: Let server validate automatically
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.create_resource
 let result = server.create_resource("User", user_data, &context).await;
 match result {
     Ok(user) => process_user(user),
+    // See: https://docs.rs/scim-server/latest/scim_server/enum.ScimError.html#variant.SchemaValidation
     Err(ScimError::SchemaValidation { message, .. }) => handle_validation_error(message),
     Err(e) => handle_other_error(e),
 }
@@ -436,13 +469,15 @@ match result {
 
 ### 5. Use Proper Error Handling
 
-Handle different error types appropriately:
+Handle different [`ScimError`](https://docs.rs/scim-server/latest/scim_server/enum.ScimError.html) types appropriately:
 
 ```rust
 // Good: Structured error handling
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_resource
 match server.get_resource("User", id, &context).await {
     Ok(Some(user)) => Ok(user),
     Ok(None) => Err(HttpError::NotFound),
+    // See: https://docs.rs/scim-server/latest/scim_server/enum.ScimError.html
     Err(ScimError::UnsupportedResourceType(_)) => Err(HttpError::BadRequest),
     Err(ScimError::ProviderError(_)) => Err(HttpError::InternalServerError),
     Err(e) => Err(HttpError::from(e)),
@@ -457,19 +492,20 @@ match server.get_resource("User", id, &context).await {
 ### Primary Use Cases
 
 1. **HTTP Server Implementation**: Building REST APIs that expose SCIM endpoints
-2. **Application Integration**: Embedding SCIM capabilities into existing applications
+2. **Application Integration**: Embedding SCIM capabilities into existing applications  
 3. **Identity Bridges**: Creating adapters between different identity systems
 4. **Testing Frameworks**: Building test harnesses for SCIM compliance
 5. **Custom Protocols**: Implementing SCIM over non-HTTP transports
+6. **[MCP Integration](../mcp-integration.md)**: Exposing SCIM operations to AI agents
 
 ### Implementation Strategies
 
 | Scenario | Approach | Complexity |
 |----------|----------|------------|
 | Simple REST API | Use with HTTP framework | Low |
-| Multi-tenant SaaS | Builder with tenant strategy | Medium |
-| Custom Resources | Runtime registration | Medium |
-| Protocol Bridge | Custom resource provider | High |
+| [Multi-tenant SaaS](./multi-tenant-architecture.md) | Builder with tenant strategy | Medium |
+| Custom Resources | [Runtime registration](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type) | Medium |
+| Protocol Bridge | [Custom resource provider](./resource-providers.md) | High |
 | Embedded Identity | Direct server integration | Medium |
 
 ## Comparison with Alternative Approaches
@@ -485,11 +521,14 @@ The SCIM Server provides the optimal balance of flexibility, compliance, and per
 
 ## Relationship to HTTP Layer
 
-While the SCIM Server handles protocol semantics, it's designed to work with any HTTP framework:
+While the [`ScimServer`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html) handles protocol semantics, it's designed to work with any HTTP framework:
 
 - **Framework Agnostic**: No dependencies on specific HTTP libraries
-- **Clean Separation**: HTTP concerns handled separately from SCIM logic
+- **Clean Separation**: HTTP concerns handled separately from SCIM logic  
 - **Easy Integration**: Simple async interface maps directly to HTTP handlers
 - **Standard Responses**: Returns structured data suitable for JSON serialization
+- **[Operation Handlers](./operation-handlers.md)**: Framework-agnostic bridge layer available
+
+For integration patterns and examples, see the [Operation Handlers guide](./operation-handlers.md) and the [examples directory](https://github.com/pukeko37/scim-server/tree/main/examples) in the repository.
 
 This design enables the SCIM Server to serve as the core for various deployment scenarios, from embedded applications to high-performance web services, while maintaining full SCIM 2.0 compliance and providing the flexibility needed for real-world identity management systems.

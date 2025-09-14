@@ -2,6 +2,8 @@
 
 The Multi-Tenant Architecture in SCIM Server provides complete isolation and management of identity resources across multiple customer organizations within a single deployment. It enables Software-as-a-Service (SaaS) providers to serve multiple tenants while ensuring strict data isolation, flexible URL generation, and tenant-specific configuration management.
 
+See the [Multi-Tenant API documentation](https://docs.rs/scim-server/latest/scim_server/multi_tenant/index.html) for complete details.
+
 ## Value Proposition
 
 The Multi-Tenant Architecture delivers comprehensive multi-tenancy capabilities:
@@ -35,12 +37,12 @@ Applied to All Layers:
 
 ### Core Components
 
-1. **TenantContext**: Complete tenant identity and permissions
-2. **RequestContext**: Tenant-aware request handling with automatic scoping
-3. **TenantResolver**: Authentication credential to tenant mapping
-4. **TenantStrategy**: Flexible URL generation patterns
-5. **MultiTenantProvider**: Storage-level tenant isolation helpers
-6. **ScimTenantConfiguration**: SCIM-specific tenant settings
+1. **[`TenantContext`](https://docs.rs/scim-server/latest/scim_server/struct.TenantContext.html)**: Complete tenant identity and permissions
+2. **[`RequestContext`](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html)**: Tenant-aware request handling with automatic scoping
+3. **[`TenantResolver`](https://docs.rs/scim-server/latest/scim_server/multi_tenant/trait.TenantResolver.html)**: Authentication credential to tenant mapping
+4. **[`TenantStrategy`](https://docs.rs/scim-server/latest/scim_server/enum.TenantStrategy.html)**: Flexible URL generation patterns
+5. **[Multi-Tenant Provider](https://docs.rs/scim-server/latest/scim_server/multi_tenant/index.html)**: Storage-level tenant isolation helpers
+6. **[`ScimTenantConfiguration`](https://docs.rs/scim-server/latest/scim_server/multi_tenant/struct.ScimTenantConfiguration.html)**: SCIM-specific tenant settings
 
 ## Use Cases
 

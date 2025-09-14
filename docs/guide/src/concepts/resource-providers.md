@@ -2,6 +2,8 @@
 
 Resource Providers form the business logic layer of the SCIM Server architecture, implementing SCIM protocol semantics while remaining agnostic to storage implementation details. They bridge the gap between HTTP requests and data persistence, handling validation, metadata management, concurrency control, and multi-tenancy.
 
+See the [ResourceProvider API documentation](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) for complete details.
+
 ## Value Proposition
 
 Resource Providers deliver several critical capabilities:
@@ -32,14 +34,14 @@ Storage Provider (Data Persistence)
 
 ### Key Components
 
-1. **ResourceProvider Trait**: Unified interface for all SCIM operations
-2. **StandardResourceProvider**: Production-ready implementation
-3. **Helper Traits**: Composable functionality for custom providers
-4. **Context Management**: Request scoping and tenant isolation
+1. **[`ResourceProvider` Trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html)**: Unified interface for all SCIM operations
+2. **[`StandardResourceProvider`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html)**: Production-ready implementation
+3. **[Helper Traits](https://docs.rs/scim-server/latest/scim_server/providers/index.html)**: Composable functionality for custom providers
+4. **[Context Management](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html)**: Request scoping and tenant isolation
 
 ## Core Interface
 
-The `ResourceProvider` trait defines the contract for SCIM operations:
+The [`ResourceProvider` trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) defines the contract for SCIM operations:
 
 ```rust
 pub trait ResourceProvider {

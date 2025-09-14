@@ -2,6 +2,8 @@
 
 This guide shows you how to set up a working Model Context Protocol (MCP) server that exposes your SCIM operations as discoverable tools for AI agents.
 
+See the [MCP Integration API documentation](https://docs.rs/scim-server/latest/scim_server/mcp_integration/index.html) for complete details.
+
 ## What is MCP Integration?
 
 The MCP integration allows AI agents to interact with your SCIM server through a standardized protocol. AI agents can discover available tools (like "create user" or "search users") and execute them with proper validation and error handling.
@@ -32,12 +34,12 @@ Create a minimal MCP server that exposes SCIM operations:
 
 ```rust
 use scim_server::{
-    mcp_integration::ScimMcpServer,
-    multi_tenant::ScimOperation,
-    providers::StandardResourceProvider,
-    resource_handlers::create_user_resource_handler,
-    scim_server::ScimServer,
-    storage::InMemoryStorage,
+    mcp_integration::ScimMcpServer,              // MCP server wrapper for SCIM
+    multi_tenant::ScimOperation,                 // Available SCIM operations
+    providers::StandardResourceProvider,        // Standard resource provider
+    resource_handlers::create_user_resource_handler,  // Schema-aware handlers
+    scim_server::ScimServer,                     // Core SCIM server
+    storage::InMemoryStorage,                    // Development storage
 };
 
 #[tokio::main]
@@ -46,7 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
 
     // Create SCIM server with in-memory storage
+    // See: https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html
     let storage = InMemoryStorage::new();
+    // See: https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html
     let provider = StandardResourceProvider::new(storage);
     let mut scim_server = ScimServer::new(provider)?;
 
@@ -110,9 +114,9 @@ For production use, you'll want a more comprehensive setup:
 
 ```rust
 use scim_server::{
-    mcp_integration::{McpServerInfo, ScimMcpServer},
-    multi_tenant::ScimOperation,
-    providers::StandardResourceProvider,
+    mcp_integration::{McpServerInfo, ScimMcpServer},    // MCP server wrapper
+    multi_tenant::ScimOperation,                        // SCIM operation types
+    providers::StandardResourceProvider,               // Standard provider
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
     scim_server::ScimServer,
     storage::InMemoryStorage,  // Replace with your database storage

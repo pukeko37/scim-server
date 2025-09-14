@@ -2,6 +2,8 @@
 
 Operation Handlers are the framework-agnostic bridge between transport layers and the SCIM Server core, providing structured request/response handling with built-in concurrency control and comprehensive error management. They abstract SCIM operations into a transport-neutral interface that can be used with HTTP frameworks, MCP protocols, CLI tools, or any other integration pattern.
 
+See the [Operation Handler API documentation](https://docs.rs/scim-server/latest/scim_server/operation_handler/index.html) for complete details.
+
 ## Value Proposition
 
 Operation Handlers deliver critical integration capabilities:
@@ -35,10 +37,10 @@ Resource Providers & Storage
 
 ### Core Components
 
-1. **ScimOperationHandler**: Main dispatcher for all SCIM operations
-2. **ScimOperationRequest**: Structured request wrapper with validation
-3. **ScimOperationResponse**: Consistent response format with metadata
-4. **OperationMetadata**: Version control, tracing, and operational data
+1. **[`ScimOperationHandler`](https://docs.rs/scim-server/latest/scim_server/operation_handler/struct.ScimOperationHandler.html)**: Main dispatcher for all SCIM operations
+2. **[`ScimOperationRequest`](https://docs.rs/scim-server/latest/scim_server/operation_handler/struct.ScimOperationRequest.html)**: Structured request wrapper with validation
+3. **[`ScimOperationResponse`](https://docs.rs/scim-server/latest/scim_server/operation_handler/struct.ScimOperationResponse.html)**: Consistent response format with metadata
+4. **[`OperationMetadata`](https://docs.rs/scim-server/latest/scim_server/operation_handler/struct.OperationMetadata.html)**: Version control, tracing, and operational data
 5. **Builder Utilities**: Convenient construction helpers for requests
 
 ## Use Cases

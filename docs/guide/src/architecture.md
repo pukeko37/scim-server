@@ -31,18 +31,18 @@ The library is built around composable traits that you implement for your specif
 
 **Client Layer**: Your integration points - compose these components into web endpoints, AI tools, or custom applications.
 
-**SCIM Server**: Orchestration component that coordinates resource operations using your provider implementations.
+**[SCIM Server](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html)**: Orchestration component that coordinates resource operations using your provider implementations.
 
-**Resource Layer**: `ResourceProvider` trait - implement this interface for your data model, or use the provided `StandardResourceProvider` for common scenarios.
+**Resource Layer**: [`ResourceProvider` trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) - implement this interface for your data model, or use the provided [`StandardResourceProvider`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html) for common scenarios.
 
-**Schema System**: Schema registry and validation components - extend with custom schemas and value objects.
+**Schema System**: [Schema registry](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html) and validation components - extend with custom schemas and value objects.
 
-**Storage Layer**: `StorageProvider` trait - use the provided `InMemoryStorage` for development, or connect to any database or custom backend.
+**Storage Layer**: [`StorageProvider` trait](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html) - use the provided [`InMemoryStorage`](https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html) for development, or connect to any database or custom backend.
 
 ## Core Traits
 
 ### ResourceProvider
-Your main integration point for SCIM resource operations:
+Your main integration point for SCIM resource operations - see the [full API documentation](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html):
 
 ```rust
 pub trait ResourceProvider {
@@ -67,12 +67,12 @@ pub trait ResourceProvider {
 ```
 
 **Implementation Options:**
-- Use `StandardResourceProvider<S>` with any `StorageProvider` for typical use cases
+- Use [`StandardResourceProvider<S>`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html) with any [`StorageProvider`](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html) for typical use cases
 - Implement directly for custom business logic and data models
 - Wrap existing services or databases
 
 ### StorageProvider
-Pure data persistence abstraction:
+Pure data persistence abstraction - see the [full API documentation](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html):
 
 ```rust
 pub trait StorageProvider: Send + Sync {
@@ -86,12 +86,12 @@ pub trait StorageProvider: Send + Sync {
 ```
 
 **Implementation Options:**
-- Use `InMemoryStorage` for development and testing
+- Use [`InMemoryStorage`](https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html) for development and testing
 - Implement for your database (PostgreSQL, MongoDB, etc.)
 - Connect to cloud storage or external APIs
 
 ### Value Objects
-Type-safe SCIM attribute handling:
+Type-safe SCIM attribute handling - see the [schema documentation](https://docs.rs/scim-server/latest/scim_server/schema/index.html):
 
 ```rust
 pub trait ValueObject: Debug + Send + Sync {
@@ -120,7 +120,7 @@ pub trait SchemaConstructible: ValueObject + Sized {
 The library provides several components for multi-tenant systems:
 
 ### TenantResolver
-Maps authentication credentials to tenant context:
+Maps authentication credentials to tenant context - see the [multi-tenant API documentation](https://docs.rs/scim-server/latest/scim_server/multi_tenant/trait.TenantResolver.html):
 
 ```rust
 pub trait TenantResolver: Send + Sync {
@@ -131,7 +131,7 @@ pub trait TenantResolver: Send + Sync {
 ```
 
 ### RequestContext
-Carries tenant and request information through all operations:
+Carries tenant and request information through all operations - see the [RequestContext API](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html):
 
 ```rust
 pub struct RequestContext {
@@ -141,14 +141,14 @@ pub struct RequestContext {
 ```
 
 ### Tenant Isolation
-- All `ResourceProvider` operations include `RequestContext`
+- All [`ResourceProvider`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) operations include [`RequestContext`](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html)
 - Storage keys automatically include tenant ID
 - Schema validation respects tenant-specific extensions
 
 ## Schema System Architecture
 
 ### SchemaRegistry
-Central registry for SCIM schemas:
+Central registry for SCIM schemas - see the [SchemaRegistry API](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html):
 
 - Loads and validates RFC 7643 core schemas
 - Supports custom schema extensions
@@ -175,7 +175,7 @@ Built into the core architecture:
 - Production-ready optimistic locking
 
 ### Version-Aware Operations
-All resource operations support conditional execution:
+All resource operations support conditional execution - see the [Resource API](https://docs.rs/scim-server/latest/scim_server/struct.Resource.html):
 
 ```rust
 // Conditional update with version check
@@ -199,12 +199,12 @@ match result {
 Components work with any HTTP framework:
 
 1. Extract SCIM request details
-2. Create `RequestContext` with tenant info
-3. Call appropriate `ScimServer` operations
+2. Create [`RequestContext`](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html) with tenant info
+3. Call appropriate [`ScimServer`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html) operations
 4. Format responses per SCIM specification
 
 ### AI Agent Integration
-Model Context Protocol (MCP) components:
+[Model Context Protocol (MCP) components](https://docs.rs/scim-server/latest/scim_server/mcp_integration/index.html):
 
 1. Expose SCIM operations as discoverable tools
 2. Structured schemas for AI understanding
@@ -214,9 +214,9 @@ Model Context Protocol (MCP) components:
 ### Custom Client Integration
 Direct component usage:
 
-1. Implement `ResourceProvider` for your data model
-2. Choose appropriate `StorageProvider`
-3. Configure schema extensions as needed
+1. Implement [`ResourceProvider`](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) for your data model
+2. Choose appropriate [`StorageProvider`](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html)
+3. Configure [schema extensions](./concepts/schema-mechanisms.md) as needed
 4. Build custom API layer or integration logic
 
 ## Performance Considerations

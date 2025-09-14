@@ -25,21 +25,21 @@ The library uses the SCIM 2.0 protocol as a framework to standardize identity da
 ## What You Get
 
 ### Ready-to-Use Components
-- **`StandardResourceProvider`**: Complete SCIM resource operations for typical use cases
-- **`InMemoryStorage`**: Development and testing storage backend
-- **Schema Registry**: Pre-loaded with RFC 7643 User and Group schemas
+- **[`StandardResourceProvider`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html)**: Complete SCIM resource operations for typical use cases
+- **[`InMemoryStorage`](https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html)**: Development and testing storage backend
+- **[Schema Registry](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html)**: Pre-loaded with RFC 7643 User and Group schemas
 - **ETag Versioning**: Automatic concurrency control for production deployments
 
 ### Extension Points
-- **`ResourceProvider` trait**: Implement for custom business logic and data models
-- **`StorageProvider` trait**: Connect to any database or storage system
+- **[`ResourceProvider` trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html)**: Implement for custom business logic and data models
+- **[`StorageProvider` trait](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html)**: Connect to any database or storage system
 - **Custom Value Objects**: Type-safe handling of domain-specific attributes
-- **Multi-Tenant Context**: Built-in tenant isolation and context management
+- **[Multi-Tenant Context](https://docs.rs/scim-server/latest/scim_server/struct.TenantContext.html)**: Built-in tenant isolation and context management
 
 ### Enterprise Features
 - **Protocol Compliance**: All the RFC 7643/7644 complexity handled correctly
-- **Schema Extensions**: Add custom attributes while maintaining SCIM compatibility
-- **AI Integration**: Model Context Protocol support for AI agent interactions
+- **[Schema Extensions](https://docs.rs/scim-server/latest/scim_server/schema/index.html)**: Add custom attributes while maintaining SCIM compatibility
+- **[AI Integration](https://docs.rs/scim-server/latest/scim_server/mcp_integration/index.html)**: Model Context Protocol support for AI agent interactions
 - **Production Ready**: Structured logging, error handling, and performance optimizations
 
 ## Time & Cost Savings
@@ -83,23 +83,23 @@ The guide is organized into progressive sections:
 
 **Ready to code?** Jump to [Your First SCIM Server](./getting-started/first-server.md) for hands-on experience.
 
-**Building production systems?** Read through [Installation](./getting-started/installation.md) and the examples in the GitHub repository.
+**Building production systems?** Read through [Installation](./getting-started/installation.md) and the [Configuration Guide](./getting-started/configuration.md).
 
 ## What You'll Learn
 
 By the end of this guide, you'll understand how to:
 
 - Compose SCIM Server components for your specific requirements
-- Implement the ResourceProvider trait for your application's data model
-- Create custom schema extensions and value objects
-- Build multi-tenant systems using the provided context components
-- Integrate SCIM components with web frameworks and AI tools
-- Deploy production systems using the concurrency and observability components
+- Implement the [`ResourceProvider` trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html) for your application's data model
+- Create custom [schema extensions](./concepts/schema-mechanisms.md) and value objects
+- Build [multi-tenant systems](./concepts/multi-tenant-architecture.md) using the provided context components
+- Integrate SCIM components with web frameworks and [AI tools](./concepts/mcp-integration.md)
+- Deploy production systems using the [concurrency control](./concepts/concurrency.md) and observability components
 
 ## Getting Help
 
 - **Examples**: Check the [examples directory](https://github.com/pukeko37/scim-server/tree/main/examples) for working code
-- **API Documentation**: See [docs.rs](https://docs.rs/scim-server) for detailed API reference
+- **API Documentation**: See [docs.rs/scim-server](https://docs.rs/scim-server/latest/scim_server/) for detailed API reference
 - **Issues**: Report bugs or ask questions on [GitHub Issues](https://github.com/pukeko37/scim-server/issues)
 
 Let's get started! 🚀

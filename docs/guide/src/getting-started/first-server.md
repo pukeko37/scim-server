@@ -1,6 +1,6 @@
 # Your First SCIM Server
 
-Learn to build a working SCIM server in 10 minutes using this library.
+Learn to build a working SCIM server in 10 minutes using this library. This guide demonstrates the core [`ScimServer`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html) API and common patterns.
 
 ## Quick Start
 
@@ -21,12 +21,12 @@ serde_json = "1.0"
 ### 3. Basic Server (20 lines)
 ```rust
 use scim_server::{
-    ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource_handlers::create_user_resource_handler,
-    multi_tenant::ScimOperation,
-    RequestContext,
+    ScimServer,                                    // Core SCIM server orchestration
+    providers::StandardResourceProvider,          // Ready-to-use resource provider
+    storage::InMemoryStorage,                     // Development storage backend
+    resource_handlers::create_user_resource_handler,  // Schema-aware resource handlers
+    multi_tenant::ScimOperation,                  // Available SCIM operations
+    RequestContext,                               // Request tracking and tenant context
 };
 use serde_json::json;
 
@@ -71,18 +71,21 @@ For the following examples, we'll use this server and context setup:
 
 ```rust
 use scim_server::{
-    ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
+    ScimServer,                                    // Main SCIM server - see API docs
+    providers::StandardResourceProvider,          // Standard resource provider implementation
+    storage::InMemoryStorage,                     // In-memory storage for development
     resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    multi_tenant::ScimOperation,
-    RequestContext,
+    multi_tenant::ScimOperation,                  // SCIM operation types
+    RequestContext,                               // Request context for operations
 };
 use serde_json::json;
 
 // Create storage, provider, and SCIM server
+// See: https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html
 let storage = InMemoryStorage::new();
+// See: https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html
 let provider = StandardResourceProvider::new(storage);
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html
 let mut server = ScimServer::new(provider)?;
 
 // Register User and Group resource types with schema validation
@@ -213,12 +216,13 @@ println!("Created group: {}", group_json["displayName"]);
 println!("Member $ref: {}", group_json["members"][0]["$ref"]);  // Auto-generated!
 ```
 
-## Multi-Tenant Support
+### Multi-Tenant Support
 
-For multi-tenant scenarios, you create explicit tenant contexts instead of using the default single-tenant setup:
+For multi-tenant scenarios, you create explicit tenant contexts instead of using the default single-tenant setup. See the [Multi-Tenant Architecture guide](../concepts/multi-tenant-architecture.md) for detailed patterns.
 
 ```rust
 // Import TenantContext for multi-tenant operations
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html
 use scim_server::{ScimServerBuilder, TenantStrategy, multi_tenant::TenantContext};
 
 // Create multi-tenant server with proper configuration
@@ -235,6 +239,7 @@ let user_handler = create_user_resource_handler(user_schema);
 server.register_resource_type("User", user_handler, vec![ScimOperation::Create])?;
 
 // Multi-tenant contexts - each gets isolated data space
+// See: https://docs.rs/scim-server/latest/scim_server/struct.TenantContext.html
 let tenant_a = TenantContext::new("company-a".to_string(), "client-123".to_string());
 let tenant_a_context = RequestContext::with_tenant("req-a".to_string(), tenant_a);
 
@@ -258,10 +263,11 @@ println!("Company A users: {}", tenant_a_users.len());
 println!("Company B users: {}", tenant_b_users.len());
 ```
 
-## Provider Statistics
+## Server Information and Capabilities
 
 ```rust
 // Get server information and capabilities
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_server_info
 let server_info = server.get_server_info();
 println!("Supported resource types: {:?}", server_info.supported_resource_types);
 println!("SCIM version: {}", server_info.scim_version);
@@ -270,10 +276,10 @@ println!("Server capabilities: {:?}", server_info.capabilities);
 
 ## Next Steps
 
-- **[HTTP Server Integration](../http/overview.md)** - Add REST endpoints with Axum or Actix
-- **[Multi-tenant Setup](../multi-tenant/basics.md)** - Advanced tenant isolation and management
-- **[Advanced Features](../advanced/overview.md)** - Groups, custom schemas, bulk operations
-- **[Storage Backends](../storage/overview.md)** - PostgreSQL, SQLite, and custom storage
+- **[Configuration Guide](./configuration.md)** - Advanced server setup and storage backends
+- **[Multi-Tenant Architecture](../concepts/multi-tenant-architecture.md)** - Advanced tenant isolation and management
+- **[Resource Providers](../concepts/resource-providers.md)** - Custom business logic and data models
+- **[Storage Providers](../concepts/storage-providers.md)** - Database integration patterns
 
 ## Complete Examples
 
@@ -293,11 +299,11 @@ cargo run --example group_example
 
 ## Key Concepts
 
-- **`ScimServer`** - Main interface providing full SCIM 2.0 compliance
-- **`StandardResourceProvider`** - Storage abstraction layer
-- **`InMemoryStorage`** - Simple storage backend for development
-- **`RequestContext`** - Request tracking and tenant isolation
-- **Resource Handlers** - Schema validation and business logic
+- **[`ScimServer`](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html)** - Main interface providing full SCIM 2.0 compliance
+- **[`StandardResourceProvider`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html)** - Storage abstraction layer
+- **[`InMemoryStorage`](https://docs.rs/scim-server/latest/scim_server/storage/struct.InMemoryStorage.html)** - Simple storage backend for development
+- **[`RequestContext`](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html)** - Request tracking and tenant isolation
+- **[Resource Handlers](https://docs.rs/scim-server/latest/scim_server/resource_handlers/index.html)** - Schema validation and business logic
 - **Resource Types** - "User", "Group", or custom types registered with schemas
 - **JSON Data** - All resource data uses `serde_json::Value`
 - **Auto-generated Fields** - Server automatically adds `$ref`, `meta.location`, and other SCIM compliance fields

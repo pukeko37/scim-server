@@ -4,6 +4,8 @@ MCP (Model Context Protocol) Integration enables AI agents to perform identity m
 
 > **Note**: MCP Integration is available behind the `mcp` feature flag. Add `features = ["mcp"]` to your `Cargo.toml` dependency to enable this functionality.
 
+See the [MCP Integration API documentation](https://docs.rs/scim-server/latest/scim_server/mcp_integration/index.html) for complete details.
+
 ## Value Proposition
 
 MCP Integration delivers comprehensive AI-first identity management capabilities:
@@ -18,7 +20,7 @@ MCP Integration delivers comprehensive AI-first identity management capabilities
 
 ## Architecture Overview
 
-MCP Integration operates as an AI-agent bridge on top of the Operation Handler layer:
+MCP Integration operates as an AI-agent bridge on top of the [Operation Handler](./operation-handlers.md) layer:
 
 ```text
 AI Agent (Claude, GPT, Custom)
@@ -39,11 +41,11 @@ SCIM Server (Business Logic)
 
 ### Core Components
 
-1. **ScimMcpServer**: Main MCP server wrapper exposing SCIM operations as AI tools
-2. **Tool Schemas**: JSON Schema definitions for AI agent tool discovery
+1. **[`ScimMcpServer`](https://docs.rs/scim-server/latest/scim_server/mcp_integration/struct.ScimMcpServer.html)**: Main MCP server wrapper exposing SCIM operations as AI tools
+2. **[Tool Schemas](https://docs.rs/scim-server/latest/scim_server/mcp_integration/index.html#tool-schemas)**: JSON Schema definitions for AI agent tool discovery
 3. **Tool Handlers**: Execution logic for each exposed SCIM operation
 4. **Protocol Layer**: MCP JSON-RPC 2.0 protocol implementation
-5. **AI-Friendly Responses**: Structured results optimized for AI decision making
+5. **[`ScimToolResult`](https://docs.rs/scim-server/latest/scim_server/mcp_integration/enum.ScimToolResult.html)**: Structured results optimized for AI decision making
 
 ## Use Cases
 

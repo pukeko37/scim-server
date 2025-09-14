@@ -2,6 +2,8 @@
 
 SCIM (System for Cross-domain Identity Management) uses a sophisticated schema system to define how identity data is structured, validated, and extended across HTTP REST operations. This chapter explores the schema-centric aspects of SCIM and how they're implemented in the SCIM Server library.
 
+See the [Schema API documentation](https://docs.rs/scim-server/latest/scim_server/schema/index.html) for complete details.
+
 ## SCIM Protocol Background
 
 SCIM is defined by two key Internet Engineering Task Force (IETF) Request for Comments (RFC) specifications:

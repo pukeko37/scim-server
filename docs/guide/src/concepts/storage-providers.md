@@ -2,6 +2,8 @@
 
 Storage Providers form the data persistence layer of the SCIM Server architecture, providing a clean abstraction between SCIM protocol logic and data storage implementation. They handle pure data operations on JSON resources while remaining completely agnostic to SCIM semantics.
 
+See the [StorageProvider API documentation](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html) for complete details.
+
 ## Value Proposition
 
 Storage Providers deliver focused data persistence capabilities:
@@ -44,7 +46,7 @@ This design provides several benefits:
 
 ## Core Interface
 
-The `StorageProvider` trait defines the contract for data persistence:
+The [`StorageProvider` trait](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html) defines the contract for data persistence:
 
 ```rust
 pub trait StorageProvider: Send + Sync {

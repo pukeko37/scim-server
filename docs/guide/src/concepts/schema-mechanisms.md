@@ -2,11 +2,13 @@
 
 This chapter explores how the SCIM Server library implements the schema concepts defined in the SCIM protocol. While [Understanding SCIM Schemas](./schemas.md) covers the protocol specifications, this chapter focuses on the conceptual mechanisms that make schema processing practical and type-safe in Rust applications.
 
+See the [Schema API documentation](https://docs.rs/scim-server/latest/scim_server/schema/index.html) for complete details.
+
 The SCIM Server library transforms the abstract schema definitions from RFC 7643 into concrete, composable components that provide compile-time safety, runtime validation, and seamless integration with Rust's type system.
 
 ## Schema Registry
 
-The Schema Registry serves as the central schema management system within SCIM Server. It acts as a knowledge base that holds all schema definitions and provides validation services throughout the request lifecycle.
+The [Schema Registry](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html) serves as the central schema management system within SCIM Server. It acts as a knowledge base that holds all schema definitions and provides validation services throughout the request lifecycle.
 
 **Core Concept**: Rather than parsing schemas repeatedly or maintaining scattered validation logic, the Schema Registry centralizes all schema knowledge in a single, queryable component. It comes pre-loaded with RFC 7643 core schemas (User, Group, Enterprise User extension) and supports dynamic registration of custom schemas at runtime.
 
@@ -14,21 +16,21 @@ The registry operates as a validation oracle—when any component needs to under
 
 **Integration Points**: The registry integrates with every major operation—resource creation validates against registered schemas, query processing checks attribute names, and response formatting respects schema-defined visibility rules.
 
-*For detailed usage examples and API reference, see the [Schema Registry Guide](../advanced/schema-registry.md).*
+*For detailed API reference, see the [SchemaRegistry documentation](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html).*
 
 ## Value Objects
 
-Value Objects provide compile-time type safety for SCIM attributes by wrapping primitive values in domain-specific types. This mechanism prevents common errors like assigning invalid email addresses or constructing malformed names.
+[Value Objects](https://docs.rs/scim-server/latest/scim_server/schema/trait.ValueObject.html) provide compile-time type safety for SCIM attributes by wrapping primitive values in domain-specific types. This mechanism prevents common errors like assigning invalid email addresses or constructing malformed names.
 
 **Core Concept**: Instead of working with raw JSON values that can contain any data, Value Objects create typed wrappers that enforce validation at construction time. An `Email` value object can only be created with a valid email string, and a `UserName` can only contain characters that meet SCIM requirements.
 
 This approach leverages Rust's ownership system to make invalid states unrepresentable. Once you have a `DisplayName` value object, you know it contains valid display name data—no runtime checks needed. The type system becomes your validation mechanism.
 
-**Schema Integration**: Value objects understand their corresponding schema definitions. They know their attribute type, validation rules, and serialization requirements. When converting to JSON for API responses, they automatically apply schema-defined formatting and constraints.
+**Schema Integration**: Value objects understand their corresponding [schema definitions](https://docs.rs/scim-server/latest/scim_server/schema/struct.AttributeDefinition.html). They know their attribute type, validation rules, and serialization requirements. When converting to JSON for API responses, they automatically apply schema-defined formatting and constraints.
 
-**Extensibility**: The value object system supports both pre-built types for common SCIM attributes and custom value objects for organization-specific extensions. The factory pattern allows dynamic creation while maintaining type safety.
+**Extensibility**: The value object system supports both pre-built types for common SCIM attributes and custom value objects for organization-specific extensions. The [factory pattern](https://docs.rs/scim-server/latest/scim_server/schema/trait.SchemaConstructible.html) allows dynamic creation while maintaining type safety.
 
-*For implementation details and custom value object creation, see the [Value Objects Guide](../how-to/custom-value-objects.md).*
+*For implementation details, see the [ValueObject trait documentation](https://docs.rs/scim-server/latest/scim_server/schema/trait.ValueObject.html).*
 
 ## Dynamic Schema Construction
 
@@ -42,11 +44,11 @@ This mechanism uses a factory pattern where schema definitions drive object crea
 
 **Use Cases**: This enables multi-tenant systems where each tenant may have custom schemas, AI integration where schemas are discovered at runtime, and administrative tools that work with arbitrary SCIM resource types.
 
-*For advanced usage patterns and performance considerations, see the [Dynamic Construction Guide](../advanced/dynamic-schemas.md).*
+*For advanced usage patterns, see the [SchemaConstructible trait documentation](https://docs.rs/scim-server/latest/scim_server/schema/trait.SchemaConstructible.html).*
 
 ## Validation Pipeline
 
-The Validation Pipeline orchestrates multi-layered validation that progresses from basic syntax checking to complex business rule enforcement. This mechanism ensures that only valid, schema-compliant data enters your system.
+The [Validation Pipeline](https://docs.rs/scim-server/latest/scim_server/schema/index.html#validation) orchestrates multi-layered validation that progresses from basic syntax checking to complex business rule enforcement. This mechanism ensures that only valid, schema-compliant data enters your system.
 
 **Core Concept**: Rather than ad-hoc validation scattered throughout the codebase, the pipeline provides a structured, configurable validation process. Each layer builds on the previous one—syntax validation ensures basic JSON correctness, schema validation checks SCIM compliance, and business validation enforces organizational rules.
 

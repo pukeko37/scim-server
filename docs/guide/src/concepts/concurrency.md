@@ -2,6 +2,8 @@
 
 SCIM operations often involve multiple clients accessing and modifying the same identity resources simultaneously. Without proper concurrency control, this can lead to data corruption, lost updates, and inconsistent system state. This chapter explores how the SCIM Server library provides automatic concurrency protection through version-based optimistic locking.
 
+See the [Resource API documentation](https://docs.rs/scim-server/latest/scim_server/struct.Resource.html) and [concurrency control methods](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html#method.conditional_update) for complete details.
+
 ## The Concurrency Challenge
 
 Consider a common scenario: two HR administrators are simultaneously updating the same user record. Admin A is adding the user to a new department group, while Admin B is updating the user's job title. Without concurrency control, the last update wins—potentially causing one administrator's changes to be silently lost.

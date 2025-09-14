@@ -75,6 +75,8 @@ let storage = InMemoryStorage::new();
 
 **Custom storage example:**
 ```rust
+// Custom storage implementing StorageProvider trait
+// See: https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html
 struct DatabaseStorage {
     pool: sqlx::PgPool,
 }
@@ -94,13 +96,14 @@ impl StorageProvider for DatabaseStorage {
 **Purpose:** The resource provider acts as the business logic layer that implements SCIM 2.0 protocol semantics and organizational rules on top of the storage layer. It handles resource validation, enforces SCIM compliance, manages resource relationships (like group memberships), implements concurrency control through ETags, and provides tenant-aware operations. This layer transforms generic storage operations into SCIM-compliant resource management, ensuring that all operations follow the SCIM specification while allowing for custom business logic integration.
 
 **Default Option:**
-- `StandardResourceProvider::new(storage)` - Recommended for most use cases
+- [`StandardResourceProvider::new(storage)`](https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html) - Recommended for most use cases
 
 **Configuration:**
 
 ```rust
 use scim_server::providers::StandardResourceProvider;
 
+// See: https://docs.rs/scim-server/latest/scim_server/providers/struct.StandardResourceProvider.html
 let provider = StandardResourceProvider::new(storage);
 ```
 
@@ -112,6 +115,8 @@ let provider = StandardResourceProvider::new(storage);
 
 **Custom provider pattern:**
 ```rust
+// Custom provider implementing ResourceProvider trait
+// See: https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html
 struct EnterpriseProvider<S: StorageProvider> {
     standard: StandardResourceProvider<S>,
     ldap_client: LdapClient,
@@ -138,6 +143,7 @@ impl<S: StorageProvider> ResourceProvider for EnterpriseProvider<S> {
 ```rust
 use scim_server::ScimServer;
 
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html
 let server = ScimServer::new(provider)?;
 ```
 
@@ -145,6 +151,7 @@ let server = ScimServer::new(provider)?;
 ```rust
 use scim_server::{ScimServerBuilder, TenantStrategy};
 
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServerBuilder.html
 let server = ScimServerBuilder::new(provider)
     .with_base_url("https://api.company.com")
     .with_tenant_strategy(TenantStrategy::PathBased)
@@ -159,7 +166,7 @@ let server = ScimServerBuilder::new(provider)
   - `"http://localhost:8080"` - Development
   - `"mcp://scim"` - AI agent integration
 
-- **Tenant Strategy**: How tenant information appears in URLs
+- **[Tenant Strategy](https://docs.rs/scim-server/latest/scim_server/enum.TenantStrategy.html)**: How tenant information appears in URLs
   - `TenantStrategy::SingleTenant` - No tenant in URLs: `/v2/Users/123`
   - `TenantStrategy::Subdomain` - Subdomain: `https://tenant.api.com/v2/Users/123`
   - `TenantStrategy::PathBased` - Path: `/tenant/v2/Users/123`
@@ -171,16 +178,19 @@ let server = ScimServerBuilder::new(provider)
 **Purpose:** Resource type registration defines what types of resources your SCIM server can handle and which operations are supported for each type. This stage connects SCIM schemas (which define the structure and validation rules) with resource handlers (which provide the processing logic) and declares which SCIM operations (Create, Read, Update, Delete, List, Search) are available for each resource type. Without this registration, the SCIM server cannot process requests for specific resource types, making this a critical configuration step that determines your server's capabilities.
 
 **Process:**
-1. Get schema from server's built-in registry
-2. Create resource handler from schema
+1. Get schema from server's built-in [schema registry](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaRegistry.html)
+2. Create [resource handler](https://docs.rs/scim-server/latest/scim_server/resource_handlers/index.html) from schema
 3. Register with supported operations
 
 ```rust
 use scim_server::{resource_handlers::{create_user_resource_handler, create_group_resource_handler}, ScimOperation};
 
 // Register User resource type
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.get_schema_by_id
 let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?.clone();
+// See: https://docs.rs/scim-server/latest/scim_server/resource_handlers/fn.create_user_resource_handler.html
 let user_handler = create_user_resource_handler(user_schema);
+// See: https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html#method.register_resource_type
 server.register_resource_type("User", user_handler, vec![
     ScimOperation::Create,
     ScimOperation::Read,
@@ -191,6 +201,7 @@ server.register_resource_type("User", user_handler, vec![
 
 // Register Group resource type
 let group_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")?.clone();
+// See: https://docs.rs/scim-server/latest/scim_server/resource_handlers/fn.create_group_resource_handler.html
 let group_handler = create_group_resource_handler(group_schema);
 server.register_resource_type("Group", group_handler, vec![
     ScimOperation::Create,
@@ -207,7 +218,7 @@ Create custom schemas and handlers for organization-specific resources like Role
 
 ### Stage 5: Request Context Configuration
 
-**Purpose:** Request contexts provide essential tracking and tenant isolation capabilities for every SCIM operation. The RequestContext carries a unique request identifier for logging and debugging purposes, while the optional TenantContext provides tenant isolation in multi-tenant deployments. These contexts flow through every layer of the system, ensuring that operations are properly attributed, logged, and isolated to the correct tenant boundaries. The context system enables audit trails, tenant-specific customizations, and secure multi-tenant operations.
+**Purpose:** Request contexts provide essential tracking and tenant isolation capabilities for every SCIM operation. The [`RequestContext`](https://docs.rs/scim-server/latest/scim_server/struct.RequestContext.html) carries a unique request identifier for logging and debugging purposes, while the optional [`TenantContext`](https://docs.rs/scim-server/latest/scim_server/struct.TenantContext.html) provides tenant isolation in multi-tenant deployments. These contexts flow through every layer of the system, ensuring that operations are properly attributed, logged, and isolated to the correct tenant boundaries. The context system enables audit trails, tenant-specific customizations, and secure multi-tenant operations.
 
 **Context Types:**
 
@@ -417,13 +428,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Next Steps
 
-With your SCIM server configured, you'll need to:
+With your SCIM server configured, you can explore more advanced topics:
 
-1. **Request/Response Handlers** - Create HTTP route handlers for SCIM endpoints
-2. **Authentication Middleware** - Implement JWT, OAuth2, or API key validation
-3. **Error Handling** - Set up structured SCIM-compliant error responses
-4. **CORS and Security** - Configure cross-origin policies and security headers
-5. **Logging and Monitoring** - Set up request/response logging and metrics
-6. **Testing** - Create integration tests for your complete SCIM API
+- **[Multi-Tenant Architecture](../concepts/multi-tenant-architecture.md)** - Set up tenant isolation and management
+- **[Operation Handlers](../concepts/operation-handlers.md)** - Framework-agnostic request/response handling
+- **[MCP Integration](../concepts/mcp-integration.md)** - AI agent support and tool discovery
+- **[Schema Extensions](../concepts/schema-mechanisms.md)** - Custom attributes and validation
+- **[Concurrency Control](../concepts/concurrency.md)** - Version management and conflict resolution
+- **[Storage Providers](../concepts/storage-providers.md)** - Database integration patterns
 
-See the [examples directory](https://github.com/pukeko37/scim-server/tree/main/examples) for complete integration examples with popular web frameworks.
+For complete working examples, see the [examples directory](https://github.com/pukeko37/scim-server/tree/main/examples) in the repository.
+
+### API Reference
+
+For detailed API documentation, see:
+- **[ScimServer API](https://docs.rs/scim-server/latest/scim_server/struct.ScimServer.html)** - Main server interface
+- **[ResourceProvider trait](https://docs.rs/scim-server/latest/scim_server/trait.ResourceProvider.html)** - Business logic interface
+- **[StorageProvider trait](https://docs.rs/scim-server/latest/scim_server/storage/trait.StorageProvider.html)** - Data persistence interface
+- **[Complete API docs](https://docs.rs/scim-server/latest/scim_server/)** - Full library documentation
