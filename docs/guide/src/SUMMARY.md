@@ -1,6 +1,8 @@
-# Summary
+# Introduction
 
-[Introduction](./introduction.md)
+- [Why You Need SCIM Server](./why-scim-server.md)
+- [Library Introduction](./library-features.md)
+- [How to Use This Guide](./how-to-use-this-guide.md)
 
 # Getting Started
 
