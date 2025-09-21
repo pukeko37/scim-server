@@ -32,3 +32,6 @@ doc-testing/
 # Reference notes (internal use only)
 ReferenceNotes/
 scim_data/
+
+# Generated documentation (built by GitHub Actions)
+docs/guide/book/

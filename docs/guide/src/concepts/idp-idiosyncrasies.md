@@ -91,6 +91,8 @@ Group management approaches vary dramatically across providers:
 - **Membership Synchronization**: Timing issues between user and group operations
 - **Group Fragmentation**: Partial updates leading to inconsistent group states
 
+These variations highlight the importance of understanding [Referential Integrity](./referential-integrity.md) principles when working with different IdP implementations.
+
 ```rust
 // Example: Provider-specific group deletion logic
 async fn delete_group(&self, group_id: &str, provider: &IdpProvider) -> Result<()> {

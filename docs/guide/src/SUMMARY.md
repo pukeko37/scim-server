@@ -27,6 +27,7 @@
 - [Schema Mechanisms in SCIM Server](./concepts/schema-mechanisms.md)
 - [Concurrency Control in SCIM Operations](./concepts/concurrency.md)
 - [Multi-Tenant Architecture](./concepts/multi-tenant-architecture.md)
+- [Referential Integrity](./concepts/referential-integrity.md)
 - [Identity Provider Idiosyncrasies](./concepts/idp-idiosyncrasies.md)
 
 # Advanced Topics

@@ -37,7 +37,7 @@ The following attributes use type-safe value objects with compile-time validatio
 
 - **Resource Identity**: [`ResourceId`](https://docs.rs/scim-server/latest/scim_server/resource/struct.ResourceId.html), [`ExternalId`](https://docs.rs/scim-server/latest/scim_server/resource/struct.ExternalId.html), [`SchemaUri`](https://docs.rs/scim-server/latest/scim_server/schema/struct.SchemaUri.html)
 - **User Attributes**: [`UserName`](https://docs.rs/scim-server/latest/scim_server/resource/struct.UserName.html), [`Name`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Name.html), [`EmailAddress`](https://docs.rs/scim-server/latest/scim_server/resource/struct.EmailAddress.html), [`PhoneNumber`](https://docs.rs/scim-server/latest/scim_server/resource/struct.PhoneNumber.html), [`Address`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Address.html)
-- **Group Attributes**: [`GroupMembers`](https://docs.rs/scim-server/latest/scim_server/resource/struct.GroupMembers.html)
+- **Group Attributes**: [`GroupMembers`](https://docs.rs/scim-server/latest/scim_server/resource/struct.GroupMembers.html) (see [Referential Integrity](./referential-integrity.md) for relationship management)
 - **Metadata**: [`Meta`](https://docs.rs/scim-server/latest/scim_server/resource/struct.Meta.html) (timestamps, versions, resource type)
 
 ### Extended Attributes

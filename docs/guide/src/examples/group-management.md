@@ -32,6 +32,7 @@ This example builds on several key architectural concepts:
 - **[Schema Validation](../concepts/schemas.md)** - Group schema enforcement and compliance
 - **[Resource Providers](../concepts/resource-providers.md)** - Group-specific business logic
 - **[SCIM Server](../concepts/scim-server.md)** - Orchestrating group operations
+- **[Referential Integrity](../concepts/referential-integrity.md)** - Understanding client responsibility for data consistency
 
 ## Perfect For Understanding
 
