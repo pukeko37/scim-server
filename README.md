@@ -12,17 +12,12 @@ A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisi
 
 | | |
 |---|---|
-| **Current Version** | `0.5.2` |
-| **Latest Changes** | Enhanced documentation with comprehensive API reference integration and 11+ detailed examples |
-| **Stability** | Pre-1.0 development. Minor version increments indicate breaking changes. Pin to exact versions (`scim-server = "=0.5.2"`) for production use |
+| **Current Version** | `0.5.3` |
+| **Latest Changes** | Major documentation expansion with Architecture Deep Dives, concept guides, and streamlined README |
+| **Stability** | Pre-1.0 development. Minor version increments indicate breaking changes. Pin to exact versions (`scim-server = "=0.5.3"`) for production use |
 | **Breaking Changes** | Minor version increments signal breaking changes until v1.0. See [CHANGELOG](CHANGELOG.md) for migration guides |
 
 ## Quick Start
-
-```toml
-[dependencies]
-scim-server = "=0.5.2"
-```
 
 Get up and running in minutes with our [Getting Started Guide](https://pukeko37.github.io/scim-server/getting-started/installation.html).
 
@@ -70,18 +65,7 @@ Browse our [examples directory](examples/) for complete implementations:
 - **[AI Integration](examples/mcp_server_example.rs)** - MCP server for AI agents
 - **[Authentication](examples/compile_time_auth_example.rs)** - Type-safe auth patterns
 
-## Storage Backends
 
-SCIM Server works with any storage backend through the `ResourceProvider` trait. Use the included `StandardResourceProvider` with pluggable storage, or implement your own provider for custom requirements.
-
-```rust
-// Quick example - see examples/ for complete implementations
-use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage};
-
-let storage = InMemoryStorage::new();
-let provider = StandardResourceProvider::new(storage);
-let server = ScimServer::new(provider)?;
-```
 
 ## Contributing
 

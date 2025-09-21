@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2025-01-26
+
+### Documentation
+- **README Refactoring**: Complete overhaul to concise library introduction and notice board format
+  - Reduced from 300+ to ~100 lines while maintaining essential information
+  - Added structured "Notice Board" section for version status, stability policy, and breaking change alerts
+  - Removed duplicate code examples in favor of links to comprehensive documentation
+  - Clear semver strategy communication for pre-1.0 development
+  - Streamlined learning path directing users to appropriate detailed resources
+- **Architecture Deep Dives**: Added comprehensive deep-dive documentation section covering:
+  - Request Lifecycle & Context Management
+  - Multi-Tenant Architecture Patterns
+  - Resource Provider Architecture
+  - Authentication & Authorization Strategies
+  - Schema System Architecture
+  - Storage & Persistence Patterns
+- **Concept Documentation Expansion**: Added detailed concept guides for:
+  - Referential Integrity patterns and implementation strategies
+  - Identity Provider Idiosyncrasies and compatibility considerations
+- **Example Documentation**: Added structured placeholder content for 6 example documentation files
+  - Clear indication of future content plans with topic outlines
+  - Consistent user experience across all placeholder examples
+  - Files now tracked in git with meaningful placeholder content
+- **Introduction Guide Updates**: Enhanced getting started experience with improved navigation and structure
+
+### Improved
+- **User Experience**: Significantly improved first impression and navigation for new users
+- **Documentation Maintenance**: Centralized version management and reduced content duplication
+- **Developer Guidance**: Comprehensive architecture documentation for advanced implementation patterns
+
 ## [0.5.2] - 2025-01-25
 
 ### Documentation
