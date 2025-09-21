@@ -172,7 +172,7 @@ trait IdpAdapter {
     async fn create_user(&self, user: ScimUser) -> Result<ScimUser>;
     async fn update_user(&self, id: &str, user: ScimUser) -> Result<ScimUser>;
     async fn delete_user(&self, id: &str) -> Result<()>;
-    
+
     // Provider-specific customization points
     fn normalize_attributes(&self, user: &mut ScimUser);
     fn handle_identifier_conflicts(&self, conflict: IdentifierConflict) -> Resolution;
@@ -208,7 +208,7 @@ The library's schema system supports provider-specific extensions and custom att
 ```rust
 // Handle provider-specific schema extensions
 let azure_extension = SchemaExtension::new()
-    .with_urn("urn:ietf:params:scim:schemas:extension:azure:2.0:User")
+    .with_urn("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User")
     .with_attributes(azure_custom_attributes);
 
 server_builder.add_schema_extension(azure_extension);
@@ -245,7 +245,7 @@ impl ResourceProvider for IdpAdaptedProvider {
     async fn create_user(&self, user: ScimUser, context: &RequestContext) -> Result<ScimUser> {
         // Apply IdP-specific preprocessing
         let adapted_user = self.adapt_for_provider(user, &self.idp_config)?;
-        
+
         // Use base provider with adapted data
         self.base_provider.create_user(adapted_user, context).await
     }
@@ -264,7 +264,7 @@ let operation_handler = OperationHandler::new()
 
 ### Future Roadmap: Comprehensive IdP Support
 
-Future versions of SCIM Server will provide users with a much more comprehensive approach to managing idiosyncrasies for the most common identity providers:
+Future versions of SCIM Server (to be implemented prior to the version 1.0.0 release), will provide users with a much more comprehensive approach to managing idiosyncrasies for the major identity providers:
 
 #### Provider Profiles
 Built-in profiles for major IdPs with pre-configured handling of known idiosyncrasies:
@@ -324,7 +324,7 @@ impl IdiosyncracyManager {
         // Load pre-configured rules for known providers
         Self::load_provider_profile(provider)
     }
-    
+
     pub async fn process_request<T>(&self, request: T, context: &RequestContext) -> Result<T> {
         // Apply all necessary transformations automatically
         self.attribute_mapper.transform(request, context)
@@ -358,7 +358,7 @@ impl ScimServer {
 The future enhancements will be designed to be backward compatible with existing custom implementations:
 
 1. **Gradual Adoption**: Existing custom logic can be gradually replaced with built-in provider profiles
-2. **Override Capability**: Built-in profiles can be customized or overridden for specific use cases  
+2. **Override Capability**: Built-in profiles can be customized or overridden for specific use cases
 3. **Fallback Support**: Custom implementations remain fully supported alongside built-in profiles
 4. **Configuration Migration**: Tools to migrate existing custom configurations to new provider profile format
 
@@ -380,7 +380,7 @@ Track idiosyncrasy impact in production:
 ## Future Considerations
 
 ### Industry Standardization Efforts
-- **SCIM 2.1 Developments**: Potential improvements to address common variations
+- **SCIM 2.1 Developments**: Potential improvements to address common variations. The development of SCIM 2.1 is ongoing with active drafts addressing protocol enhancements such as more complex filtering, better bulk operation support, and improved synchronization mechanisms. Industry and community efforts focus on expanding capabilities while maintaining interoperability, but no finalized SCIM 2.1 standard is yet published as of mid-2025.
 - **Provider Collaboration**: Working with IdPs to reduce unnecessary deviations
 - **Best Practice Guidelines**: Industry-wide adoption of consistent implementations
 
