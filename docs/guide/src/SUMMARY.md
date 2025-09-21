@@ -30,7 +30,14 @@
 - [Referential Integrity](./concepts/referential-integrity.md)
 - [Identity Provider Idiosyncrasies](./concepts/idp-idiosyncrasies.md)
 
-# Advanced Topics
+# Architecture Deep Dives
+
+- [Request Lifecycle & Context Management](./architecture-deep-dives/request-lifecycle.md)
+- [Multi-Tenant Architecture Patterns](./architecture-deep-dives/multi-tenant-patterns.md)
+- [Resource Provider Architecture](./architecture-deep-dives/resource-provider-architecture.md)
+- [Authentication & Authorization Strategies](./architecture-deep-dives/authentication-strategies.md)
+- [Schema System Architecture](./architecture-deep-dives/schema-system-architecture.md)
+- [Storage & Persistence Patterns](./architecture-deep-dives/storage-patterns.md)
 
 # Examples
 
