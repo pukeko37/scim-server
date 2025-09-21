@@ -6,201 +6,90 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-blue.svg)](https://www.rust-lang.org)
 
-A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisioning simple, type-safe, and enterprise-ready.
+A comprehensive **SCIM 2.0 server library** for Rust that makes identity provisioning simple, type-safe, and enterprise-ready. SCIM (System for Cross-domain Identity Management) is the industry standard for automating user provisioning between identity providers and applications.
 
-**SCIM (System for Cross-domain Identity Management)** is the industry standard for automating user provisioning between identity providers and applications.
+## 📢 Notice Board
 
-> **Development Status**: This library is under active development. Pin to exact versions for stability: `scim-server = "=0.5.2"`. Breaking changes are signaled by minor version increments until v1.0.
-
-## 🚨 v0.5.0 Breaking Changes
-
-**Provider Interface Refactored**: Major simplification through helper traits with method renames:
-
-```rust
-// Before v0.5.0
-provider.conditional_update(resource_type, id, data, version, context).await?;
-provider.conditional_delete(resource_type, id, version, context).await?;
-
-// v0.5.0+ (current) 
-provider.conditional_update_resource(resource_type, id, data, version, context).await?;
-provider.conditional_delete_resource(resource_type, id, version, context).await?;
-```
-
-**Architecture Improvements**: `StandardResourceProvider` simplified by ~500 lines through helper trait composition while maintaining full functionality.
+| | |
+|---|---|
+| **Current Version** | `0.5.2` |
+| **Latest Changes** | Enhanced documentation with comprehensive API reference integration and 11+ detailed examples |
+| **Stability** | Pre-1.0 development. Minor version increments indicate breaking changes. Pin to exact versions (`scim-server = "=0.5.2"`) for production use |
+| **Breaking Changes** | Minor version increments signal breaking changes until v1.0. See [CHANGELOG](CHANGELOG.md) for migration guides |
 
 ## Quick Start
-
-Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 scim-server = "=0.5.2"
-tokio = { version = "1.0", features = ["full"] }
-serde_json = "1.0"
 ```
 
-Create a basic SCIM server:
-
-```rust
-use scim_server::{
-    ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    multi_tenant::ScimOperation,
-    RequestContext,
-};
-use serde_json::json;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create storage and provider
-    let storage = InMemoryStorage::new();
-    let provider = StandardResourceProvider::new(storage);
-    let mut server = ScimServer::new(provider)?;
-
-    // Register User resource type with schema validation
-    let user_schema = server
-        .get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")
-        .expect("User schema should exist").clone();
-    let user_handler = create_user_resource_handler(user_schema);
-    server.register_resource_type("User", user_handler,
-        vec![ScimOperation::Create, ScimOperation::Read])?;
-
-    // Create request context
-    let context = RequestContext::new("example-request-1".to_string());
-
-    // Create a user with full SCIM compliance
-    let user_data = json!({
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "john.doe",
-        "emails": [{"value": "john@example.com", "primary": true}]
-    });
-
-    let user_json = server.create_resource_with_refs("User", user_data, &context).await?;
-    println!("Created user: {}", user_json["userName"]);
-
-    Ok(())
-}
-```
+Get up and running in minutes with our [Getting Started Guide](https://pukeko37.github.io/scim-server/getting-started/installation.html).
 
 ## Key Features
 
 - **Type-Safe by Design** - Leverage Rust's type system to prevent runtime errors
-- **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants
+- **Multi-Tenant Ready** - Built-in support for multiple organizations/tenants  
 - **Full SCIM 2.0 Compliance** - Complete implementation of RFC 7643 and RFC 7644
-- **High Performance** - Async-first with minimal overhead
+- **High Performance** - Async-first architecture with minimal overhead
 - **Framework Agnostic** - Works with Axum, Warp, Actix, or any HTTP framework
-- **AI-Ready** - Built-in Model Context Protocol for AI tool integration
+- **AI-Ready** - Built-in Model Context Protocol (MCP) for AI tool integration
 - **ETag Concurrency Control** - Prevents lost updates in multi-client scenarios
-- **Comprehensive Documentation** - Detailed concept guides and integration examples
+- **Enterprise Grade** - Production-ready with comprehensive error handling and logging
 
-## Documentation
-
-**📚 New in v0.5.1**: Comprehensive concept documentation with 2,100+ lines covering:
-
-- **[Operation Handlers](https://docs.rs/scim-server/latest/scim_server/)** - Framework-agnostic integration for HTTP, MCP, CLI, and custom protocols
-- **[MCP Integration](https://docs.rs/scim-server/latest/scim_server/)** - AI-native interface with tool discovery for conversational identity management  
-- **[SCIM Server Architecture](https://docs.rs/scim-server/latest/scim_server/)** - Dynamic resource management with multi-tenant support
-- **[Multi-Tenant Patterns](https://docs.rs/scim-server/latest/scim_server/)** - Enterprise deployment strategies for SaaS and compliance scenarios
-
-## How It Works
-
-The SCIM Server acts as intelligent middleware that handles provisioning complexity:
+## Architecture
 
 **Client Applications** → **SCIM Server** → **Your Storage Backend**
 
-- **Clients**: Web apps, AI assistants, CLI tools, custom integrations
-- **SCIM Server**: Validation, schema management, multi-tenancy, concurrency control
-- **Storage**: In-memory, database, cloud, or custom providers
+The SCIM Server acts as intelligent middleware that handles provisioning complexity, validation, schema management, multi-tenancy, and concurrency control while you focus on your storage implementation.
 
 ## Documentation
 
 | Resource | Description |
 |----------|-------------|
-| [User Guide](https://pukeko37.github.io/scim-server/) | Comprehensive tutorials and concepts |
-| [API Documentation](https://docs.rs/scim-server/latest/scim_server/) | Detailed API reference with examples |
-| [Examples](examples/) | Copy-paste starting points for common use cases |
-| [CHANGELOG](CHANGELOG.md) | Version history and migration guides |
+| **[📚 User Guide](https://pukeko37.github.io/scim-server/)** | Comprehensive tutorials, concepts, and integration patterns |
+| **[🔧 API Reference](https://docs.rs/scim-server/latest/scim_server/)** | Detailed API documentation with examples |
+| **[💡 Examples](examples/)** | Ready-to-run code examples for common use cases |
+| **[📝 Changelog](CHANGELOG.md)** | Version history and migration guides |
 
 ### Learning Path
 
-1. **Start Here**: Follow the Quick Start above
-2. **Learn Concepts**: Read the [User Guide](https://pukeko37.github.io/scim-server/)
-3. **See Examples**: Browse [examples/](examples/) for your use case
-4. **API Reference**: Check [docs.rs](https://docs.rs/scim-server/latest/scim_server/) for detailed API docs
+1. **[Installation](https://pukeko37.github.io/scim-server/getting-started/installation.html)** - Get started in minutes
+2. **[Your First SCIM Server](https://pukeko37.github.io/scim-server/getting-started/first-server.html)** - Build a basic server
+3. **[Core Concepts](https://pukeko37.github.io/scim-server/concepts/operation-handlers.html)** - Understand the architecture
+4. **[Examples](examples/)** - Explore real-world implementations
 
 ## Common Use Cases
 
-```rust
-use scim_server::{
-    ScimServer, ScimServerBuilder, TenantStrategy,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource_handlers::{create_user_resource_handler, create_group_resource_handler},
-    multi_tenant::ScimOperation,
-};
+Browse our [examples directory](examples/) for complete implementations:
 
-// Multi-tenant server with proper configuration
-let storage = InMemoryStorage::new();
-let provider = StandardResourceProvider::new(storage);
-let mut server = ScimServerBuilder::new(provider)
-    .with_base_url("https://api.company.com")
-    .with_tenant_strategy(TenantStrategy::PathBased)
-    .build()?;
-
-// Register User and Group resource types
-let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
-let user_handler = create_user_resource_handler(user_schema.clone());
-server.register_resource_type("User", user_handler,
-    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update])?;
-
-let group_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:Group")?;
-let group_handler = create_group_resource_handler(group_schema.clone());
-server.register_resource_type("Group", group_handler,
-    vec![ScimOperation::Create, ScimOperation::Read])?;
-
-// Web framework integration (Axum example)
-let app = Router::new()
-    .route("/scim/v2/Users", post(create_user))
-    .layer(Extension(server));
-```
-
-See [examples/](examples/) for complete working examples including:
-- Basic CRUD operations with `StandardResourceProvider`
-- Multi-tenant setups
-- Web framework integrations
-- Authentication patterns
-- ETag concurrency control
-- AI assistant integration
+- **[Basic Usage](examples/basic_usage.rs)** - Simple CRUD operations
+- **[Multi-Tenant](examples/multi_tenant_example.rs)** - Enterprise tenant isolation
+- **[Group Management](examples/group_example.rs)** - Managing groups and membership
+- **[ETag Concurrency](examples/etag_concurrency_example.rs)** - Preventing lost updates
+- **[AI Integration](examples/mcp_server_example.rs)** - MCP server for AI agents
+- **[Authentication](examples/compile_time_auth_example.rs)** - Type-safe auth patterns
 
 ## Storage Backends
 
-The recommended approach is to use `ScimServer` with `StandardResourceProvider` and pluggable storage:
+SCIM Server works with any storage backend through the `ResourceProvider` trait. Use the included `StandardResourceProvider` with pluggable storage, or implement your own provider for custom requirements.
 
 ```rust
-use scim_server::{
-    ScimServer,
-    providers::StandardResourceProvider,
-    storage::InMemoryStorage,
-    resource_handlers::{create_user_resource_handler},
-    multi_tenant::ScimOperation,
-};
+// Quick example - see examples/ for complete implementations
+use scim_server::{ScimServer, providers::StandardResourceProvider, storage::InMemoryStorage};
 
 let storage = InMemoryStorage::new();
 let provider = StandardResourceProvider::new(storage);
-let mut server = ScimServer::new(provider)?;
-
-// Register resource types for full SCIM compliance
-let user_schema = server.get_schema_by_id("urn:ietf:params:scim:schemas:core:2.0:User")?;
-let user_handler = create_user_resource_handler(user_schema.clone());
-server.register_resource_type("User", user_handler,
-    vec![ScimOperation::Create, ScimOperation::Read, ScimOperation::Update])?;
+let server = ScimServer::new(provider)?;
 ```
 
 ## Contributing
 
-We welcome contributions! Please see our [User Guide](https://pukeko37.github.io/scim-server/) for development information, or [open an issue](https://github.com/pukeko37/scim-server/issues) to discuss your ideas.
+We welcome contributions! Please:
+
+1. Check existing [issues](https://github.com/pukeko37/scim-server/issues) or create a new one
+2. Read our [User Guide](https://pukeko37.github.io/scim-server/) for development information
+3. Follow our [examples](examples/) for code style and patterns
 
 ## License
 
